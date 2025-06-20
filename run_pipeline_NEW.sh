@@ -4,14 +4,12 @@
 set -e
 
 # Default values for the first script
-#INPUT_FOLDER="/mnt/data/HeLa GCaMP Ibidi experiment 9-20-23/Image series"
 INPUT_FOLDER="/mnt/data/pc3_naoh_channel1_30JAN25"
 CELLPROB="0.0"
 FLOWTHRESHOLD="0.4"
 DIAMETER="47"
 CORES="10"
-#SAVE_PATH="/mnt/data/HeLa GCaMP Ibidi experiment 9-20-23/Image series"
-SAVE_PATH="/mnt/data/pc3_naoh_channel1_30JAN25"
+SAVE_PATH="/mnt/exDisk1/douglashazel/DHcode/PE_Pipeline"
 PARTITIONS="15"
 
 # Function to display usage
@@ -44,7 +42,7 @@ while getopts "i:c:f:d:n:I:s:p:t:" opt; do
     esac
 done
 
-# # Step 1: Run Cellpose processing
+# # Step 0: Run Cellpose processing
 # echo "Running Cellpose..."
 # CELPOSE_CMD="python run_cellpose.py \"$INPUT_FOLDER\" --cellprob $CELLPROB --flowthreshold $FLOWTHRESHOLD --diameter $DIAMETER --cores $CORES"
 # echo "Command: $CELPOSE_CMD"
@@ -55,7 +53,7 @@ done
 # echo "Command: $ARR_TO_DICT_CMD"
 # eval $ARR_TO_DICT_CMD
 
-# # Step 2: Run infiltrate_mod with parallel processing
+# # Step 1: Run infiltrate_mod with parallel processing
 # echo "Running infiltrate_dynamic..."
 # for PART in $(seq 0 $((PARTITIONS - 1))); do
 #     ###INFILTRATE_MOD_CMD="python infiltrate_dynamic.py $PART $PARTITIONS --directory_path \"$INPUT_FOLDER\" --save_path \"$SAVE_PATH\""
@@ -65,6 +63,12 @@ done
 # done
 # wait
 
+# # Step 2: Run extract_bground
+# echo "Running extract_bground..."
+# EXTRACT_CMD="python extract_bground_NEW.py \"$INPUT_FOLDER\""
+# echo "Command: $EXTRACT_CMD"
+# eval $EXTRACT_CMD
+
 # Step 3: Run extract_dynamic
 echo "Running extract_dynamic..."
 for PART in $(seq 0 $((PARTITIONS - 1))); do
@@ -72,7 +76,7 @@ for PART in $(seq 0 $((PARTITIONS - 1))); do
     echo "Command: $EXTRACT_CMD"
     eval $EXTRACT_CMD &
 done
-wait
+# wait
 
 # # Step 4: Combine luminosity data
 # echo "Running combine_luminosity..."

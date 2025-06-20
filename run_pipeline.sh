@@ -1,62 +1,83 @@
 #!/bin/bash
-# Script to automate running a sequence of Python scripts for data processing
-# Exit on any error
+
+# Exit immediately if a command exits with a non-zero status
 set -e
 
-# Define script paths
-SETUP="APRIL_setup.py"
-MASK_COUNT="APRIL_mask_count.py"
-INFILTRATE="APRIL_infiltrate.py"
-EXTRACT_BGROUNDS="APRIL_extract_bgrounds.py"
-EXTRACT_CELLS="APRIL_extract_cells.py"
-EXTRACT_SPIKES="APRIL_extract_spikes.py"
-EXTRACT_FLASHES="APRIL_extract_flashes.py"
+# Default values for the first script
+#INPUT_FOLDER="/mnt/data/HeLa GCaMP Ibidi experiment 9-20-23/Image series"
+INPUT_FOLDER="/mnt/data/pc3_naoh_channel1_30JAN25"
+CELLPROB="0.0"
+FLOWTHRESHOLD="0.4"
+DIAMETER="47"
+CORES="10"
+#SAVE_PATH="/mnt/data/HeLa GCaMP Ibidi experiment 9-20-23/Image series"
+SAVE_PATH="/mnt/data/pc3_naoh_channel1_30JAN25"
+PARTITIONS="15"
 
-# Function to run a script and handle errors
-run_script() {
-    local script_name=$1
-    shift
-    echo "Started $script_name"
-    if ! python3 "$script_name" "$@"; then
-        echo "Error in $script_name, continuing..."
-    fi
-    echo
+# Function to display usage
+usage() {
+    echo "Usage: $0 [options]"
+    echo "Options for Cellpose:"
+    echo "  -i INPUT_FOLDER"
+    echo "  -c CELLPROB"
+    echo "  -f FLOWTHRESHOLD"
+    echo "  -d DIAMETER"
+    echo "  -n CORES"
+    echo ""
+    echo "Options for downstream processing:"
+    echo "  -p SAVE_PATH"
+    echo "  -t PARTITIONS"
+    exit 1
 }
 
-# 0: Setup experiment paths
-run_script "$SETUP"
+# Parse command-line arguments
+while getopts "i:c:f:d:n:I:s:p:t:" opt; do
+    case $opt in
+        i) INPUT_FOLDER="$OPTARG" ;;
+        c) CELLPROB="$OPTARG" ;;
+        f) FLOWTHRESHOLD="$OPTARG" ;;
+        d) DIAMETER="$OPTARG" ;;
+        n) CORES="$OPTARG" ;;
+        p) SAVE_PATH="$OPTARG" ;;
+        t) PARTITIONS="$OPTARG" ;;
+        *) usage ;;
+    esac
+done
 
-# 1: Count total cell masks
-run_script "$MASK_COUNT"
+# # Step 1: Run Cellpose processing
+# echo "Running Cellpose..."
+# CELPOSE_CMD="python run_cellpose.py \"$INPUT_FOLDER\" --cellprob $CELLPROB --flowthreshold $FLOWTHRESHOLD --diameter $DIAMETER --cores $CORES"
+# echo "Command: $CELPOSE_CMD"
+# eval $CELPOSE_CMD
 
-# 2: Track cell masks across frames
-# Extract movie list from parameters/setup.npy
-if [ -f "parameters/setup.npy" ]; then
-    # Use Python to extract movie list from setup.npy
-    movie_list=$(python3 -c "import numpy as np; params = np.load('parameters/setup.npy', allow_pickle=True).item(); print(' '.join(params.keys()))")
-    subprocess_num=2
-    for movie in $movie_list; do
-        echo "Started $INFILTRATE for $movie"
-        if ! python3 "$INFILTRATE" 0 "$subprocess_num" "$movie"; then
-            echo "Error in $INFILTRATE for $movie, continuing..."
-        fi
-        echo
-    done
-else
-    echo "Skip $INFILTRATE: setup.npy not found"
-    echo
-fi
+# echo "Running arr_to_dict..."
+# ARR_TO_DICT_CMD="python arr_to_dict.py \"$INPUT_FOLDER\""
+# echo "Command: $ARR_TO_DICT_CMD"
+# eval $ARR_TO_DICT_CMD
 
-# 3: Extract background luminosity
-run_script "$EXTRACT_BGROUNDS"
+# # Step 2: Run infiltrate_mod with parallel processing
+# echo "Running infiltrate_dynamic..."
+# for PART in $(seq 0 $((PARTITIONS - 1))); do
+#     ###INFILTRATE_MOD_CMD="python infiltrate_dynamic.py $PART $PARTITIONS --directory_path \"$INPUT_FOLDER\" --save_path \"$SAVE_PATH\""
+#     INFILTRATE_MOD_CMD="python dynamic_infiltrate_v2.py $PART $PARTITIONS --directory_path \"$INPUT_FOLDER\" --save_path \"$SAVE_PATH\"" # new line from Doug 6-9-25
+#     echo "Command: $INFILTRATE_MOD_CMD"
+#     eval $INFILTRATE_MOD_CMD &
+# done
+# wait
 
-# 4: Extract cell luminosity
-run_script "$EXTRACT_CELLS"
+# Step 3: Run extract_dynamic
+echo "Running extract_dynamic..."
+for PART in $(seq 0 $((PARTITIONS - 1))); do
+    EXTRACT_CMD="python extract_dynamic.py $PART $PARTITIONS \"$INPUT_FOLDER\""
+    echo "Command: $EXTRACT_CMD"
+    eval $EXTRACT_CMD &
+done
+wait
 
-# 5: Find spikes
-run_script "$EXTRACT_SPIKES"
+# # Step 4: Combine luminosity data
+# echo "Running combine_luminosity..."
+# COMBINE_CMD="python luminosity_vals.py --root_dir \"$SAVE_PATH\""
+# echo "Command: $COMBINE_CMD"
+# eval $COMBINE_CMD
 
-# 6: Find flashes
-run_script "$EXTRACT_FLASHES"
-
-echo "Pipeline completed"
+# echo "All steps completed successfully."

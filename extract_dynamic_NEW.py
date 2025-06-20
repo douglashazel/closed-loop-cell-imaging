@@ -44,8 +44,9 @@ def get_center(mask):
     center_x = (min_x + max_x) // 2
     return (center_x, center_y)
 
-def cellpose_pixels(mask, image_files, exp_path):
+def cellpose_pixels(mask, bground, image_files, exp_path):
     pixels = []
+    pixels_no_bground = []
     indices = np.where(mask)
     row_indices, column_indices = indices
     for frame in range(len(image_files)):
@@ -53,22 +54,27 @@ def cellpose_pixels(mask, image_files, exp_path):
             desired_frames = get_movie_frames(frame, frame+1, exp_path)
             this_frame = [desired_frames[0][row_indices[index]][column_indices[index]] for index in range(len(column_indices))]
             pixels.append(np.mean(this_frame))
+            pixels_no_bground.append(np.mean(this_frame) - np.mean(bground[frame]))
         except IndexError:
             print(f"Frame {frame} does not exist.")
-    return pixels
+    return pixels, pixels_no_bground
 
-def DOUG(mask, image_files, save_path, exp_path):
-    pixels = cellpose_pixels(mask, image_files, exp_path)
+def DOUG(mask, bground, image_files, save_path, exp_path):
+    pixels, pixels_no_bground = cellpose_pixels(mask, bground, image_files, exp_path)
     luminosity_vals = [(val - min(pixels)) / min(pixels) for val in pixels]
     os.makedirs(save_path, exist_ok=True)
     np.save(f'{save_path}/pixels.npy', pixels)
     np.save(f'{save_path}/luminosity_vals.npy', luminosity_vals)
+
+    np.save(f'{save_path}/pixels_no_bground.npy', pixels_no_bground)
 
     cell_center = get_center(mask)
     np.save(f'{save_path}/cell_center_xy.npy', cell_center)
 
 def process(part, partition, exp_dir):
     exp_path = os.path.abspath(exp_dir)
+    bground = np.load(f"analysis_results/Cell_0/pixels.npy", allow_pickle=True)
+
     image_files = sorted([f'{exp_path}/{f}' for f in os.listdir(exp_path) if f.endswith('.png')])
 
     cellpose_files = sorted([f'{exp_path}/{f}' for f in os.listdir(exp_path) if f.endswith('.npy')])
@@ -76,7 +82,7 @@ def process(part, partition, exp_dir):
     num_cells = np.max(segmentation_choice)
     cell_length = num_cells // partition
     start = cell_length * part
-    if start == 0:
+    if start == 0: # don't process background again
         start = 1
     end = cell_length * (part + 1)
     if end > num_cells:
@@ -84,8 +90,9 @@ def process(part, partition, exp_dir):
     for cell_num in tqdm(range(start, end), position=part, desc=f'Part {part}'):
         try:
             mask = (segmentation_choice == cell_num)
-            save_path = os.path.join(exp_path, f"analysis_results_v2/Cell_{cell_num}")
-            DOUG(mask, image_files, save_path, exp_path)
+            # save_path = os.path.join(exp_path, f"analysis_results_v2/Cell_{cell_num}")
+            save_path = f"analysis_results/Cell_{cell_num}"
+            DOUG(mask, bground, image_files, save_path, exp_path)
         except IndexError:
             print(f"Failed to extract data for Cell{cell_num}")
             continue
