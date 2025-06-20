@@ -91,8 +91,7 @@ def process(part, partition, exp_dir, frame_choice):
     for cell_num in tqdm(range(start, end), position=part, desc=f'Part {part}'):
         try:
             mask = (segmentation_choice == cell_num)
-            # save_path = os.path.join(exp_path, f"analysis_results_v2/Cell_{cell_num}")
-            save_path = f"analysis_results/Cell_{cell_num}"
+            save_path = os.path.join(exp_path, f"analysis_results_v2/Cell_{cell_num}")
             DOUG(mask, bground, image_files, save_path, exp_path)
         except IndexError:
             print(f"Failed to extract data for Cell{cell_num}")
@@ -109,7 +108,7 @@ def spawn(partitions, exp_dir):
 if __name__ == "__main__":
     args = sys.argv[1:]
     if len(args) == 0:
-        print("Usage: python extract_dynamic_NEW.py [part] [partitions] [exp_dir] [frame_choice]")
+        print("Usage: python extract_dynamic_JUNE20.py [part] [partitions] [exp_dir] [frame_choice]")
         sys.exit(1)
     elif len(args) == 1:
         partitions = int(args[0])

@@ -9,7 +9,7 @@ CELLPROB="0.0"
 FLOWTHRESHOLD="0.4"
 DIAMETER="47"
 CORES="10"
-SAVE_PATH="/mnt/exDisk1/douglashazel/DHcode/PE_Pipeline"
+SAVE_PATH="/mnt/data/pc3_naoh_channel1_30JAN25"
 PARTITIONS="15"
 FRAME_CHOICE="002"
 
@@ -65,26 +65,26 @@ done
 # done
 # wait
 
-# # Step 2: Run extract_bground
-# echo "Running extract_bground..."
-# EXTRACT_CMD="python extract_bground_NEW.py \"$INPUT_FOLDER\""
-# echo "Command: $EXTRACT_CMD"
-# eval $EXTRACT_CMD
+# Step 2: Run extract_bground
+echo "Running extract_bground..."
+EXTRACT_CMD="python extract_bground_JUNE20.py \"$INPUT_FOLDER\""
+echo "Command: $EXTRACT_CMD"
+eval $EXTRACT_CMD
 
-# # Step 3: Run extract_dynamic
-# echo "Running extract_dynamic..."
-# for PART in $(seq 0 $((PARTITIONS - 1))); do
-#     EXTRACT_CMD="python extract_dynamic_NEW.py $PART $PARTITIONS \"$INPUT_FOLDER\" \"$FRAME_CHOICE\""
-#     echo "Command: $EXTRACT_CMD"
-#     eval $EXTRACT_CMD &
-# done
-# wait
+# Step 3: Run extract_dynamic
+echo "Running extract_dynamic..."
+for PART in $(seq 0 $((PARTITIONS - 1))); do
+    EXTRACT_CMD="python extract_dynamic_JUNE20.py $PART $PARTITIONS \"$INPUT_FOLDER\" \"$FRAME_CHOICE\""
+    echo "Command: $EXTRACT_CMD"
+    eval $EXTRACT_CMD &
+done
+wait
 
-# # Step 4: Combine luminosity data
-# echo "Running combine_luminosity..."
-# COMBINE_CMD="python luminosity_vals.py --root_dir \"$SAVE_PATH\""
-# echo "Command: $COMBINE_CMD"
-# eval $COMBINE_CMD
+# Step 4: Combine luminosity data
+echo "Running combine_luminosity..."
+COMBINE_CMD="python luminosity_vals.py --root_dir \"$SAVE_PATH\""
+echo "Command: $COMBINE_CMD"
+eval $COMBINE_CMD
 
 # Step 5: Plot time series data
 echo "Running plot_data..."
@@ -92,4 +92,4 @@ PLOT_CMD="python plot_data_JUNE20.py --root_dir \"$SAVE_PATH\""
 echo "Command: $PLOT_CMD"
 eval $PLOT_CMD
 
-# echo "All steps completed successfully."
+echo "All steps completed successfully."
