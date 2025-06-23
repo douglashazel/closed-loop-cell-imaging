@@ -28,9 +28,6 @@ def process(pair_idx: int, partition: int, save_path: str, center_files: list, t
         print(f"Skipping pair {start_frame}-{end_frame}: start_frame={start_frame}, end_frame={end_frame}, len(center_files)={len(center_files)}")
         return
 
-    temp_dir = f"{save_path}/frame{start_frame}-{end_frame}_dir"
-    os.makedirs(temp_dir, exist_ok=True)
-
     try:
         curr_centers = np.load(f"{save_path}/cellpose_centers/{center_files[start_frame]}", allow_pickle=True)
         next_centers = np.load(f"{save_path}/cellpose_centers/{center_files[end_frame]}", allow_pickle=True)
@@ -57,7 +54,7 @@ def process(pair_idx: int, partition: int, save_path: str, center_files: list, t
 
         # Save to CSV
         df = pd.DataFrame(data, columns=columns)
-        df.to_csv(f"{temp_dir}/frame{start_frame}-{end_frame}.csv", index=False)
+        df.to_csv(f"{save_path}/frame{start_frame}-{end_frame}.csv", index=False)
 
     except Exception as e:
         print(f"Error processing frame pair {start_frame}-{end_frame}: {str(e)}")
@@ -66,16 +63,14 @@ def process(pair_idx: int, partition: int, save_path: str, center_files: list, t
 
 def stitch_frame_pairs(partition: int, save_path: str, center_files: list, total_frames: int, frame_pairs: list) -> None:
     """Stitch trajectories across all frame pairs into a single CSV."""
-    output_dir = f"{save_path}/processed_cells"
-    os.makedirs(output_dir, exist_ok=True)
 
     # Initialize with the first frame pair's trajectories
-    curr_dir = f"{save_path}/frame{frame_pairs[0][0]}-{frame_pairs[0][1]}_dir"
+    curr_dir = f"{save_path}/frame{frame_pairs[0][0]}-{frame_pairs[0][1]}.csv"
     if not os.path.exists(curr_dir):
         print(f"Skipping stitching: {curr_dir} does not exist")
         return
 
-    curr_df = pd.read_csv(f"{curr_dir}/frame{frame_pairs[0][0]}-{frame_pairs[0][1]}.csv")
+    curr_df = pd.read_csv(curr_dir)
     
     # Initialize the final DataFrame columns: CellID + x,y for each frame
     final_columns = ['CellID'] + [f'Frame{i}_{coord}' for i in range(total_frames) for coord in ['x', 'y']]
@@ -83,12 +78,12 @@ def stitch_frame_pairs(partition: int, save_path: str, center_files: list, total
 
     # Iterate through remaining frame pairs
     for pair_idx in range(1, len(frame_pairs)):
-        next_dir = f"{save_path}/frame{frame_pairs[pair_idx][0]}-{frame_pairs[pair_idx][1]}_dir"
+        next_dir = f"{save_path}/frame{frame_pairs[pair_idx][0]}-{frame_pairs[pair_idx][1]}.csv"
         if not os.path.exists(next_dir):
             print(f"Skipping stitching for pair {frame_pairs[pair_idx][0]}-{frame_pairs[pair_idx][1]}: {next_dir} does not exist")
             continue
 
-        next_df = pd.read_csv(f"{next_dir}/frame{frame_pairs[pair_idx][0]}-{frame_pairs[pair_idx][1]}.csv")
+        next_df = pd.read_csv(next_dir)
         next_centers = np.load(f"{save_path}/cellpose_centers/{center_files[frame_pairs[pair_idx][0]]}", allow_pickle=True)
         
         used_cell_ids = set()
@@ -130,7 +125,7 @@ def stitch_frame_pairs(partition: int, save_path: str, center_files: list, total
 
     # Save final trajectories to CSV
     final_df = pd.DataFrame(final_data, columns=final_columns)
-    final_df.to_csv(f"{output_dir}/trajectories.csv", index=False)
+    final_df.to_csv(f"{save_path}/trajectories.csv", index=False)
 
 def spawn(partition: int, save_path: str, center_files: list) -> None:
     """Spawn processes to handle frame pairs."""
@@ -193,4 +188,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-# python3 dynamic_infiltrate_v10.py 2 --directory_path "/mnt/data/pc3_naoh_channel1_30JAN25" --save_path "/mnt/exDisk1/douglashazel/DHcode/Clofilium_Pipeline/infiltrate_testing/Patrick_temp_dir_v10"
+# python3 dynamic_infiltrate_v10.py 2 --directory_path "/mnt/data/pc3_naoh_channel1_30JAN25" --save_path "/mnt/exDisk1/douglashazel/DHcode/PE_Pipeline/infiltrate_testing/Patrick_temp_dir_v10"
