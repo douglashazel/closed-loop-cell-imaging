@@ -135,7 +135,7 @@ def spawn(partition: int, save_path: str, center_files: list) -> None:
     print(f"Frame pairs: {frame_pairs}")
 
     with Pool(processes=partition) as pool:
-        pool.starmap(process, [(part, partition, save_path, center_files, total_frames, frame_pairs) for part in range(min(partition, len(frame_pairs)))])
+        pool.starmap(process, [(part, partition, save_path, center_files, total_frames, frame_pairs) for part in range(len(frame_pairs))])
     return frame_pairs
 
 def get_cell_centers(args: tuple[str, str, str]) -> None:
@@ -179,7 +179,7 @@ def main():
         with Pool(processes=num_processes) as pool:
             pool.map(get_cell_centers, [(file, args.directory_path, args.save_path) for file in cellpose_files])
 
-    center_files = sorted([f for f in os.listdir(f"{args.save_path}/cellpose_centers") if f.endswith('.npy')], key=extract_number)[:18]
+    center_files = sorted([f for f in os.listdir(f"{args.save_path}/cellpose_centers") if f.endswith('.npy')], key=extract_number)#[:18]
     total_frames = len(center_files)
 
     frame_pairs = spawn(args.partition, args.save_path, center_files)
