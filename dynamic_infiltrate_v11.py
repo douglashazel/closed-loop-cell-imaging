@@ -33,23 +33,22 @@ def process(pair_idx: int, partition: int, save_path: str, center_files: list, t
         next_centers = np.load(f"{save_path}/cellpose_centers/{center_files[end_frame]}", allow_pickle=True)
 
         # Initialize DataFrame for this frame pair
-        columns = ['CellID'] + [f'Frame{start_frame}_{coord}' for coord in ['x', 'y']] + \
-                  [f'Frame{end_frame}_{coord}' for coord in ['x', 'y']]
+        columns = ['CellID'] + [f'x{start_frame}', f'y{start_frame}', f'x{end_frame}', f'y{end_frame}']
         data = []
         
         for cell_num in tqdm(range(len(curr_centers)), desc="Tracking..."):
-            row = {'CellID': f'Cell{cell_num}'}
+            row = {'CellID': str(cell_num)}
             # Set centers for start frame
-            row[f'Frame{start_frame}_x'] = curr_centers[cell_num][0]
-            row[f'Frame{start_frame}_y'] = curr_centers[cell_num][1]
+            row[f'x{start_frame}'] = curr_centers[cell_num][0]
+            row[f'y{start_frame}'] = curr_centers[cell_num][1]
             # Set centers for end frame if matched
             status, cell_match = run_all(curr_centers[cell_num], next_centers)
             if status and cell_match is not None:
-                row[f'Frame{end_frame}_x'] = next_centers[cell_match][0]
-                row[f'Frame{end_frame}_y'] = next_centers[cell_match][1]
+                row[f'x{end_frame}'] = next_centers[cell_match][0]
+                row[f'y{end_frame}'] = next_centers[cell_match][1]
             else:
-                row[f'Frame{end_frame}_x'] = np.nan
-                row[f'Frame{end_frame}_y'] = np.nan
+                row[f'x{end_frame}'] = np.nan
+                row[f'y{end_frame}'] = np.nan
             data.append(row)
 
         # Save to CSV
@@ -73,7 +72,7 @@ def stitch_frame_pairs(partition: int, save_path: str, center_files: list, total
     curr_df = pd.read_csv(curr_dir)
     
     # Initialize the final DataFrame columns: CellID + x,y for each frame
-    final_columns = ['CellID'] + [f'Frame{i}_{coord}' for i in range(total_frames) for coord in ['x', 'y']]
+    final_columns = ['CellID'] + [f'{coord}{i}' for i in range(total_frames) for coord in ['x', 'y']]
     final_data = curr_df.to_dict('records')
 
     # Iterate through remaining frame pairs
@@ -91,33 +90,37 @@ def stitch_frame_pairs(partition: int, save_path: str, center_files: list, total
         for idx, row in tqdm(curr_df.iterrows(), total=len(curr_df), desc=f"Stitching pair {frame_pairs[pair_idx][0]}-{frame_pairs[pair_idx][1]}..."):
             # Find the last non-NaN frame in curr_df
             last_frame = frame_pairs[pair_idx - 1][1]  # Last frame of previous pair
-            last_center = [row[f'Frame{last_frame}_x'], row[f'Frame{last_frame}_y']]
+            last_center = [row[f'x{last_frame}'], row[f'y{last_frame}']]
             if np.isnan(last_center).any():
                 continue  # Skip if no valid center
 
             status, cell_match = run_all(last_center, next_centers)
             if status and cell_match is not None:
-                used_cell_ids.add(f'Cell{cell_match}')
+                used_cell_ids.add(str(cell_match))
                 # Copy centers from next_df to curr_df for this cell
-                next_row = next_df[next_df['CellID'] == f'Cell{cell_match}'].iloc[0]
+                next_df['CellID'] = next_df['CellID'].astype(str)
+                next_row = next_df[next_df['CellID'] == str(cell_match)]
+                if next_row.empty:
+                    continue  # skip if match not found
+                next_row = next_row.iloc[0]
                 for frame in [frame_pairs[pair_idx][0], frame_pairs[pair_idx][1]]:
-                    final_data[idx][f'Frame{frame}_x'] = next_row[f'Frame{frame}_x']
-                    final_data[idx][f'Frame{frame}_y'] = next_row[f'Frame{frame}_y']
+                    final_data[idx][f'x{frame}'] = next_row[f'x{frame}']
+                    final_data[idx][f'y{frame}'] = next_row[f'y{frame}']
 
         # Add unmatched cells from next_df with new CellIDs
-        max_cell_id = max([int(re.search(r'Cell(\d+)', row['CellID']).group(1)) for row in final_data], default=-1)
+        max_cell_id = max([int(row['CellID']) for row in final_data], default=-1)
         for _, row in next_df.iterrows():
             if row['CellID'] not in used_cell_ids:
                 max_cell_id += 1
-                new_row = {'CellID': f'Cell{max_cell_id}'}
+                new_row = {'CellID': str(max_cell_id)}
                 # Initialize all frames with NaN
                 for frame in range(total_frames):
-                    new_row[f'Frame{frame}_x'] = np.nan
-                    new_row[f'Frame{frame}_y'] = np.nan
+                    new_row[f'x{frame}'] = np.nan
+                    new_row[f'y{frame}'] = np.nan
                 # Copy centers for the current frame pair
                 for frame in [frame_pairs[pair_idx][0], frame_pairs[pair_idx][1]]:
-                    new_row[f'Frame{frame}_x'] = row[f'Frame{frame}_x']
-                    new_row[f'Frame{frame}_y'] = row[f'Frame{frame}_y']
+                    new_row[f'x{frame}'] = row[f'x{frame}']
+                    new_row[f'y{frame}'] = row[f'y{frame}']
                 final_data.append(new_row)
 
         # Update curr_df for the next iteration
