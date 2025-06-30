@@ -18,7 +18,7 @@ data_path = os.path.join(args.root_dir, "analysis_results")
 if not os.path.exists(data_path):
     raise FileNotFoundError(f"'analysis_results' folder not found in {args.root_dir}")
 
-cells = [c for c in os.listdir(data_path)]
+cells = [c for c in os.listdir(data_path) if os.path.isdir(os.path.join(data_path, c))]
 cmap = plt.cm.ocean
 
 fig, axes = plt.subplots(4, 1, dpi=300, figsize=(16, 20))
