@@ -65,20 +65,20 @@ done
 # done
 # wait
 
-# # Step 2: Run extract_bground
-# echo "Running extract_bground..."
-# EXTRACT_CMD="python extract_bground_NEW.py \"$INPUT_FOLDER\""
-# echo "Command: $EXTRACT_CMD"
-# eval $EXTRACT_CMD
+# Step 2: Run extract_bground
+echo "Running extract_bground..."
+EXTRACT_CMD="python extract_bground_NEW.py \"$INPUT_FOLDER\""
+echo "Command: $EXTRACT_CMD"
+eval $EXTRACT_CMD
 
-# # Step 3: Run extract_dynamic
-# echo "Running extract_dynamic..."
-# for PART in $(seq 0 $((PARTITIONS - 1))); do
-#     EXTRACT_CMD="python extract_dynamic_NEW.py $PART $PARTITIONS \"$INPUT_FOLDER\" \"$FRAME_CHOICE\""
-#     echo "Command: $EXTRACT_CMD"
-#     eval $EXTRACT_CMD &
-# done
-# wait
+# Step 3: Run extract_dynamic
+echo "Running extract_dynamic..."
+for PART in $(seq 0 $((PARTITIONS - 1))); do
+    EXTRACT_CMD="python extract_dynamic_NEW.py $PART $PARTITIONS \"$INPUT_FOLDER\" \"$FRAME_CHOICE\""
+    echo "Command: $EXTRACT_CMD"
+    eval $EXTRACT_CMD &
+done
+wait
 
 # # Step 4: Combine luminosity data
 # echo "Running combine_luminosity..."
