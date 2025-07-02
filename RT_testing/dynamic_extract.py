@@ -1,5 +1,6 @@
 import os
 import gc
+import re
 import sys
 import numpy as np
 import pandas as pd
@@ -8,84 +9,97 @@ from tqdm import tqdm
 
 np.set_printoptions(threshold=sys.maxsize)
 
-def load_images(filenames):
-    images = []
-    for filename in tqdm(filenames, desc="Loading images"):
-        images.append(np.array(Image.open(filename)))
-    return np.stack(images)
+def extract_number(filename):
+    match = re.search(r'(\d{3})', filename)
+    return int(match.group(1)) if match else -1
 
-def load_segmentations(filenames):
-    segmentations = []
-    for filename in tqdm(filenames, desc="Loading segmentations"):
-        seg = np.load(filename, allow_pickle=True).item()['masks']
-        segmentations.append(seg)
-    return np.stack(segmentations)
+def get_latest_frame(directory, ext):
+    files = sorted([f for f in os.listdir(directory) if f.endswith(ext)], key=extract_number)
+    return files[2] if files else None
 
-def get_movie_frame_filenames(exp_path, suffix='.png'):
-    all_files = os.listdir(exp_path)
-    filenames = sorted([f'{exp_path}/{file}' for file in all_files if suffix in file])
-    return filenames
+def extract_frame_id(filename):
+    return extract_number(filename)
 
-def cellpose_pixels(cell_data, segmentations, images, background):
-    pixels = []
-    pixels_no_bground = []
+def load_image(image_path):
+    return np.array(Image.open(image_path)) / 4095.0  # Normalize
+
+def load_segmentation(seg_path):
+    return np.load(seg_path, allow_pickle=True).item()['masks']
+
+def compute_luminosity(x, y, segmentation, image):
+    try:
+        x, y = int(x), int(y)
+        mask_id = segmentation[y, x]
+        if mask_id == 0:
+            return np.nan  # No cell
+        mask = (segmentation == mask_id)
+        pixel_values = np.ma.masked_array(image, mask=~mask)
+        return float(np.mean(pixel_values))
+    except Exception:
+        return np.nan
+
+def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path):
+    lum_path = os.path.join(save_path, "luminosity.csv")
+    existing = os.path.exists(lum_path)
+
+    if existing:
+        lum_df = pd.read_csv(lum_path)
+    else:
+        lum_df = pd.DataFrame(columns=["CellID"])
     
-    columns = list(cell_data.columns)[1:] # skip first column (CellID)
-    xy_pairs = [(columns[i], columns[i+1]) for i in range(0, len(columns), 2)]
+    new_col = f"f{frame_id}"
+    if new_col in lum_df.columns:
+        print(f"Frame {frame_id} already processed in luminosity.csv.")
+        return
 
-    for iteration, ((x_col, y_col), bground) in enumerate(zip(xy_pairs, background)):
-        try:
+    new_data = []
+    for _, row in tqdm(traj_df.iterrows(), desc='Updating luminosity.csv'):
+        cell_id = row['CellID']
+        x_col = f"x{frame_id}"
+        y_col = f"y{frame_id}"
 
-            center_x = cell_data[x_col]
-            center_y = cell_data[y_col]
-            
-            center_x, center_y = int(center_x), int(center_y)
-            mask_id = segmentations[iteration, center_y, center_x]
-            mask = (segmentations[iteration] == mask_id)
-            frame_pixels = np.ma.masked_array(images[iteration], mask=~mask)
-            mean_luminosity = np.mean(frame_pixels)
+        if x_col not in row or y_col not in row:
+            continue
+        x, y = row[x_col], row[y_col]
+        if pd.isna(x) or pd.isna(y):
+            luminosity = np.nan
+        else:
+            luminosity = compute_luminosity(x, y, segmentation, image)
 
-            remove_background = mean_luminosity - bground
-            if remove_background < 0:
-                remove_background = 0
+        new_data.append((cell_id, luminosity))
 
-            pixels.append(mean_luminosity)
-            pixels_no_bground.append(remove_background)
+    new_frame_df = pd.DataFrame(new_data, columns=["CellID", new_col])
 
-        except Exception as e:
-            pixels.append(0)
-            pixels_no_bground.append(0)
+    lum_df = pd.merge(lum_df, new_frame_df, on="CellID", how="outer")
+    lum_df.sort_values("CellID", key=lambda x: x.astype(int), inplace=True)
+    lum_df.to_csv(lum_path, index=False)
+    print(f"Updated luminosity.csv with frame {frame_id}")
 
-    return pixels, pixels_no_bground
-
-def DOUG(cell_data, segmentations, images, save_path, background):
-    pixels, pixels_no_bground = cellpose_pixels(cell_data, segmentations, images, background)
-    np.save(f"{save_path}/pixels.npy", pixels)
-    np.save(f"{save_path}/pixels_no_bground.npy", pixels_no_bground)
-
-def process_movie():
-    global_path = "analysis"
+def main():
     exp_path = "frames"
+    save_path = "analysis"
 
-    image_files = sorted([f'{exp_path}/{f}' for f in os.listdir(exp_path) if f.endswith('.png')])
-    images = load_images(image_files) / 4095  # Normalize between 0 and 1
+    image_file = get_latest_frame(exp_path, ".png")
+    seg_file = get_latest_frame(exp_path, ".npy")
 
-    cellpose_files = sorted([f'{exp_path}/{f}' for f in os.listdir(exp_path) if f.endswith('.npy')])
-    segmentations = load_segmentations(cellpose_files)[:2]
+    if not image_file or not seg_file:
+        print("Missing new image or segmentation.")
+        return
 
-    background = [0 for _ in range(len(segmentations))]
+    frame_id = extract_frame_id(image_file)
+    print(f"Processing frame {frame_id}...")
 
-    traj_df = pd.read_csv(f"{global_path}/trajectories.csv")
-    all_cell_ids = traj_df['CellID'].unique()
+    image = load_image(os.path.join(exp_path, image_file))
+    segmentation = load_segmentation(os.path.join(exp_path, seg_file))
 
-    for cell_id in tqdm(all_cell_ids, desc="Processing cells"):
-        cell_data = traj_df[traj_df['CellID'] == cell_id]
+    traj_path = os.path.join(save_path, "trajectories.csv")
+    if not os.path.exists(traj_path):
+        print("Missing trajectories.csv.")
+        return
 
-        save_path = f"{global_path}/extracted_cells/Cell{cell_id}"
-        os.makedirs(save_path, exist_ok=True)
-
-        DOUG(cell_data, segmentations, images, save_path, background)
-        gc.collect()
+    traj_df = pd.read_csv(traj_path)
+    update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path)
+    gc.collect()
 
 if __name__ == "__main__":
-    process_movie()
+    main()
