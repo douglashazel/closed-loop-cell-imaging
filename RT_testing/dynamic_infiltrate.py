@@ -108,4 +108,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# python3 dynamic_infiltrate.py --directory_path "frames" --save_path "analysis"
+# python3 dynamic_run.py --directory_path "frames" --save_path "analysis"
