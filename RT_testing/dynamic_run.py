@@ -3,6 +3,7 @@ import gc
 import re
 import sys
 import time
+import numba
 import argparse
 import numpy as np
 import pandas as pd
@@ -19,7 +20,7 @@ def extract_number(filename):
 
 def get_latest_file(directory, ext):
     files = sorted([f for f in os.listdir(directory) if f.endswith(ext)], key=extract_number)
-    return files[9] if files else None  # or use -1 for truly latest
+    return files[10] if files else None  # or use -1 for truly latest
 
 def load_image(path):
     return np.array(Image.open(path)) / 4095.0
@@ -120,6 +121,7 @@ def update_trajectories(new_frame_id, new_centers, save_path):
     print(f"Saved updated trajectories to {traj_path}")
     return traj_df
 
+# @numba.jit(nopython=True, nogil=True)
 def compute_luminosity(x, y, segmentation, image):
     try:
         x, y = int(x), int(y)
