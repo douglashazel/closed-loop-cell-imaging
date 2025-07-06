@@ -3,6 +3,7 @@ import gc
 import re
 import sys
 import time
+import numba
 import argparse
 import numpy as np
 import pandas as pd
@@ -19,7 +20,7 @@ def extract_number(filename):
 
 def get_latest_file(directory, ext):
     files = sorted([f for f in os.listdir(directory) if f.endswith(ext)], key=extract_number)
-    return files[10] if files else None  # or use -1 for truly latest
+    return files[11] if files else None  # or use -1 for truly latest
 
 def load_image(path):
     return np.array(Image.open(path)) / 4095.0
@@ -27,10 +28,19 @@ def load_image(path):
 def load_segmentation(path):
     return np.load(path, allow_pickle=True).item()['masks']
 
-def run_all(curr_center, next_centers, max_distance: float = 40):
-    distances = distance.cdist(next_centers, [curr_center], metric="euclidean").flatten()
-    status = np.min(distances) <= max_distance
-    match = np.argmin(distances) if status else None
+@numba.jit(nopython=True)
+def run_all(curr_center, next_centers, max_distance=40.0):
+    min_distance = np.inf
+    min_idx = -1
+    for i in range(next_centers.shape[0]):
+        dx = next_centers[i, 0] - curr_center[0]
+        dy = next_centers[i, 1] - curr_center[1]
+        distance = np.sqrt(dx * dx + dy * dy)
+        if distance < min_distance:
+            min_distance = distance
+            min_idx = i
+    status = min_distance <= max_distance
+    match = min_idx if status else -1  # Use -1 instead of None for nopython compatibility
     return status, match
 
 def parallel_extract_centers(args):
@@ -82,6 +92,9 @@ def update_trajectories(new_frame_id, new_centers, save_path):
         traj_df = pd.read_csv(traj_path)
         prev_id = new_frame_id - 1
         new_assignments = [None] * len(new_centers)
+        # Convert new_centers to NumPy array, excluding None values
+        valid_centers = [c for c in new_centers if c is not None]
+        new_centers_np = np.array(valid_centers, dtype=np.float64)
 
         for i, row in tqdm(traj_df.iterrows(), desc='Stitching'):
             prev_x, prev_y = row.get(f'x{prev_id}'), row.get(f'y{prev_id}')
@@ -89,10 +102,12 @@ def update_trajectories(new_frame_id, new_centers, save_path):
                 traj_df.loc[i, f'x{new_frame_id}'] = np.nan
                 traj_df.loc[i, f'y{new_frame_id}'] = np.nan
                 continue
-            status, match_idx = run_all([prev_x, prev_y], new_centers)
-            if status:
-                traj_df.loc[i, f'x{new_frame_id}'] = new_centers[match_idx][0]
-                traj_df.loc[i, f'y{new_frame_id}'] = new_centers[match_idx][1]
+            # Convert to NumPy array for Numba
+            curr_center = np.array([prev_x, prev_y], dtype=np.float64)
+            status, match_idx = run_all(curr_center, new_centers_np)
+            if status and match_idx != -1:
+                traj_df.loc[i, f'x{new_frame_id}'] = valid_centers[match_idx][0]
+                traj_df.loc[i, f'y{new_frame_id}'] = valid_centers[match_idx][1]
                 new_assignments[match_idx] = i
             else:
                 traj_df.loc[i, f'x{new_frame_id}'] = np.nan
@@ -100,7 +115,7 @@ def update_trajectories(new_frame_id, new_centers, save_path):
 
         max_id = traj_df['CellID'].astype(int).max()
         for idx, center in enumerate(new_centers):
-            if new_assignments[idx] is None:
+            if new_assignments[idx] is None and center is not None:
                 max_id += 1
                 new_row = {'CellID': str(max_id)}
                 for col in traj_df.columns:
@@ -114,23 +129,59 @@ def update_trajectories(new_frame_id, new_centers, save_path):
             'CellID': str(i),
             f'x{new_frame_id}': center[0],
             f'y{new_frame_id}': center[1]
-        } for i, center in enumerate(new_centers)])
+        } for i, center in enumerate(new_centers) if center is not None])
 
     traj_df.to_csv(traj_path, index=False)
     print(f"Saved updated trajectories to {traj_path}")
     return traj_df
 
+@numba.jit(nopython=True)
 def compute_luminosity(x, y, segmentation, image):
-    try:
-        x, y = int(x), int(y)
-        mask_id = segmentation[y, x]
-        if mask_id == 0:
-            return np.nan
-        mask = segmentation == mask_id
-        pixel_values = np.ma.masked_array(image, mask=~mask)
-        return float(np.mean(pixel_values))
-    except Exception:
+    x = int(x)
+    y = int(y)
+    if y < 0 or y >= segmentation.shape[0] or x < 0 or x >= segmentation.shape[1]:
         return np.nan
+    mask_id = segmentation[y, x]
+    if mask_id == 0:
+        return np.nan
+    
+    sum_values = 0.0
+    count = 0
+    for i in range(segmentation.shape[0]):
+        for j in range(segmentation.shape[1]):
+            if segmentation[i, j] == mask_id:
+                sum_values += image[i, j]
+                count += 1
+    
+    return sum_values / count if count > 0 else np.nan
+
+@numba.jit(nopython=True)
+def compute_center(seg, cell_id, shape):
+    sum_x = 0.0
+    sum_y = 0.0
+    count = 0
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            if seg[i, j] == cell_id:
+                sum_x += j
+                sum_y += i
+                count += 1
+    if count == 0:
+        return -1, -1  # Use -1, -1 to indicate no valid center
+    return int(sum_x / count), int(sum_y / count)
+
+def parallel_extract_centers(args):
+    seg, cell_ids, temp_path, worker_id = args
+    partial_centers = []
+    for cellID in tqdm(cell_ids, desc=f'Calculating cell centers (worker {worker_id})'):
+        center_x, center_y = compute_center(seg, cellID, seg.shape)
+        if center_x == -1 and center_y == -1:
+            partial_centers.append(None)
+        else:
+            partial_centers.append((center_x, center_y))
+    output_path = os.path.join(temp_path, f'partial_centers_worker{worker_id}.npy')
+    np.save(output_path, partial_centers)
+    return output_path
 
 def parallel_extract_luminosity(args):
     traj_subset, frame_id, segmentation, image, temp_path, worker_id = args
