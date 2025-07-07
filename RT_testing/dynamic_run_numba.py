@@ -10,7 +10,7 @@ import pandas as pd
 from PIL import Image
 from tqdm import tqdm
 from multiprocessing import Pool
-from scipy.spatial import distance
+# from scipy.spatial import distance
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -20,7 +20,7 @@ def extract_number(filename):
 
 def get_latest_file(directory, ext):
     files = sorted([f for f in os.listdir(directory) if f.endswith(ext)], key=extract_number)
-    return files[11] if files else None  # or use -1 for truly latest
+    return files[4] if files else None  # or use -1 for truly latest
 
 def load_image(path):
     return np.array(Image.open(path)) / 4095.0
@@ -48,7 +48,7 @@ def parallel_extract_centers(args):
     partial_centers = []
     for cellID in tqdm(cell_ids, desc=f'Calculating cell centers (worker {worker_id})'):
         mask = seg == cellID
-        y, x = np.where(mask)
+        y, x = np.nonzero(mask)
         if len(x) > 0 and len(y) > 0:
             partial_centers.append((int(np.mean(x)), int(np.mean(y))))
         else:
@@ -249,6 +249,8 @@ def main():
     parser.add_argument("--save_path", required=True, help="Where to save .csv and centers")
     args = parser.parse_args()
 
+    _ = compute_center(np.zeros((2, 2), dtype=np.int32), 1, (2, 2))
+
     seg_file = get_latest_file(args.directory_path, ".npy")
     img_file = get_latest_file(args.directory_path, ".png")
     if not seg_file or not img_file:
@@ -278,4 +280,4 @@ if __name__ == "__main__":
     elapsed = end_time - start_time
     print(f"Total script runtime: {elapsed:.2f} seconds")
 
-# python3 dynamic_run.py --directory_path "frames" --save_path "analysis"
+# python3 dynamic_run_numba.py --directory_path "frames" --save_path "analysis"

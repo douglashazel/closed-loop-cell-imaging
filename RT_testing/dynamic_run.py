@@ -19,7 +19,7 @@ def extract_number(filename):
 
 def get_latest_file(directory, ext):
     files = sorted([f for f in os.listdir(directory) if f.endswith(ext)], key=extract_number)
-    return files[10] if files else None  # or use -1 for truly latest
+    return files[0] if files else None  # or use -1 for truly latest
 
 def load_image(path):
     return np.array(Image.open(path)) / 4095.0
