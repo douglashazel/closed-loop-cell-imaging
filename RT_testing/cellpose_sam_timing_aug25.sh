@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DIR="./frames_RTX40"               # Directory with .tif images
+DIR="frames_RTX40"               # Directory with .png images
 GPUS=(0)                           # GPUs to use
 RUNS_PER_GPU=1                     # Runs per GPU
 CELLP_CMD="python -m cellpose --dir $DIR --cellprob_threshold 0.0 --flow_threshold 0.4 --use_gpu --verbose"
@@ -16,7 +16,6 @@ for GPU_ID in "${GPUS[@]}"; do
         END=$(date +%s)
         TOTAL=$((END - START))
         echo "Total time for RUN $run on GPU $GPU_ID: ${TOTAL}s" >> "$LOGFILE"
-
         echo "Completed RUN $run on GPU $GPU_ID (Log: $LOGFILE)"
     done
 done
