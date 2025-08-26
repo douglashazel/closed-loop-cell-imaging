@@ -26,7 +26,8 @@ def load_image(path):
     return np.array(Image.open(path)) / 4095.0
 
 def load_segmentation(path):
-    return np.load(path, allow_pickle=True).item()['masks']
+    # return np.load(path, allow_pickle=True).item()['masks']
+    return np.load(path, allow_pickle=True)
 
 @numba.jit(nopython=True)
 def run_all(curr_center, next_centers, max_distance=40.0):
