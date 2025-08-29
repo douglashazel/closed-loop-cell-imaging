@@ -1,13 +1,13 @@
 #!/bin/bash
 
-DIR="frames_RTX40"               # Directory with .png images
+DIR="frames_RTX40_DH"               # Directory with .png images
 GPUS=(0)                           # GPUs to use
 RUNS_PER_GPU=1                     # Runs per GPU
 CELLP_CMD="python -m cellpose --dir $DIR --cellprob_threshold 0.0 --flow_threshold 0.4 --use_gpu --verbose"
 
 for GPU_ID in "${GPUS[@]}"; do
     for ((run=0; run<RUNS_PER_GPU; run++)); do
-        LOGFILE="logs_RTX40/RUN${run}_GPU${GPU_ID}.txt"
+        LOGFILE="logs_RTX40_DH/RUN${run}_GPU${GPU_ID}.txt"
         echo "Starting RUN $run on GPU $GPU_ID"
         START=$(date +%s)
 
