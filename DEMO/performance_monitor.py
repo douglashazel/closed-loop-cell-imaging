@@ -23,19 +23,14 @@ def log(msg):
 
 def count_rois(mask_file):
     """Count ROIs in a Cellpose segmentation file (.npy)."""
-    data = np.load(mask_file, allow_pickle=True).item()
-    return len(np.unique(data['masks'])) - 1  # subtract background (0)
+    data = np.load(mask_file, allow_pickle=True)
+    return len(np.unique(data)) - 1  # subtract background (0)
 
 def get_frame_and_channel(filename):
-    """Extract frame and channel from filename like frame_000_ch1.npy."""
-    parts = filename.split('_')
-    frame = None
-    channel = None
-    for part in parts:
-        if part.startswith('frame'):
-            frame = int(part.replace('frame', ''))
-        elif part.startswith('channel'):
-            channel = int(part.replace('channel', '').split('.')[0])
+    """Extract frame and channel from filename like 000_channel1.npy."""
+    parts = filename.split('_channel')
+    frame = int(parts[0])
+    channel = int(parts[1].split('.')[0])
     return frame, channel
 
 def create_flag_file(frame, channel, message):
@@ -64,7 +59,7 @@ while True:
                 diff = current_count - prev_count
                 if diff != 0:
                     sign = '+' if diff > 0 else ''
-                    msg = f"channel {channel} {'gained' if diff > 0 else 'lost'} {sign}{diff} ROI's"
+                    msg = f"channel {channel} {'gained' if diff > 0 else 'lost'} {sign}{diff} ROI's on frame{frame}"
                     log(msg)
 
                     # Check for significant change (5% of previous count)
