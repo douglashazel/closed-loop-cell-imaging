@@ -34,8 +34,8 @@ def get_frame_and_channel(filename):
     for part in parts:
         if part.startswith('frame'):
             frame = int(part.replace('frame', ''))
-        elif part.startswith('ch'):
-            channel = int(part.replace('ch', '').split('.')[0])
+        elif part.startswith('channel'):
+            channel = int(part.replace('channel', '').split('.')[0])
     return frame, channel
 
 def create_flag_file(frame, channel, message):
