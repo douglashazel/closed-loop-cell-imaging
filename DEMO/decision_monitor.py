@@ -13,6 +13,11 @@ final_dir = 'final_decisions'
 os.makedirs(decision_dir, exist_ok=True)
 os.makedirs(final_dir, exist_ok=True)
 
+decision_key = {'add neutral media': 1,
+                'add acidic media': 2,
+                'add basic media': 3}
+decision_rev = {v: k for k, v in decision_key.items()}
+
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
@@ -35,7 +40,7 @@ def compute_setpoint(initial_masks):
         img = np.array(Image.open(img_path), dtype=np.float32)
         mask = initial_masks[ch]
         setpoint_vals.append(img[mask].mean())
-    avg_setpoint = np.mean(setpoint_vals)
+    avg_setpoint = np.mean(setpoint_vals) * 0.8 # 80% of first frame as baseline
     return avg_setpoint
 
 # Find last processed frame
@@ -62,16 +67,16 @@ def process_frame(frame, acidic_media, basic_media, initial_masks):
         mean_val = img[mask].mean()
 
         if basic_media < mean_val < acidic_media:
-            decision = 'no change'
+            decision = decision_key['add neutral media']
         elif mean_val <= basic_media:
-            decision = 'add basic media'
+            decision = decision_key['add basic media']
         else:
-            decision = 'add acidic media'
+            decision = decision_key['add acidic media']
 
         with open(os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt"), 'w') as f:
-            f.write(decision)
+            f.write(str(decision))
 
-        log(f"{frame_str}_channel{ch}: {mean_val:.3f} -> {decision}")
+        log(f"{frame_str}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]}")
 
 # Combine decisions into final CSV
 def finalize_decisions(frame):
@@ -110,9 +115,10 @@ for ch in range(1, num_channels+1):
     initial_masks[ch] = np.load(mask_path) > 0
 
 # Compute setpoint using frame 000
-setpoint = compute_setpoint(initial_masks)
-acidic_media = setpoint * 1.05
-basic_media = setpoint * 0.95
+setpoint = compute_setpoint(initial_masks) # neutral media
+acidic_media = setpoint * 1.05 # 5% above
+basic_media = setpoint * 0.95 # 5% below
+
 log(f"Setpoint computed: {setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f}")
 
 # ---- MAIN LOOP ----
