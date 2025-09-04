@@ -24,7 +24,7 @@ def log(msg):
 def count_rois(mask_file):
     """Count ROIs in a Cellpose segmentation file (.npy)."""
     data = np.load(mask_file, allow_pickle=True)
-    return len(np.unique(data)) - 1  # subtract background (0)
+    return np.max(data)
 
 def get_frame_and_channel(filename):
     """Extract frame and channel from filename like 000_channel1.npy."""
@@ -38,7 +38,7 @@ def create_flag_file(frame, channel, message):
     filename = f"channel{channel}.flag"
     filepath = os.path.join(flags_dir, filename)
     with open(filepath, 'w') as f:
-        f.write(f"frame={frame}\n{message}")
+        f.write(f"Frame: {frame:03d}\n{message}")
 
 log("Performance monitor started...")
 while True:
@@ -59,12 +59,12 @@ while True:
                 diff = current_count - prev_count
                 if diff != 0:
                     sign = '+' if diff > 0 else ''
-                    msg = f"channel {channel} {'gained' if diff > 0 else 'lost'} {sign}{diff} ROI's on frame{frame}"
+                    msg = f"channel{channel} {'gained' if diff > 0 else 'lost'} {sign}{diff} ROI's on frame{frame:03d}"
                     log(msg)
 
                     # Check for significant change (5% of previous count)
                     if prev_count > 0 and abs(diff) / prev_count >= threshold_ratio:
-                        flag_msg = f"Frame: {frame}\nChannel: {channel}\nPrevious: {prev_count}\nCurrent: {current_count}\nChange: {sign}{diff}\n"
+                        flag_msg = f"Channel: {channel}\nPrevious: {prev_count}\nCurrent: {current_count}\nChange: {sign}{diff}\n"
                         create_flag_file(frame, channel, flag_msg)
 
             last_frame[channel] = frame

@@ -87,6 +87,9 @@ def finalize_decisions(frame):
     df.to_csv(os.path.join(final_dir, f"{frame_str}.csv"), index=False)
     log(f"Finalized decisions for frame {frame_str}")
 
+# Track which frame provided the current mask per channel
+mask_versions = {ch: 0 for ch in range(1, num_channels+1)}
+
 def check_for_flag_updates(current_masks):
     for ch in range(1, num_channels+1):
         flag_path = os.path.join(flags_dir, f"channel{ch}.flag")
@@ -94,18 +97,22 @@ def check_for_flag_updates(current_masks):
             continue
         with open(flag_path, 'r') as f:
             lines = f.readlines()
-        frame_line = [ln for ln in lines if ln.startswith("frame=")]
+        frame_line = [ln for ln in lines if ln.startswith("Frame:")]
         if not frame_line:
             continue
         try:
             frame = int(frame_line[0].split('=')[1])
         except Exception:
             continue
-        mask_path = os.path.join(mask_dir, f"{frame:03d}_channel{ch}.npy")
-        if os.path.exists(mask_path):
-            new_mask = np.load(mask_path) > 0
-            current_masks[ch] = new_mask
-            log(f"Updated mask for channel {ch} from frame {frame}")
+
+        # Only update if it's a *newer* mask
+        if frame > mask_versions[ch]:
+            mask_path = os.path.join(mask_dir, f"{frame:03d}_channel{ch}.npy")
+            if os.path.exists(mask_path):
+                new_mask = np.load(mask_path) > 0
+                current_masks[ch] = new_mask
+                mask_versions[ch] = frame
+                log(f"Updated mask for channel{ch} from frame{frame}")
 
 # ---- INITIAL SETUP ----
 log("Waiting for initial frame (000) masks and images to compute setpoint...")
