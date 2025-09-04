@@ -10,6 +10,7 @@ watch_dir = 'incoming_frames'
 mask_dir = 'processed_masks'
 decision_dir = 'temp_decisions'
 final_dir = 'final_decisions'
+setpoint_file = 'setpoints.txt'
 os.makedirs(decision_dir, exist_ok=True)
 os.makedirs(final_dir, exist_ok=True)
 
@@ -21,7 +22,6 @@ decision_rev = {v: k for k, v in decision_key.items()}
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
-# Wait for all channels' images for a given frame
 def wait_for_images(frame):
     frame_str = f"{frame:03d}"
     while True:
@@ -30,7 +30,6 @@ def wait_for_images(frame):
             return
         time.sleep(2)
 
-# Compute dynamic setpoint using frame 000
 def compute_setpoint(initial_masks):
     setpoint_vals = []
     for ch in range(1, num_channels+1):
@@ -40,10 +39,9 @@ def compute_setpoint(initial_masks):
         img = np.array(Image.open(img_path), dtype=np.float32)
         mask = initial_masks[ch]
         setpoint_vals.append(img[mask].mean())
-    avg_setpoint = np.mean(setpoint_vals) * 0.8 # 80% of first frame as baseline
+    avg_setpoint = np.mean(setpoint_vals) * 0.8
     return avg_setpoint
 
-# Find last processed frame
 def last_processed_frame():
     frames = []
     for f in os.listdir(final_dir):
@@ -53,17 +51,41 @@ def last_processed_frame():
                 frames.append(int(frame_idx))
     return max(frames) if frames else -1
 
-# Process a frame using preloaded masks
-def process_frame(frame, acidic_media, basic_media, initial_masks):
+def save_setpoints(setpoint, basic, acidic):
+    with open(setpoint_file, 'w') as f:
+        f.write(f"setpoint={setpoint:.6f}\n")
+        f.write(f"basic={basic:.6f}\n")
+        f.write(f"acidic={acidic:.6f}\n")
+
+def load_setpoints(default_setpoint, default_basic, default_acidic):
+    if not os.path.exists(setpoint_file):
+        return default_setpoint, default_basic, default_acidic
+    vals = {'setpoint': default_setpoint,
+            'basic': default_basic,
+            'acidic': default_acidic}
+    try:
+        with open(setpoint_file, 'r') as f:
+            for line in f:
+                if '=' in line:
+                    k, v = line.strip().split('=')
+                    if k in vals:
+                        vals[k] = float(v)
+    except Exception as e:
+        log(f"Warning: failed to parse {setpoint_file}: {e}")
+    return vals['setpoint'], vals['basic'], vals['acidic']
+
+def process_frame(frame, initial_masks, default_setpoint, default_basic, default_acidic):
     frame_str = f"{frame:03d}"
-    wait_for_images(frame)  # Only wait for new images, not segmentation
+    wait_for_images(frame)
+
+    setpoint, basic_media, acidic_media = load_setpoints(default_setpoint, default_basic, default_acidic)
 
     for ch in range(1, num_channels+1):
         img_path = os.path.join(watch_dir, f"{frame_str}_channel{ch}.png")
         if not os.path.exists(img_path):
             continue
         img = np.array(Image.open(img_path), dtype=np.float32)
-        mask = initial_masks[ch]  # Use the segmentation from frame 000
+        mask = initial_masks[ch]
         mean_val = img[mask].mean()
 
         if basic_media < mean_val < acidic_media:
@@ -76,9 +98,9 @@ def process_frame(frame, acidic_media, basic_media, initial_masks):
         with open(os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt"), 'w') as f:
             f.write(str(decision))
 
-        log(f"{frame_str}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]}")
+        log(f"{frame_str}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]} "
+            f"(setpoint={setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f})")
 
-# Combine decisions into final CSV
 def finalize_decisions(frame):
     frame_str = f"{frame:03d}"
     while True:
@@ -99,14 +121,12 @@ def finalize_decisions(frame):
 # ---- INITIAL SETUP ----
 log("Waiting for initial frame (000) masks and images to compute setpoint...")
 
-# Wait for all masks for frame 000
 while True:
     masks = [f for f in os.listdir(mask_dir) if f.startswith("000") and f.endswith('.npy')]
     if len(masks) >= num_channels:
         break
     time.sleep(2)
 
-# Load initial masks into memory
 initial_masks = {}
 for ch in range(1, num_channels+1):
     mask_path = os.path.join(mask_dir, f"000_channel{ch}.npy")
@@ -114,17 +134,17 @@ for ch in range(1, num_channels+1):
         time.sleep(2)
     initial_masks[ch] = np.load(mask_path) > 0
 
-# Compute setpoint using frame 000
-setpoint = compute_setpoint(initial_masks) # neutral media
-acidic_media = setpoint * 1.05 # 5% above
-basic_media = setpoint * 0.95 # 5% below
+setpoint = compute_setpoint(initial_masks)
+acidic_media = setpoint * 1.05
+basic_media = setpoint * 0.95
 
-log(f"Setpoint computed: {setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f}")
+save_setpoints(setpoint, basic_media, acidic_media)
+log(f"Setpoint computed: {setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f} "
+    f"and saved to {setpoint_file}")
 
 # ---- MAIN LOOP ----
 while True:
     last_frame = last_processed_frame()
-    # Look for frames based on image presence (not mask presence anymore)
     frame_indices = sorted(set(int(f.split('_channel')[0]) for f in os.listdir(watch_dir) if f.endswith('.png')))
     next_frames = [f for f in frame_indices if f > last_frame]
 
@@ -135,13 +155,10 @@ while True:
     for frame in next_frames:
         frame_str = f"{frame:03d}"
         lock_path = os.path.join(final_dir, f"{frame_str}.lock")
-
         if os.path.exists(lock_path):
             continue
 
-        open(lock_path, 'w').close()  # Create lock
-
-        process_frame(frame, acidic_media, basic_media, initial_masks)
+        open(lock_path, 'w').close()
+        process_frame(frame, initial_masks, setpoint, basic_media, acidic_media)
         finalize_decisions(frame)
-
         os.remove(lock_path)
