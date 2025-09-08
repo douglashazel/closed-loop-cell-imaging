@@ -4,29 +4,22 @@ import re
 import sys
 import time
 import numba
-import argparse
 import numpy as np
 import pandas as pd
 from PIL import Image
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 from multiprocessing import Pool
-# from scipy.spatial import distance
 
-np.set_printoptions(threshold=sys.maxsize)
-
+# ---------------- helpers from tracking code ---------------- #
 def extract_number(filename):
-    match = re.search(r'(\d{3})', filename)
+    match = re.search(r'(\d+)', filename)
     return int(match.group(1)) if match else -1
-
-def get_latest_file(directory, ext):
-    files = sorted([f for f in os.listdir(directory) if f.endswith(ext)], key=extract_number)
-    return files[9] if files else None  # or use -1 for truly latest
 
 def load_image(path):
     return np.array(Image.open(path)) / 4095.0
 
 def load_segmentation(path):
-    # return np.load(path, allow_pickle=True).item()['masks']
     return np.load(path, allow_pickle=True)
 
 @numba.jit(nopython=True)
@@ -41,13 +34,13 @@ def run_all(curr_center, next_centers, max_distance=40.0):
             min_distance = distance
             min_idx = i
     status = min_distance <= max_distance
-    match = min_idx if status else -1  # Use -1 instead of None for nopython compatibility
+    match = min_idx if status else -1
     return status, match
 
 def parallel_extract_centers(args):
     seg, cell_ids, temp_path, worker_id = args
     partial_centers = []
-    for cellID in tqdm(cell_ids, desc=f'Calculating cell centers (worker {worker_id})'):
+    for cellID in cell_ids:
         mask = seg == cellID
         y, x = np.nonzero(mask)
         if len(x) > 0 and len(y) > 0:
@@ -58,7 +51,7 @@ def parallel_extract_centers(args):
     np.save(output_path, partial_centers)
     return output_path
 
-def get_and_save_cell_centers(seg_path, center_save_path, num_workers=10):
+def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     seg = load_segmentation(seg_path)
     num_masks = np.max(seg)
     all_ids = list(range(1, num_masks + 1))
@@ -68,6 +61,7 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=10):
     os.makedirs(temp_path, exist_ok=True)
 
     args = [(seg, chunk, temp_path, i) for i, chunk in enumerate(chunks)]
+    print("Computing cell centers...")
     with Pool(processes=num_workers) as pool:
         result_files = pool.map(parallel_extract_centers, args)
 
@@ -93,17 +87,16 @@ def update_trajectories(new_frame_id, new_centers, save_path):
         traj_df = pd.read_csv(traj_path)
         prev_id = new_frame_id - 1
         new_assignments = [None] * len(new_centers)
-        # Convert new_centers to NumPy array, excluding None values
         valid_centers = [c for c in new_centers if c is not None]
         new_centers_np = np.array(valid_centers, dtype=np.float64)
 
-        for i, row in tqdm(traj_df.iterrows(), desc='Stitching'):
+        print('Updating trajectories...')
+        for i, row in traj_df.iterrows():
             prev_x, prev_y = row.get(f'x{prev_id}'), row.get(f'y{prev_id}')
             if pd.isna(prev_x) or pd.isna(prev_y):
                 traj_df.loc[i, f'x{new_frame_id}'] = np.nan
                 traj_df.loc[i, f'y{new_frame_id}'] = np.nan
                 continue
-            # Convert to NumPy array for Numba
             curr_center = np.array([prev_x, prev_y], dtype=np.float64)
             status, match_idx = run_all(curr_center, new_centers_np)
             if status and match_idx != -1:
@@ -133,7 +126,6 @@ def update_trajectories(new_frame_id, new_centers, save_path):
         } for i, center in enumerate(new_centers) if center is not None])
 
     traj_df.to_csv(traj_path, index=False)
-    print(f"Saved updated trajectories to {traj_path}")
     return traj_df
 
 @numba.jit(nopython=True)
@@ -167,26 +159,10 @@ def compute_luminosity(x, y, segmentation, averages):
         return np.nan
     return averages[mask_id]
 
-@numba.jit(nopython=True)
-def compute_center(seg, cell_id, shape):
-    sum_x = 0.0
-    sum_y = 0.0
-    count = 0
-    for i in range(shape[0]):
-        for j in range(shape[1]):
-            if seg[i, j] == cell_id:
-                sum_x += j
-                sum_y += i
-                count += 1
-    if count == 0:
-        return -1, -1  # Use -1, -1 to indicate no valid center
-    return int(sum_x / count), int(sum_y / count)
-
 def parallel_extract_luminosity(args):
-    traj_subset, frame_id, segmentation, averages, temp_path, worker_id = args  # Changed: averages instead of image
-    new_col = f"f{frame_id}"
+    traj_subset, frame_id, segmentation, averages, temp_path, worker_id = args
     partial_lums = []
-    for _, row in tqdm(traj_subset.iterrows(), desc=f'Calculating luminosity (worker {worker_id})'):
+    for _, row in traj_subset.iterrows():
         cell_id = row['CellID']
         x, y = row.get(f"x{frame_id}"), row.get(f"y{frame_id}")
         lum = compute_luminosity(x, y, segmentation, averages) if not pd.isna(x) and not pd.isna(y) else np.nan
@@ -195,20 +171,7 @@ def parallel_extract_luminosity(args):
     np.save(output_path, partial_lums)
     return output_path
 
-def parallel_extract_luminosity(args):
-    traj_subset, frame_id, segmentation, image, temp_path, worker_id = args
-    new_col = f"f{frame_id}"
-    partial_lums = []
-    for _, row in tqdm(traj_subset.iterrows(), desc=f'Calculating luminosity (worker {worker_id})'):
-        cell_id = row['CellID']
-        x, y = row.get(f"x{frame_id}"), row.get(f"y{frame_id}")
-        lum = compute_luminosity(x, y, segmentation, image) if not pd.isna(x) and not pd.isna(y) else np.nan
-        partial_lums.append((cell_id, lum))
-    output_path = os.path.join(temp_path, f'partial_lum_worker{worker_id}.npy')
-    np.save(output_path, partial_lums)
-    return output_path
-
-def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num_workers=10):  # Increase default if desired
+def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num_workers=1):
     lum_path = os.path.join(save_path, "luminosity.csv")
     if os.path.exists(lum_path):
         lum_df = pd.read_csv(lum_path)
@@ -217,23 +180,21 @@ def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num
 
     new_col = f"f{frame_id}"
     if new_col in lum_df.columns:
-        print(f"Frame {frame_id} already in luminosity.csv")
         return
 
-    # Precompute averages once
     averages = precompute_averages(segmentation, image)
-
     temp_path = os.path.join(save_path, 'temp_luminosity')
     os.makedirs(temp_path, exist_ok=True)
 
     chunks = []
     chunk_size = (len(traj_df) + num_workers - 1) // num_workers
+    print('Extracting luminosity...')
     for i in range(num_workers):
         start = i * chunk_size
         end = min(start + chunk_size, len(traj_df))
         chunks.append(traj_df.iloc[start:end])
 
-    args = [(chunk, frame_id, segmentation, averages, temp_path, i) for i, chunk in enumerate(chunks)]  # Pass averages
+    args = [(chunk, frame_id, segmentation, averages, temp_path, i) for i, chunk in enumerate(chunks)]
 
     with Pool(processes=num_workers) as pool:
         result_files = pool.map(parallel_extract_luminosity, args)
@@ -246,51 +207,75 @@ def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num
     os.rmdir(temp_path)
 
     new_frame_df = pd.DataFrame(all_lums, columns=["CellID", new_col])
-
-    # Normalize CellID in both DataFrames before merging
     lum_df["CellID"] = lum_df["CellID"].astype(str).apply(lambda x: str(int(float(x))) if x != 'nan' else x)
     new_frame_df["CellID"] = new_frame_df["CellID"].astype(str).apply(lambda x: str(int(float(x))) if x != 'nan' else x)
 
     lum_df = pd.merge(lum_df, new_frame_df, on="CellID", how="outer")
     lum_df.sort_values("CellID", key=lambda x: x.astype(int), inplace=True)
     lum_df.to_csv(lum_path, index=False)
-    print(f"Updated luminosity.csv with frame {frame_id}")
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--directory_path", required=True, help="Directory with .npy and .png")
-    parser.add_argument("--save_path", required=True, help="Where to save .csv and centers")
-    args = parser.parse_args()
+# ---------------- segmentation + live processing ---------------- #
+image_dir = "frames"
+mask_dir = "masks"
+save_path = "analysis"
+os.makedirs(mask_dir, exist_ok=True)
+os.makedirs(save_path, exist_ok=True)
 
-    _ = compute_center(np.zeros((2, 2), dtype=np.int32), 1, (2, 2))
+processed_frames = set()
+exit_loop = False
+start_time = time.time()
 
-    seg_file = get_latest_file(args.directory_path, ".npy")
-    img_file = get_latest_file(args.directory_path, ".png")
-    if not seg_file or not img_file:
-        print("Missing segmentation or image file.")
-        return
+while not exit_loop:
+    images = sorted([f for f in os.listdir(image_dir) if f.endswith(('.png', '.jpg'))], key=extract_number)
 
-    frame_id = extract_number(seg_file)
-    print(f"Processing Frame {frame_id}...")
+    all_masked = all(os.path.exists(os.path.join(mask_dir, os.path.splitext(f)[0] + ".npy")) for f in images)
+    if all_masked and len(images) > 0:
+        exit_loop = True
 
-    seg_path = os.path.join(args.directory_path, seg_file)
-    img_path = os.path.join(args.directory_path, img_file)
+    for f in images:
+        frame_id = extract_number(f)
+        mask_path = os.path.join(mask_dir, os.path.splitext(f)[0] + ".npy")
 
-    image = load_image(img_path)
-    segmentation = load_segmentation(seg_path)
+        if frame_id not in processed_frames and os.path.exists(mask_path):
+            image = load_image(os.path.join(image_dir, f))
+            segmentation = load_segmentation(mask_path)
 
-    center_path = os.path.join(args.save_path, "cellpose_centers")
-    centers = get_and_save_cell_centers(seg_path, center_path, num_workers=30)
+            center_path = os.path.join(save_path, "cellpose_centers")
+            centers = get_and_save_cell_centers(mask_path, center_path, num_workers=20)
+            traj_df = update_trajectories(frame_id, centers, save_path)
+            update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num_workers=1)
 
-    traj_df = update_trajectories(frame_id, centers, args.save_path)
-    update_luminosity_csv(traj_df, frame_id, image, segmentation, args.save_path, num_workers=1)
-    gc.collect()
+            processed_frames.add(frame_id)
+            gc.collect()
 
-if __name__ == "__main__":
-    start_time = time.time()
-    main()
-    end_time = time.time()
-    elapsed = end_time - start_time
-    print(f"Total script runtime: {elapsed:.2f} seconds")
+            start_time = time.time()
 
-# python3 dynamic_run_numba_NEW.py --directory_path "frames" --save_path "analysis"
+    # Print elapsed time in seconds on the same line
+    elapsed = int(time.time() - start_time)
+    sys.stdout.write(f"\rWaiting for new masks... {elapsed} sec elapsed")
+    sys.stdout.flush()
+
+    time.sleep(3)
+
+# optional: print newline when loop finishes
+print("\nAll frames processed.")
+
+# ---------------- plot luminosities ---------------- #
+def plot_luminosities_from_csv(traj_csv, cmap_name="twilight"):
+    df = pd.read_csv(traj_csv, index_col=0)  # CellID as index
+    cmap = plt.get_cmap(cmap_name)
+    colors = cmap(np.linspace(0, 1, len(df)))
+
+    plt.figure(dpi=300)
+    for (cell_id, row), color in tqdm(zip(df.iterrows(), colors), total=len(df), desc='Plotting cells...'):
+        vals = row.dropna().values
+        frames = range(len(vals))
+        plt.plot(frames, vals, alpha=0.7, color=color)
+
+    plt.xlabel("Frame")
+    plt.ylabel("Average luminosity")
+    plt.title("Cell luminosity over time")
+    plt.tight_layout()
+    plt.show()
+
+plot_luminosities_from_csv("analysis/luminosity.csv", cmap_name="twilight")
