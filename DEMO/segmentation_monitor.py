@@ -43,7 +43,6 @@ while True:
             save_path = os.path.join(mask_dir, base_name + '.npy')
             np.save(save_path, masks)
 
-
             elapsed = time.time() - start_time
             log(f'Done {f} in {elapsed:.2f} seconds')
 
