@@ -149,7 +149,7 @@ while True:
     next_frames = [f for f in frame_indices if f > last_frame]
 
     if not next_frames:
-        time.sleep(5)
+        time.sleep(3)
         continue
 
     for frame in next_frames:
