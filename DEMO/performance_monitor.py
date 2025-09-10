@@ -7,7 +7,7 @@ from collections import defaultdict
 # --- Config ---
 mask_dir = 'processed_masks'
 flags_dir = 'flags'
-check_interval = 2  # seconds
+check_interval = 3  # seconds
 num_channels = 6
 threshold_ratio = 0.05  # 5%
 

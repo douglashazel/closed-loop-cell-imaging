@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 import numpy as np
 from datetime import datetime
 from cellpose import models, io
@@ -13,7 +14,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 watch_dir = 'incoming_frames'
 mask_dir = 'processed_masks'
-for d in [watch_dir, mask_dir]:
+curr_mask_dir = 'current_masks'
+for d in [watch_dir, mask_dir, curr_mask_dir]:
     os.makedirs(d, exist_ok=True)
 
 # Track processed images by checking existing .npy files
@@ -42,6 +44,11 @@ while True:
             base_name = os.path.splitext(f)[0]
             save_path = os.path.join(mask_dir, base_name + '.npy')
             np.save(save_path, masks)
+
+            # also update current_masks with this channel for frame 000
+            if "000_channel" in base_name:
+                curr_path = os.path.join(curr_mask_dir, base_name + '.npy')
+                shutil.copy2(save_path, curr_path)
 
             elapsed = time.time() - start_time
             log(f'Done {f} in {elapsed:.2f} seconds')

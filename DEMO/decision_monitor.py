@@ -8,6 +8,7 @@ from datetime import datetime
 num_channels = 6
 watch_dir = 'incoming_frames'
 mask_dir = 'processed_masks'
+curr_mask_dir = 'current_masks'
 decision_dir = 'temp_decisions'
 final_dir = 'final_decisions'
 setpoint_file = 'setpoints.txt'
@@ -74,7 +75,7 @@ def load_setpoints(default_setpoint, default_basic, default_acidic):
         log(f"Warning: failed to parse {setpoint_file}: {e}")
     return vals['setpoint'], vals['basic'], vals['acidic']
 
-def process_frame(frame, initial_masks, default_setpoint, default_basic, default_acidic):
+def process_frame(frame, default_setpoint, default_basic, default_acidic):
     frame_str = f"{frame:03d}"
     wait_for_images(frame)
 
@@ -85,7 +86,15 @@ def process_frame(frame, initial_masks, default_setpoint, default_basic, default
         if not os.path.exists(img_path):
             continue
         img = np.array(Image.open(img_path), dtype=np.float32)
-        mask = initial_masks[ch]
+
+        # load the *current* mask for this channel (whatever frame it came from)
+        mask_file = [f for f in os.listdir(curr_mask_dir) if f.endswith(f"_channel{ch}.npy")]
+        if not mask_file:
+            log(f"No mask found for channel {ch} in {curr_mask_dir}, skipping")
+            continue
+        mask_path = os.path.join(curr_mask_dir, mask_file[0])
+        mask = np.load(mask_path) > 0
+
         mean_val = img[mask].mean()
 
         if basic_media < mean_val < acidic_media:
@@ -109,12 +118,19 @@ def finalize_decisions(frame):
             break
         time.sleep(2)
 
+    channels = []
     decisions = []
     for ch in range(1, num_channels+1):
         dec_path = os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt")
         with open(dec_path, 'r') as f:
-            decisions.append(f.read().strip())
-    df = pd.DataFrame({'channel': list(range(num_channels)), 'decision': decisions})
+            decision_val = int(f.read().strip())
+        channels.append(ch)  # 1..6
+        decisions.append(decision_val)  # keep as int
+
+    df = pd.DataFrame({
+        "channel": channels,
+        "decision": decisions
+    })
     df.to_csv(os.path.join(final_dir, f"{frame_str}.csv"), index=False)
     log(f"Finalized decisions for frame {frame_str}")
 
@@ -129,7 +145,7 @@ while True:
 
 initial_masks = {}
 for ch in range(1, num_channels+1):
-    mask_path = os.path.join(mask_dir, f"000_channel{ch}.npy")
+    mask_path = os.path.join(curr_mask_dir, f"000_channel{ch}.npy")
     while not os.path.exists(mask_path):
         time.sleep(2)
     initial_masks[ch] = np.load(mask_path) > 0
@@ -159,6 +175,6 @@ while True:
             continue
 
         open(lock_path, 'w').close()
-        process_frame(frame, initial_masks, setpoint, basic_media, acidic_media)
+        process_frame(frame, setpoint, basic_media, acidic_media)
         finalize_decisions(frame)
         os.remove(lock_path)
