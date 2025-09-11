@@ -11,22 +11,24 @@ if [[ ! -f "$SCRIPT1" || ! -f "$SCRIPT2" || ! -f "$SCRIPT3" ]]; then
     exit 1
 fi
 
+# Combined log file
+LOGFILE="monitoring.log"
+
+echo "Starting monitoring scripts..." | tee -a "$LOGFILE"
+
 # Run segmentation monitoring
-echo "Starting segmentation monitoring..."
-python3 "$SCRIPT1" &
+python3 -u "$SCRIPT1" 2>&1 | tee -a "$LOGFILE" &
 PID1=$!
 
 sleep 5 # wait for folders to be created
 
 # Run decision monitoring
-echo "Starting decision monitoring..."
-python3 "$SCRIPT2" &
+python3 -u "$SCRIPT2" 2>&1 | tee -a "$LOGFILE" &
 PID2=$!
 
 # Run performance monitoring
-echo "Starting performance monitoring..."
-python3 "$SCRIPT3" &
+python3 -u "$SCRIPT3" 2>&1 | tee -a "$LOGFILE" &
 PID3=$!
 
-# Wait for all to finish (they run indefinitely unless killed)
+# Wait for all to finish
 wait $PID1 $PID2 $PID3
