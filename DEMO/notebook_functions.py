@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import binary_dilation
 
 def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
+    """
+    Segment images in a directory using Cellpose with channel-specific parameters, save masks, 
+    and generate overlay images highlighting segmentation outlines.
+    """
 
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     model = models.CellposeModel(gpu=True)
@@ -96,6 +100,10 @@ def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
 
 
 def update_masks(channel_updates, mask_dir, curr_mask_dir):
+    """
+    Replace old masks in the current directory with updated masks for specified channels.
+    """
+
     for channel, frame in channel_updates.items():
         src = os.path.join(mask_dir, f"{frame}_{channel}.npy")
         dst = os.path.join(curr_mask_dir, f"{frame}_{channel}.npy")
