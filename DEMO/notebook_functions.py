@@ -2,8 +2,8 @@ import os
 import shutil
 import numpy as np
 from tqdm import tqdm
-from cellpose import models, io, utils
 import matplotlib.pyplot as plt
+from cellpose import models, io, utils
 from scipy.ndimage import binary_dilation
 
 def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
@@ -18,6 +18,8 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
     images = sorted([f for f in os.listdir(watch_dir) if f.endswith(('.png', '.jpg'))])
     with tqdm(images, desc='Segmenting Images...') as pbar:
         for f in images:
+            base_name = os.path.splitext(f)[0]
+
             pbar.set_postfix_str(f)
             path = os.path.join(watch_dir, f)
 
@@ -26,17 +28,18 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
             # detect channel from filename
             base_name = os.path.splitext(f)[0]
             channel = None
-            for ch in unique_params.keys():
+            for ch in unique_params:
                 if ch in base_name:
                     channel = ch
                     break
 
+            # skip if channel not in active params
+            if channel is None:
+                pbar.update(1)
+                continue
+
             # pick params
-            eval_kwargs = {}
-            if channel is not None:
-                for k, v in unique_params[channel].items():
-                    if v is not None:
-                        eval_kwargs[k] = v
+            eval_kwargs = {k: v for k, v in unique_params[channel].items() if v is not None}
 
             # run segmentation with channel-specific params
             masks, flows, styles = model.eval(img, **eval_kwargs)
@@ -60,6 +63,7 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
             plt.axis("off")
             save_path = os.path.join(temp_overlays, f"{base_name}_overlay.png")
             fig.savefig(save_path, dpi=300, bbox_inches="tight")
+            plt.close(fig)  # free memory
             pbar.update(1)
 
 

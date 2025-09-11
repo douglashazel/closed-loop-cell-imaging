@@ -1,9 +1,10 @@
 import os
 import time
-import shutil
 import numpy as np
 from datetime import datetime
-from cellpose import models, io
+import matplotlib.pyplot as plt
+from cellpose import models, io, utils
+from scipy.ndimage import binary_dilation
 
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
@@ -14,8 +15,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 watch_dir = 'incoming_frames'
 mask_dir = 'processed_masks'
-curr_mask_dir = 'current_masks'
-for d in [watch_dir, mask_dir, curr_mask_dir]:
+temp_overlays = 'temp_overlays'
+for d in [watch_dir, mask_dir, temp_overlays]:
     os.makedirs(d, exist_ok=True)
 
 # Track processed images by checking existing .npy files
@@ -47,8 +48,20 @@ while True:
 
             # also update current_masks with this channel for frame 000
             if "000_channel" in base_name:
-                curr_path = os.path.join(curr_mask_dir, base_name + '.npy')
-                shutil.copy2(save_path, curr_path)
+                outlines = utils.masks_to_outlines(masks)
+                outlines = binary_dilation(outlines, iterations=3)
+                overlay = img.copy()
+                if overlay.ndim == 2:
+                    overlay = np.stack([overlay] * 3, axis=-1)
+                overlay[outlines] = [255, 0, 0]
+
+                # save overlay
+                fig = plt.figure(dpi=300)
+                plt.title(base_name)
+                plt.imshow(overlay)
+                plt.axis("off")
+                save_path = os.path.join(temp_overlays, f"{base_name}_overlay.png")
+                fig.savefig(save_path, dpi=300, bbox_inches="tight")
 
             elapsed = time.time() - start_time
             log(f'Done {f} in {elapsed:.2f} seconds')
