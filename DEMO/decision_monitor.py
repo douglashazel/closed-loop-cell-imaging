@@ -6,12 +6,12 @@ from PIL import Image
 from datetime import datetime
 
 num_channels = 6
-watch_dir = 'incoming_frames'
-mask_dir = 'processed_masks'
-curr_mask_dir = 'current_masks'
-decision_dir = 'temp_decisions'
-final_dir = 'final_decisions'
-setpoint_file = 'setpoints.txt'
+watch_dir = '/mnt/data/Close_Loop_Data/incoming_frames'
+mask_dir = '/mnt/data/Close_Loop_Data/processed_masks'
+curr_mask_dir = '/mnt/data/Close_Loop_Data/current_masks'
+decision_dir = '/mnt/data/Close_Loop_Data/temp_decisions'
+final_dir = '/mnt/data/Close_Loop_Data/final_decisions'
+setpoint_file = '/mnt/data/Close_Loop_Data/setpoints.txt'
 os.makedirs(decision_dir, exist_ok=True)
 os.makedirs(final_dir, exist_ok=True)
 
