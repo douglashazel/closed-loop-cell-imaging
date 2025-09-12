@@ -12,7 +12,7 @@ if [[ ! -f "$SCRIPT1" || ! -f "$SCRIPT2" || ! -f "$SCRIPT3" ]]; then
 fi
 
 # Combined log file
-LOGFILE="monitoring.log"
+LOGFILE="/mnt/data/Close_Loop_Data/monitoring.log"
 
 echo "Starting monitoring scripts..." | tee -a "$LOGFILE"
 
