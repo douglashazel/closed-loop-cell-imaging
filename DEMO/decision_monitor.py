@@ -29,14 +29,14 @@ def wait_for_images(frame):
         imgs = [f for f in os.listdir(watch_dir) if f.startswith(frame_str) and f.endswith('.png')]
         if len(imgs) >= num_channels:
             return
-        time.sleep(2)
+        time.sleep(cfg["sleep_time"])
 
 def compute_setpoint(initial_masks):
     setpoint_vals = []
     for ch in range(1, num_channels+1):
         img_path = os.path.join(watch_dir, f"000_channel{ch}.png")
         while not os.path.exists(img_path):
-            time.sleep(2)
+            time.sleep(cfg["sleep_time"])
         img = np.array(Image.open(img_path), dtype=np.float32)
         mask = initial_masks[ch]
         setpoint_vals.append(img[mask].mean())
@@ -85,30 +85,43 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
         img_path = os.path.join(watch_dir, f"{frame_str}_channel{ch}.png")
         if not os.path.exists(img_path):
             continue
-        img = np.array(Image.open(img_path), dtype=np.float32)
 
-        # load the *current* mask for this channel (whatever frame it came from)
-        mask_file = [f for f in os.listdir(curr_mask_dir) if f.endswith(f"_channel{ch}.npy")]
-        if not mask_file:
-            log(f"No mask found for channel {ch} in {curr_mask_dir}, skipping")
-            continue
-        mask_path = os.path.join(curr_mask_dir, mask_file[0])
-        mask = np.load(mask_path) > 0
+        retries = 0
+        while retries < cfg["num_tries"]:
+            try:
+                img = np.array(Image.open(img_path), dtype=np.float32)
 
-        mean_val = img[mask].mean()
+                mask_file = [f for f in os.listdir(curr_mask_dir) if f.endswith(f"_channel{ch}.npy")]
+                if not mask_file:
+                    log(f"No mask found for channel {ch} in {curr_mask_dir}, skipping")
+                    break
+                mask_path = os.path.join(curr_mask_dir, mask_file[0])
+                mask = np.load(mask_path) > 0
 
-        if basic_media < mean_val < acidic_media:
-            decision = decision_key['add neutral media']
-        elif mean_val <= basic_media:
-            decision = decision_key['add basic media']
+                mean_val = img[mask].mean()
+
+                if basic_media < mean_val < acidic_media:
+                    decision = decision_key['add neutral media']
+                elif mean_val <= basic_media:
+                    decision = decision_key['add basic media']
+                else:
+                    decision = decision_key['add acidic media']
+
+                with open(os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt"), 'w') as f:
+                    f.write(str(decision))
+
+                log(f"{frame_str}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]} "
+                    f"(setpoint={setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f})")
+
+                break  # success
+
+            except (OSError, ValueError, EOFError, AttributeError) as e:
+                retries += 1
+                log(f"Retry {retries}/{cfg["num_tries"]} for frame {frame_str} channel {ch}: {e}")
+                time.sleep(cfg["sleep_time"])
+
         else:
-            decision = decision_key['add acidic media']
-
-        with open(os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt"), 'w') as f:
-            f.write(str(decision))
-
-        log(f"{frame_str}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]} "
-            f"(setpoint={setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f})")
+            log(f"Failed to process frame {frame_str} channel {ch} after {cfg["num_tries"]} retries. Skipping.")
 
 def finalize_decisions(frame):
     frame_str = f"{frame:03d}"
@@ -116,7 +129,7 @@ def finalize_decisions(frame):
         decs = [f for f in os.listdir(decision_dir) if f.startswith(frame_str) and f.endswith('.txt')]
         if len(decs) >= num_channels:
             break
-        time.sleep(2)
+        time.sleep(cfg["sleep_time"])
 
     channels = []
     decisions = []
@@ -124,8 +137,8 @@ def finalize_decisions(frame):
         dec_path = os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt")
         with open(dec_path, 'r') as f:
             decision_val = int(f.read().strip())
-        channels.append(ch)  # 1..6
-        decisions.append(decision_val)  # keep as int
+        channels.append(ch)
+        decisions.append(decision_val)
 
     df = pd.DataFrame({
         "channel": channels,
@@ -141,13 +154,13 @@ while True:
     masks = [f for f in os.listdir(mask_dir) if f.startswith("000") and f.endswith('.npy')]
     if len(masks) >= num_channels:
         break
-    time.sleep(2)
+    time.sleep(cfg["sleep_time"])
 
 initial_masks = {}
 for ch in range(1, num_channels+1):
     mask_path = os.path.join(curr_mask_dir, f"000_channel{ch}.npy")
     while not os.path.exists(mask_path):
-        time.sleep(2)
+        time.sleep(cfg["sleep_time"])
     initial_masks[ch] = np.load(mask_path) > 0
 
 setpoint = compute_setpoint(initial_masks)
@@ -165,7 +178,7 @@ while True:
     next_frames = [f for f in frame_indices if f > last_frame]
 
     if not next_frames:
-        time.sleep(3)
+        time.sleep(cfg["sleep_time"])
         continue
 
     for frame in next_frames:
@@ -175,6 +188,20 @@ while True:
             continue
 
         open(lock_path, 'w').close()
-        process_frame(frame, setpoint, basic_media, acidic_media)
-        finalize_decisions(frame)
-        os.remove(lock_path)
+
+        retries = 0
+        while retries < cfg["num_tries"]:
+            try:
+                process_frame(frame, setpoint, basic_media, acidic_media)
+                finalize_decisions(frame)
+                os.remove(lock_path)
+                break  # success
+            except (OSError, ValueError, EOFError, AttributeError) as e:
+                retries += 1
+                log(f"Retry {retries}/{cfg["num_tries"]} for frame {frame_str}: {e}")
+                time.sleep(cfg["sleep_time"])
+
+        else:
+            log(f"Failed to finalize frame {frame_str} after {cfg["num_tries"]} retries. Skipping.")
+            if os.path.exists(lock_path):
+                os.remove(lock_path)

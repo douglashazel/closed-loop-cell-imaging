@@ -1,5 +1,5 @@
-import json
 import os
+import json
 
 global_path = "/mnt/data/Close_Loop_Data"
 
@@ -13,9 +13,10 @@ config = {
     "final_dir": f"{global_path}/final_decisions",
     "flags_dir": f"{global_path}/Close_Loop_Data/flags",
     "setpoint_file": f"{global_path}/setpoints.txt",
-    "check_interval": 3,
     "threshold_ratio": 0.05,
     "num_channels": 6,
+    "num_tries": 5,
+    "sleep_time": 2,
     "decision_key": {'add neutral media': 1,
                 'add acidic media': 2,
                 'add basic media': 3}
@@ -30,7 +31,7 @@ os.makedirs(config["decision_dir"], exist_ok=True)
 os.makedirs(config["final_dir"], exist_ok=True)
 os.makedirs(config["flags_dir"], exist_ok=True)
 
-save_path = "config.json"
+save_path = f"/mnt/exDisk1/douglashazel/DHcode/PE_Pipeline/DEMO/config.json"
 
 with open(save_path, "w") as f:
     json.dump(config, f, indent=4)

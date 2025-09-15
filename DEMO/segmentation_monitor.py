@@ -29,47 +29,55 @@ processed = {os.path.join(watch_dir, f) for f in os.listdir(watch_dir) if os.pat
 model = models.CellposeModel(gpu=True)
 
 while True:
-    try:
-        images = sorted([f for f in os.listdir(watch_dir) if f.endswith(('.png', '.jpg'))])
-        for f in images:
-            path = os.path.join(watch_dir, f)
-            if path not in processed:
-                log(f'Processing {f}...')
-                start_time = time.time()
+    images = sorted([f for f in os.listdir(watch_dir) if f.endswith(('.png', '.jpg'))])
+    for f in images:
+        path = os.path.join(watch_dir, f)
+        if path not in processed:
+            log(f'Processing {f}...')
+            start_time = time.time()
 
-                # Load image
-                img = io.imread(path)
+            retries = 0
+            while retries < cfg["num_tries"]:
+                try:
+                    # Load image
+                    img = io.imread(path)
 
-                # Run Cellpose segmentation
-                masks, _, _ = model.eval([img])
-                masks = masks[0]
+                    # Run Cellpose segmentation
+                    masks, _, _ = model.eval([img])
+                    masks = masks[0]
 
-                # Save segmentation
-                base_name = os.path.splitext(f)[0]
-                save_path = os.path.join(mask_dir, base_name + '.npy')
-                np.save(save_path, masks)
+                    # Save segmentation
+                    base_name = os.path.splitext(f)[0]
+                    save_path = os.path.join(mask_dir, base_name + '.npy')
+                    np.save(save_path, masks)
 
-                # also update current_masks with this channel for frame 000
-                if "000_channel" in base_name:
-                    outlines = utils.masks_to_outlines(masks)
-                    outlines = binary_dilation(outlines, iterations=3)
-                    overlay = img.copy()
-                    if overlay.ndim == 2:
-                        overlay = np.stack([overlay] * 3, axis=-1)
-                    overlay[outlines] = [255, 0, 0]
+                    # also update current_masks with this channel for frame 000
+                    if "000_channel" in base_name:
+                        outlines = utils.masks_to_outlines(masks)
+                        outlines = binary_dilation(outlines, iterations=3)
+                        overlay = img.copy()
+                        if overlay.ndim == 2:
+                            overlay = np.stack([overlay] * 3, axis=-1)
+                        overlay[outlines] = [255, 0, 0]
 
-                    # save overlay
-                    fig = plt.figure(dpi=300)
-                    plt.title(base_name)
-                    plt.imshow(overlay)
-                    plt.axis("off")
-                    save_path = os.path.join(temp_overlays, f"{base_name}_overlay.png")
-                    fig.savefig(save_path, dpi=300, bbox_inches="tight")
+                        # save overlay
+                        fig = plt.figure(dpi=300)
+                        plt.title(base_name)
+                        plt.imshow(overlay)
+                        plt.axis("off")
+                        save_path = os.path.join(temp_overlays, f"{base_name}_overlay.png")
+                        fig.savefig(save_path, dpi=300, bbox_inches="tight")
 
-                processed.add(path)
+                    processed.add(path)
 
-                elapsed = time.time() - start_time
-                log(f'Done {f} in {elapsed:.2f} seconds')
-                
-    except AttributeError:
-        time.sleep(2)
+                    elapsed = time.time() - start_time
+                    log(f'Done {f} in {elapsed:.2f} seconds')
+                    break  # success, exit retry loop
+
+                except (OSError, ValueError, EOFError, AttributeError) as e:
+                    retries += 1
+                    log(f"Retry {retries}/{cfg["num_tries"]} for {f}: {e}")
+                    time.sleep(cfg["sleep_time"])
+
+            else:
+                log(f"Failed to process {f} after {cfg["num_tries"]} retries. Skipping.")
