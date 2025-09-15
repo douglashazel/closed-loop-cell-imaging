@@ -11,7 +11,7 @@ config = {
     "curr_mask_dir": f"{global_path}/current_masks",
     "decision_dir": f"{global_path}/temp_decisions",
     "final_dir": f"{global_path}/final_decisions",
-    "flags_dir": f"{global_path}/Close_Loop_Data/flags",
+    "flags_dir": f"{global_path}/flags",
     "setpoint_file": f"{global_path}/setpoints.txt",
     "threshold_ratio": 0.05,
     "num_channels": 6,
