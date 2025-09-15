@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import numpy as np
 from datetime import datetime
@@ -9,15 +10,17 @@ from scipy.ndimage import binary_dilation
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
+# --- Load Config ---
+with open("config.json", "r") as f:
+    cfg = json.load(f)
+
+watch_dir = cfg["watch_dir"]
+mask_dir = cfg["mask_dir"]
+temp_overlays = cfg["temp_overlays"]
+
 log("Cellpose model loading complete.")
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
-watch_dir = '/mnt/data/Close_Loop_Data/incoming_frames'
-mask_dir = '/mnt/data/Close_Loop_Data/processed_masks'
-temp_overlays = '/mnt/data/Close_Loop_Data/temp_overlays'
-for d in [watch_dir, mask_dir, temp_overlays]:
-    os.makedirs(d, exist_ok=True)
 
 # Track processed images by checking existing .npy files
 existing_masks = {os.path.splitext(f)[0] for f in os.listdir(mask_dir) if f.endswith('.npy')}

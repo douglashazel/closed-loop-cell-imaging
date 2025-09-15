@@ -1,18 +1,19 @@
 import os
+import json
 import time
 import numpy as np
 from datetime import datetime
 from collections import defaultdict
 
-# --- Config ---
-mask_dir = '/mnt/data/Close_Loop_Data/processed_masks'
-flags_dir = '/mnt/data/Close_Loop_Data/flags'
-check_interval = 3  # seconds
-num_channels = 6
-threshold_ratio = 0.05  # 5%
+# --- Load Config ---
+with open("config.json", "r") as f:
+    cfg = json.load(f)
 
-# Ensure flags directory exists
-os.makedirs(flags_dir, exist_ok=True)
+mask_dir = cfg["mask_dir"]
+flags_dir = cfg["flags_dir"]
+check_interval = cfg["check_interval"]
+num_channels = cfg["num_channels"]
+threshold_ratio = cfg["threshold_ratio"]
 
 # Track last frame ID and ROI count per channel
 last_frame = defaultdict(lambda: None)

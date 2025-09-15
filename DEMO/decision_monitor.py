@@ -1,23 +1,23 @@
 import os
 import time
+import json
 import numpy as np
 import pandas as pd
 from PIL import Image
 from datetime import datetime
 
-num_channels = 6
-watch_dir = '/mnt/data/Close_Loop_Data/incoming_frames'
-mask_dir = '/mnt/data/Close_Loop_Data/processed_masks'
-curr_mask_dir = '/mnt/data/Close_Loop_Data/current_masks'
-decision_dir = '/mnt/data/Close_Loop_Data/temp_decisions'
-final_dir = '/mnt/data/Close_Loop_Data/final_decisions'
-setpoint_file = '/mnt/data/Close_Loop_Data/setpoints.txt'
-os.makedirs(decision_dir, exist_ok=True)
-os.makedirs(final_dir, exist_ok=True)
+with open("config.json", "r") as f:
+    cfg = json.load(f)
 
-decision_key = {'add neutral media': 1,
-                'add acidic media': 2,
-                'add basic media': 3}
+num_channels = cfg["num_channels"]
+watch_dir = cfg["watch_dir"]
+mask_dir = cfg["mask_dir"]
+curr_mask_dir = cfg["curr_mask_dir"]
+decision_dir = cfg["decision_dir"]
+final_dir = cfg["final_dir"]
+setpoint_file = cfg["setpoint_file"]
+
+decision_key = cfg['decision_key']
 decision_rev = {v: k for k, v in decision_key.items()}
 
 def log(msg):
