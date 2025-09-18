@@ -4,6 +4,7 @@ import re
 import sys
 import time
 import numba
+import argparse
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -215,9 +216,16 @@ def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num
     lum_df.to_csv(lum_path, index=False)
 
 # ---------------- segmentation + live processing ---------------- #
-image_dir = "frames"
-mask_dir = "masks"
-save_path = "analysis"
+parser = argparse.ArgumentParser()
+parser.add_argument("--image_dir", required=True)
+parser.add_argument("--mask_dir", required=True)
+parser.add_argument("--save_path", required=True)
+args = parser.parse_args()
+
+image_dir = args.image_dir
+mask_dir = args.mask_dir
+save_path = args.save_path
+
 os.makedirs(mask_dir, exist_ok=True)
 os.makedirs(save_path, exist_ok=True)
 

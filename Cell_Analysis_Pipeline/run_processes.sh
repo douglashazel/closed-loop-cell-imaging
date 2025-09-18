@@ -1,27 +1,49 @@
 #!/bin/bash
 set -euo pipefail
 
-# Paths to scripts
+# -----------------------------
+# User parameters
+# -----------------------------
+IMAGE_DIR="frames"
+MASK_DIR="masks"
+SAVE_PATH="analysis"
+FLOW_THRESHOLD=0.4       # default=0.4; higher = stricter flow consistency, fewer masks
+CELLPROB_THRESHOLD=0.0   # default=0.0; higher = fewer cells accepted, lower = more cells
+NITER=200                # default=200; higher = slower but can improve accuracy
+
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"
 
+# -----------------------------
 # Ensure scripts exist
+# -----------------------------
 if [[ ! -f "$SCRIPT1" || ! -f "$SCRIPT2" ]]; then
     echo "One or more scripts not found."
     exit 1
 fi
 
-# Run segmentation monitoring
+# -----------------------------
+# Run segmentation
+# -----------------------------
 echo "Starting cellpose segmentation..."
-python3 "$SCRIPT1" &
+python3 "$SCRIPT1" \
+    --image_dir "$IMAGE_DIR" \
+    --mask_dir "$MASK_DIR" \
+    --flow_threshold "$FLOW_THRESHOLD" \
+    --cellprob_threshold "$CELLPROB_THRESHOLD" \
+    --niter "$NITER" &
 PID1=$!
 
-sleep 5 # wait for folders to be created
+sleep 5
 
+# -----------------------------
 # Run trajectory processing
+# -----------------------------
 echo "Starting trajectory processing..."
-python3 "$SCRIPT2" &
+python3 "$SCRIPT2" \
+    --mask_dir "$MASK_DIR" \
+    --image_dir "$IMAGE_DIR" \
+    --save_path "$SAVE_PATH" &
 PID2=$!
 
-# Wait for both to finish (they run indefinitely unless killed)
 wait $PID1 $PID2
