@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import time
 import numpy as np
@@ -29,16 +28,6 @@ processed = {os.path.join(watch_dir, f) for f in os.listdir(watch_dir) if os.pat
 
 model = models.CellposeModel(gpu=True)
 
-def parse_filename(fname):
-    """Extract frame and channel from filename like channel_1_image_0_a_timepoint_00000.png"""
-    base = os.path.splitext(fname)[0]
-    m = re.search(r'channel_(\d+).*timepoint_(\d+)$', base)
-    if not m:
-        raise ValueError(f"Unexpected filename format: {fname}")
-    channel = int(m.group(1))
-    frame = int(m.group(2))
-    return frame, channel, base
-
 while True:
     images = sorted([f for f in os.listdir(watch_dir) if f.endswith(('.png', '.jpg'))])
     for f in images:
@@ -50,9 +39,6 @@ while True:
             retries = 0
             while retries < cfg["num_tries"]:
                 try:
-                    # Parse filename
-                    frame, channel, base_name = parse_filename(f)
-
                     # Load image
                     img = io.imread(path)
 
@@ -60,13 +46,13 @@ while True:
                     masks, _, _ = model.eval([img])
                     masks = masks[0]
                     
-                    # Save segmentation with parsed naming
-                    save_base = f"{frame:03d}_channel{channel}"
-                    save_path = os.path.join(mask_dir, save_base + '.npy')
+                    # Save segmentation
+                    base_name = os.path.splitext(f)[0]
+                    save_path = os.path.join(mask_dir, base_name + '.npy')
                     np.save(save_path, masks)
 
-                    # also update overlay for initial frame
-                    if frame == 0:
+                    # also update current_masks with this channel for frame 000
+                    if "000_channel" in base_name:
                         outlines = utils.masks_to_outlines(masks)
                         outlines = binary_dilation(outlines, iterations=3)
                         overlay = img.copy()
@@ -74,23 +60,24 @@ while True:
                             overlay = np.stack([overlay] * 3, axis=-1)
                         overlay[outlines] = [255, 0, 0]
 
+                        # save overlay
                         fig = plt.figure(dpi=300)
-                        plt.title(save_base)
+                        plt.title(base_name)
                         plt.imshow(overlay)
                         plt.axis("off")
-                        overlay_path = os.path.join(temp_overlays, f"{save_base}_overlay.png")
-                        fig.savefig(overlay_path, dpi=300, bbox_inches="tight")
+                        save_path = os.path.join(temp_overlays, f"{base_name}_overlay.png")
+                        fig.savefig(save_path, dpi=300, bbox_inches="tight")
 
                     processed.add(path)
 
                     elapsed = time.time() - start_time
                     log(f'Done {f} in {elapsed:.2f} seconds')
-                    break  # success
+                    break  # success, exit retry loop
 
                 except (OSError, ValueError, EOFError, AttributeError) as e:
                     retries += 1
-                    log(f"Retry {retries}/{cfg['num_tries']} for {f}: {e}")
+                    log(f"Retry {retries}/{cfg["num_tries"]} for {f}: {e}")
                     time.sleep(cfg["sleep_time"])
 
             else:
-                log(f"Failed to process {f} after {cfg['num_tries']} retries. Skipping.")
+                log(f"Failed to process {f} after {cfg["num_tries"]} retries. Skipping.")

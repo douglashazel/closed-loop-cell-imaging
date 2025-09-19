@@ -5,7 +5,7 @@ global_path = "/mnt/data/Close_Loop_Data"
 
 config = {
     "gobal_path": global_path,
-    "watch_dir": f"{global_path}/incoming_frames",
+    "watch_dir": f"{global_path}/images/feedback test",
     "mask_dir": f"{global_path}/processed_masks",
     "temp_overlays": f"{global_path}/temp_overlays",
     "curr_mask_dir": f"{global_path}/current_masks",

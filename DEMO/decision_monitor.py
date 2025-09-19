@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import json
 import numpy as np
@@ -21,13 +22,28 @@ setpoint_file = cfg["setpoint_file"]
 decision_key = cfg['decision_key']
 decision_rev = {v: k for k, v in decision_key.items()}
 
+# regex for filenames like channel_1_image_0_a_timepoint_00000.png
+FILENAME_PATTERN = re.compile(r"channel_(\d+).*timepoint_(\d+)\.png")
+
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
+def parse_filename(fname):
+    m = FILENAME_PATTERN.match(fname)
+    if not m:
+        return None, None
+    channel = int(m.group(1))
+    frame = int(m.group(2))
+    return channel, frame
+
 def wait_for_images(frame):
-    frame_str = f"{frame:03d}"
     while True:
-        imgs = [f for f in os.listdir(watch_dir) if f.startswith(frame_str) and f.endswith('.png')]
+        imgs = []
+        for f in os.listdir(watch_dir):
+            if f.endswith('.png'):
+                ch, fr = parse_filename(f)
+                if fr == frame:
+                    imgs.append(f)
         if len(imgs) >= num_channels:
             return
         time.sleep(cfg["sleep_time"])
@@ -35,7 +51,14 @@ def wait_for_images(frame):
 def compute_setpoint(initial_masks):
     setpoint_vals = []
     for ch in range(1, num_channels+1):
-        img_path = os.path.join(watch_dir, f"000_channel{ch}.png")
+        # find image for frame 0 and this channel
+        img_file = next(
+            (f for f in os.listdir(watch_dir) if f.endswith('.png')
+             and parse_filename(f) == (ch, 0)), None
+        )
+        if img_file is None:
+            continue
+        img_path = os.path.join(watch_dir, img_file)
         while not os.path.exists(img_path):
             time.sleep(cfg["sleep_time"])
         img = np.array(Image.open(img_path), dtype=np.float32)
@@ -77,15 +100,19 @@ def load_setpoints(default_setpoint, default_basic, default_acidic):
     return vals['setpoint'], vals['basic'], vals['acidic']
 
 def process_frame(frame, default_setpoint, default_basic, default_acidic):
-    frame_str = f"{frame:03d}"
     wait_for_images(frame)
-
     setpoint, basic_media, acidic_media = load_setpoints(default_setpoint, default_basic, default_acidic)
 
     for ch in range(1, num_channels+1):
-        img_path = os.path.join(watch_dir, f"{frame_str}_channel{ch}.png")
-        if not os.path.exists(img_path):
+        # find image for this frame + channel
+        img_file = next(
+            (f for f in os.listdir(watch_dir) if f.endswith('.png')
+             and parse_filename(f) == (ch, frame)), None
+        )
+        if img_file is None:
             continue
+
+        img_path = os.path.join(watch_dir, img_file)
 
         retries = 0
         while retries < cfg["num_tries"]:
@@ -108,46 +135,44 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
                 else:
                     decision = decision_key['add acidic media']
 
-                with open(os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt"), 'w') as f:
+                with open(os.path.join(decision_dir, f"frame{frame:05d}_channel{ch}.txt"), 'w') as f:
                     f.write(str(decision))
 
-                log(f"{frame_str}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]} "
+                log(f"frame{frame:05d}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]} "
                     f"(setpoint={setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f})")
 
                 break  # success
 
             except (OSError, ValueError, EOFError, AttributeError) as e:
                 retries += 1
-                log(f"Retry {retries}/{cfg['num_tries']} for frame {frame_str} channel {ch}: {e}")
+                log(f"Retry {retries}/{cfg['num_tries']} for frame {frame} channel {ch}: {e}")
                 time.sleep(cfg["sleep_time"])
 
         else:
-            log(f"Failed to process frame {frame_str} channel {ch} after {cfg['num_tries']} retries. Skipping.")
+            log(f"Failed to process frame {frame} channel {ch} after {cfg['num_tries']} retries. Skipping.")
 
 def finalize_decisions(frame):
-    frame_str = f"{frame:03d}"
     while True:
-        decs = [f for f in os.listdir(decision_dir) if f.startswith(frame_str) and f.endswith('.txt')]
+        decs = [f for f in os.listdir(decision_dir) if f.startswith(f"frame{frame:05d}_channel") and f.endswith('.txt')]
         if len(decs) >= num_channels:
             break
         time.sleep(cfg["sleep_time"])
 
     actions = []
     for ch in range(1, num_channels+1):
-        dec_path = os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt")
+        dec_path = os.path.join(decision_dir, f"frame{frame:05d}_channel{ch}.txt")
         with open(dec_path, 'r') as f:
             decision_val = int(f.read().strip())
-        # Save in TOML format: [channel, ["media", decision_val]]
         actions.append([ch, ["media", decision_val]])
 
-    out_path = os.path.join(final_dir, f"{frame_str}.toml")
+    out_path = os.path.join(final_dir, f"{frame}.toml")
     with open(out_path, "w") as f:
         tomlkit.dump({"actions": actions}, f)
 
-    log(f"Finalized decisions for frame {frame_str} into TOML")
+    log(f"Finalized decisions for frame {frame} into TOML")
 
 # ---- INITIAL SETUP ----
-log("Waiting for initial frame (000) masks and images to compute setpoint...")
+log("Waiting for initial frame (0) masks and images to compute setpoint...")
 
 while True:
     masks = [f for f in os.listdir(mask_dir) if f.startswith("000") and f.endswith('.npy')]
@@ -173,7 +198,9 @@ log(f"Setpoint computed: {setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic
 # ---- MAIN LOOP ----
 while True:
     last_frame = last_processed_frame()
-    frame_indices = sorted(set(int(f.split('_channel')[0]) for f in os.listdir(watch_dir) if f.endswith('.png')))
+    frame_indices = sorted(
+        {parse_filename(f)[1] for f in os.listdir(watch_dir) if f.endswith('.png') and parse_filename(f)[1] is not None}
+    )
     next_frames = [f for f in frame_indices if f > last_frame]
 
     if not next_frames:
@@ -181,9 +208,7 @@ while True:
         continue
 
     for frame in next_frames:
-        # frame_str = f"{frame:03d}"
-        frame_str = "actions"
-        lock_path = os.path.join(final_dir, f"{frame_str}.lock")
+        lock_path = os.path.join(final_dir, f"{frame}.lock")
         if os.path.exists(lock_path):
             continue
 
@@ -198,10 +223,10 @@ while True:
                 break  # success
             except (OSError, ValueError, EOFError, AttributeError) as e:
                 retries += 1
-                log(f"Retry {retries}/{cfg['num_tries']} for frame {frame_str}: {e}")
+                log(f"Retry {retries}/{cfg['num_tries']} for frame {frame}: {e}")
                 time.sleep(cfg["sleep_time"])
 
         else:
-            log(f"Failed to finalize frame {frame_str} after {cfg['num_tries']} retries. Skipping.")
+            log(f"Failed to finalize frame {frame} after {cfg['num_tries']} retries. Skipping.")
             if os.path.exists(lock_path):
                 os.remove(lock_path)

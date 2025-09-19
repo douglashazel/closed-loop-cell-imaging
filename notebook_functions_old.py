@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import numpy as np
 from tqdm import tqdm
@@ -26,15 +25,16 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
 
             img = io.imread(path)
 
-            # parse channel number from filename like "channel_1_image_0_a_timepoint_00000.png"
-            match = re.search(r"channel_(\d+)", f)
-            if match:
-                channel = f"channel{match.group(1)}"
-            else:
-                channel = None
+            # detect channel from filename
+            base_name = os.path.splitext(f)[0]
+            channel = None
+            for ch in unique_params:
+                if ch in base_name:
+                    channel = ch
+                    break
 
             # skip if channel not in active params
-            if channel not in unique_params:
+            if channel is None:
                 pbar.update(1)
                 continue
 
@@ -70,14 +70,11 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
 def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     """
     Display the image for a given frame and channel with segmentation outlines overlaid.
-    Expects filenames like: channel_<channel>_image_0_a_timepoint_<frame:05d>.png
     """
-    # Build filenames to match new convention
-    img_name = f"channel_{channel}_image_0_a_timepoint_{frame:05d}.png"
-    mask_name = os.path.splitext(img_name)[0] + ".npy"
-
-    img_path = os.path.join(watch_dir, img_name)
-    mask_path = os.path.join(mask_dir, mask_name)
+    # Build filenames
+    base_name = f"{frame:03d}_channel{channel}"
+    img_path = os.path.join(watch_dir, f"{base_name}.png")
+    mask_path = os.path.join(mask_dir, f"{base_name}.npy")
     
     if not os.path.exists(img_path):
         raise FileNotFoundError(f"Image not found: {img_path}")
@@ -100,10 +97,10 @@ def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     
     # Plot
     plt.figure(dpi=300)
+    plt.title(base_name)
     plt.imshow(overlay, cmap="gray")
-    plt.title(f"Frame {frame:05d}, Channel {channel}")
+    plt.title(f"Frame {frame:03d}, Channel {channel}")
     plt.axis("off")
-    plt.show()
 
 
 def update_masks(channel_updates, mask_dir, curr_mask_dir):
