@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from datetime import datetime
-import tomlkit
 
 with open("config.json", "r") as f:
     cfg = json.load(f)
@@ -47,7 +46,7 @@ def compute_setpoint(initial_masks):
 def last_processed_frame():
     frames = []
     for f in os.listdir(final_dir):
-        if f.endswith('.toml'):
+        if f.endswith('.csv'):
             frame_idx = f.split('.')[0]
             if frame_idx.isdigit():
                 frames.append(int(frame_idx))
@@ -118,11 +117,11 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
 
             except (OSError, ValueError, EOFError, AttributeError) as e:
                 retries += 1
-                log(f"Retry {retries}/{cfg['num_tries']} for frame {frame_str} channel {ch}: {e}")
+                log(f"Retry {retries}/{cfg["num_tries"]} for frame {frame_str} channel {ch}: {e}")
                 time.sleep(cfg["sleep_time"])
 
         else:
-            log(f"Failed to process frame {frame_str} channel {ch} after {cfg['num_tries']} retries. Skipping.")
+            log(f"Failed to process frame {frame_str} channel {ch} after {cfg["num_tries"]} retries. Skipping.")
 
 def finalize_decisions(frame):
     frame_str = f"{frame:03d}"
@@ -132,19 +131,21 @@ def finalize_decisions(frame):
             break
         time.sleep(cfg["sleep_time"])
 
-    actions = []
+    channels = []
+    decisions = []
     for ch in range(1, num_channels+1):
         dec_path = os.path.join(decision_dir, f"{frame_str}_channel{ch}.txt")
         with open(dec_path, 'r') as f:
             decision_val = int(f.read().strip())
-        # Save in TOML format: [channel, ["media", decision_val]]
-        actions.append([ch, ["media", decision_val]])
+        channels.append(ch)
+        decisions.append(decision_val)
 
-    out_path = os.path.join(final_dir, f"{frame_str}.toml")
-    with open(out_path, "w") as f:
-        tomlkit.dump({"actions": actions}, f)
-
-    log(f"Finalized decisions for frame {frame_str} into TOML")
+    df = pd.DataFrame({
+        "channel": channels,
+        "decision": decisions
+    })
+    df.to_csv(os.path.join(final_dir, f"{frame_str}.csv"), index=False)
+    log(f"Finalized decisions for frame {frame_str}")
 
 # ---- INITIAL SETUP ----
 log("Waiting for initial frame (000) masks and images to compute setpoint...")
@@ -198,10 +199,10 @@ while True:
                 break  # success
             except (OSError, ValueError, EOFError, AttributeError) as e:
                 retries += 1
-                log(f"Retry {retries}/{cfg['num_tries']} for frame {frame_str}: {e}")
+                log(f"Retry {retries}/{cfg["num_tries"]} for frame {frame_str}: {e}")
                 time.sleep(cfg["sleep_time"])
 
         else:
-            log(f"Failed to finalize frame {frame_str} after {cfg['num_tries']} retries. Skipping.")
+            log(f"Failed to finalize frame {frame_str} after {cfg["num_tries"]} retries. Skipping.")
             if os.path.exists(lock_path):
                 os.remove(lock_path)
