@@ -70,10 +70,16 @@ def compute_setpoint(initial_masks):
 def last_processed_frame():
     frames = []
     for f in os.listdir(final_dir):
+        # ignore the new actions.toml
+        if f == "actions.toml":
+            continue
         if f.endswith('.toml'):
             frame_idx = f.split('.')[0]
             if frame_idx.isdigit():
                 frames.append(int(frame_idx))
+    # ALSO: if actions.toml exists, treat the last frame as processed
+    if os.path.exists(os.path.join(final_dir, "actions.toml")) and frames:
+        return max(frames)
     return max(frames) if frames else -1
 
 def save_setpoints(setpoint, basic, acidic):
@@ -152,8 +158,15 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
             log(f"Failed to process frame {frame} channel {ch} after {cfg['num_tries']} retries. Skipping.")
 
 def finalize_decisions(frame):
+    # --- skip if actions.toml already exists
+    actions_path = os.path.join(final_dir, "actions.toml")
+    if os.path.exists(actions_path):
+        log(f"actions.toml already exists for frame {frame}, skipping rebuild.")
+        return
+
     while True:
-        decs = [f for f in os.listdir(decision_dir) if f.startswith(f"{frame:05d}_channel") and f.endswith('.txt')]
+        decs = [f for f in os.listdir(decision_dir)
+                if f.startswith(f"frame{frame:05d}_channel") and f.endswith('.txt')]
         if len(decs) >= num_channels:
             break
         time.sleep(cfg["sleep_time"])
@@ -165,11 +178,17 @@ def finalize_decisions(frame):
             decision_val = int(f.read().strip())
         actions.append([ch, ["media", decision_val]])
 
-    out_path = os.path.join(final_dir, f"{frame}.toml")
-    with open(out_path, "w") as f:
+    # write as <frame>.toml
+    temp_path = os.path.join(final_dir, f"{frame}.toml")
+    with open(temp_path, "w") as f:
         tomlkit.dump({"actions": actions}, f)
 
-    log(f"Finalized decisions for frame {frame} into TOML")
+    # then rename to actions.toml
+    if os.path.exists(actions_path):
+        os.remove(actions_path)
+    os.rename(temp_path, actions_path)
+
+    log(f"Finalized decisions for frame {frame} into {actions_path}")
 
 # ---- INITIAL SETUP ----
 log("Waiting for initial frame (0) masks and images to compute setpoint...")
