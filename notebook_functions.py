@@ -70,7 +70,7 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
 def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     """
     Display the image for a given frame and channel with segmentation outlines overlaid.
-    Expects filenames like: channel_<channel>_image_0_a_timepoint_<frame:05d>.png
+    Expects filenames like: <frame:05d>_channel<channel>.png
     """
     # Build filenames to match new convention
     img_name = f"{frame:05d}_channel{channel}.png"
