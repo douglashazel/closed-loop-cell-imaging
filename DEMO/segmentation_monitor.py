@@ -74,12 +74,22 @@ while True:
                             overlay = np.stack([overlay] * 3, axis=-1)
                         overlay[outlines] = [255, 0, 0]
 
-                        fig = plt.figure(dpi=300)
-                        plt.title(save_base)
+                        # save overlay
+                        fig = plt.figure(figsize=(10, 5), dpi=300)
+                        # Left = overlay
+                        plt.subplot(1, 2, 1)
                         plt.imshow(overlay)
+                        plt.title("With segmentation")
+                        plt.axis("off")
+
+                        # Right = raw
+                        plt.subplot(1, 2, 2)
+                        plt.imshow(img, cmap="gray")
+                        plt.title("Raw image")
                         plt.axis("off")
                         overlay_path = os.path.join(temp_overlays, f"{save_base}_overlay.png")
                         fig.savefig(overlay_path, dpi=300, bbox_inches="tight")
+                        plt.close(fig)
 
                     processed.add(path)
 

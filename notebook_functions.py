@@ -7,6 +7,17 @@ import matplotlib.pyplot as plt
 from cellpose import models, io, utils
 from scipy.ndimage import binary_dilation
 
+def parse_filename(fname):
+    """Extract frame and channel from filename like channel_1_image_0_a_timepoint_00000.png"""
+    base = os.path.splitext(fname)[0]
+    m = re.search(r'channel_(\d+).*timepoint_(\d+)$', base)
+    if not m:
+        raise ValueError(f"Unexpected filename format: {fname}")
+    channel = int(m.group(1))
+    frame = int(m.group(2))
+    return frame, channel, base
+
+
 def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
     """
     Segment images in a directory using Cellpose with channel-specific parameters, save masks, 
@@ -19,7 +30,8 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
     images = sorted([f for f in os.listdir(watch_dir) if f.endswith(('.png', '.jpg'))])
     with tqdm(images, desc='Segmenting Images...') as pbar:
         for f in images:
-            base_name = os.path.splitext(f)[0]
+            frame, channel, base_name = parse_filename(f)
+            base_name = f"{frame:05d}_channel{channel}"
 
             pbar.set_postfix_str(f)
             path = os.path.join(watch_dir, f)
@@ -45,6 +57,7 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
             masks, flows, styles = model.eval(img, **eval_kwargs)
 
             # save masks
+
             mask_path = os.path.join(mask_dir, f"{base_name}.npy")
             np.save(mask_path, masks)
 
@@ -57,10 +70,19 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
             overlay[outlines] = [255, 0, 0]
 
             # save overlay
-            fig = plt.figure(dpi=300)
-            plt.title(base_name)
+            fig = plt.figure(figsize=(10, 5), dpi=300)
+            # Left = overlay
+            plt.subplot(1, 2, 1)
             plt.imshow(overlay)
+            plt.title("With segmentation")
             plt.axis("off")
+
+            # Right = raw
+            plt.subplot(1, 2, 2)
+            plt.imshow(img, cmap="gray")
+            plt.title("Raw image")
+            plt.axis("off")
+
             save_path = os.path.join(temp_overlays, f"{base_name}_overlay.png")
             fig.savefig(save_path, dpi=300, bbox_inches="tight")
             plt.close(fig)  # free memory
@@ -69,40 +91,47 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
 
 def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     """
-    Display the image for a given frame and channel with segmentation outlines overlaid.
-    Expects filenames like: <frame:05d>_channel<channel>.png
+    Show: [Left] image with segmentation outlines, [Right] raw image only.
+    Expects image file: channel_{channel}_image_0_a_timepoint_{frame:05d}.png
+            mask file:  {frame:05d}_channel{channel}.npy
     """
-    # Build filenames to match new convention
-    img_name = f"{frame:05d}_channel{channel}.png"
-    mask_name = os.path.splitext(img_name)[0] + ".npy"
+    img_name = f"channel_{channel}_image_0_a_timepoint_{frame:05d}.png"
+    mask_name = f"{frame:05d}_channel{channel}.npy"
 
     img_path = os.path.join(watch_dir, img_name)
     mask_path = os.path.join(mask_dir, mask_name)
-    
+
     if not os.path.exists(img_path):
         raise FileNotFoundError(f"Image not found: {img_path}")
     if not os.path.exists(mask_path):
         raise FileNotFoundError(f"Mask not found: {mask_path}")
-    
-    # Load
+
     img = io.imread(img_path)
     masks = np.load(mask_path, allow_pickle=True)
-    
-    # Make outlines
+
     outlines = utils.masks_to_outlines(masks)
     outlines = binary_dilation(outlines, iterations=2)
-    
-    # Overlay
+
     overlay = img.copy()
-    if overlay.ndim == 2:  # grayscale
+    if overlay.ndim == 2:  # grayscale to RGB
         overlay = np.stack([overlay] * 3, axis=-1)
-    overlay[outlines] = [255, 0, 0]
-    
-    # Plot
-    plt.figure(dpi=300)
-    plt.imshow(overlay, cmap="gray")
-    plt.title(f"Frame {frame:05d}, Channel {channel}")
+    overlay[outlines] = [255, 0, 0]  # red outlines
+
+    plt.figure(figsize=(10, 5), dpi=300)
+    plt.suptitle(f"Frame {frame:05d}, Channel {channel}", fontsize=10)
+
+    # Left = overlay
+    plt.subplot(1, 2, 1)
+    plt.imshow(overlay)
+    plt.title("With segmentation")
     plt.axis("off")
+
+    # Right = raw
+    plt.subplot(1, 2, 2)
+    plt.imshow(img, cmap="gray")
+    plt.title("Raw image")
+    plt.axis("off")
+
     plt.show()
 
 
