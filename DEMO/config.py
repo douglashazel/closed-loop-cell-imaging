@@ -14,7 +14,7 @@ config = {
     "flags_dir": f"{global_path}/flags",
     "setpoint_file": f"{global_path}/setpoints.txt",
     "threshold_ratio": 0.05,
-    "num_channels": 6,
+    "num_channels": 2,
     "num_tries": 5,
     "sleep_time": 2,
     "decision_key": {'add neutral media': 1,

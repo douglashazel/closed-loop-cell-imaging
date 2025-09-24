@@ -1,0 +1,14 @@
+name: closed_loop
+channels:
+- conda-forge
+- defaults
+dependencies:
+- python=3.12.5
+- numpy==2.1.0
+- pandas==2.2.2
+- Pillow==10.4.0
+- tomlkit==0.13.3
+- matplotlib==3.9.2
+- cellpose==4.0.6
+- scipy==1.14.1
+- tqdm==4.66.5
