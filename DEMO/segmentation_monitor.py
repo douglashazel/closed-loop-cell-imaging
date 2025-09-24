@@ -61,7 +61,7 @@ while True:
                     masks = masks[0]
                     
                     # Save segmentation with parsed naming
-                    save_base = f"{frame:03d}_channel{channel}"
+                    save_base = f"{frame:05d}_channel{channel}"
                     save_path = os.path.join(mask_dir, save_base + '.npy')
                     np.save(save_path, masks)
 

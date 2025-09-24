@@ -27,7 +27,7 @@ def count_rois(mask_file):
     return len(np.unique(data)) - 1  # subtract background (0)
 
 def get_frame_and_channel(filename):
-    """Extract frame and channel from filename like 000_channel1.npy."""
+    """Extract frame and channel from filename like 00000_channel1.npy."""
     parts = filename.split('_channel')
     if len(parts) != 2:
         return None, None
@@ -40,7 +40,7 @@ def get_frame_and_channel(filename):
 
 def create_flag_file(frame, channel, message):
     """Create a text file in flags directory with the message."""
-    filename = f"{frame:03d}_channel{channel}.txt"
+    filename = f"{frame:05d}_channel{channel}.txt"
     filepath = os.path.join(flags_dir, filename)
     with open(filepath, 'w') as f:
         f.write(message)

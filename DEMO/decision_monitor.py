@@ -135,10 +135,10 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
                 else:
                     decision = decision_key['add acidic media']
 
-                with open(os.path.join(decision_dir, f"frame{frame:05d}_channel{ch}.txt"), 'w') as f:
+                with open(os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt"), 'w') as f:
                     f.write(str(decision))
 
-                log(f"frame{frame:05d}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]} "
+                log(f"{frame:05d}_channel{ch}: {mean_val:.3f} -> {decision_rev[decision]} "
                     f"(setpoint={setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic_media:.3f})")
 
                 break  # success
@@ -153,14 +153,14 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
 
 def finalize_decisions(frame):
     while True:
-        decs = [f for f in os.listdir(decision_dir) if f.startswith(f"frame{frame:05d}_channel") and f.endswith('.txt')]
+        decs = [f for f in os.listdir(decision_dir) if f.startswith(f"{frame:05d}_channel") and f.endswith('.txt')]
         if len(decs) >= num_channels:
             break
         time.sleep(cfg["sleep_time"])
 
     actions = []
     for ch in range(1, num_channels+1):
-        dec_path = os.path.join(decision_dir, f"frame{frame:05d}_channel{ch}.txt")
+        dec_path = os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt")
         with open(dec_path, 'r') as f:
             decision_val = int(f.read().strip())
         actions.append([ch, ["media", decision_val]])
@@ -182,7 +182,7 @@ while True:
 
 initial_masks = {}
 for ch in range(1, num_channels+1):
-    mask_path = os.path.join(curr_mask_dir, f"000_channel{ch}.npy")
+    mask_path = os.path.join(curr_mask_dir, f"00000_channel{ch}.npy")
     while not os.path.exists(mask_path):
         time.sleep(cfg["sleep_time"])
     initial_masks[ch] = np.load(mask_path) > 0
