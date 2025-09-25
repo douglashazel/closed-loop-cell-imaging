@@ -6,6 +6,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from cellpose import models, io, utils
 from scipy.ndimage import binary_dilation
+import ipywidgets as widgets
+from IPython.display import display, clear_output
 
 def parse_filename(fname):
     """Extract frame and channel from filename like channel_1_image_0_a_timepoint_00000.png"""
@@ -90,21 +92,11 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
 
 
 def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
-    """
-    Show: [Left] image with segmentation outlines, [Right] raw image only.
-    Expects image file: channel_{channel}_image_0_a_timepoint_{frame:05d}.png
-            mask file:  {frame:05d}_channel{channel}.npy
-    """
     img_name = f"channel_{channel}_image_0_a_timepoint_{frame:05d}.png"
     mask_name = f"{frame:05d}_channel{channel}.npy"
 
     img_path = os.path.join(watch_dir, img_name)
     mask_path = os.path.join(mask_dir, mask_name)
-
-    if not os.path.exists(img_path):
-        raise FileNotFoundError(f"Image not found: {img_path}")
-    if not os.path.exists(mask_path):
-        raise FileNotFoundError(f"Mask not found: {mask_path}")
 
     img = io.imread(img_path)
     masks = np.load(mask_path, allow_pickle=True)
@@ -113,26 +105,39 @@ def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     outlines = binary_dilation(outlines, iterations=2)
 
     overlay = img.copy()
-    if overlay.ndim == 2:  # grayscale to RGB
+    if overlay.ndim == 2:
         overlay = np.stack([overlay] * 3, axis=-1)
-    overlay[outlines] = [255, 0, 0]  # red outlines
+    overlay[outlines] = [255, 0, 0]
 
-    plt.figure(figsize=(10, 5), dpi=300)
-    plt.suptitle(f"Frame {frame:05d}, Channel {channel}", fontsize=10)
+    raw_button = widgets.Button(description="Show Raw")
+    seg_button = widgets.Button(description="Show Segmentation")
 
-    # Left = overlay
-    plt.subplot(1, 2, 1)
-    plt.imshow(overlay)
-    plt.title("With segmentation")
-    plt.axis("off")
+    out = widgets.Output()
 
-    # Right = raw
-    plt.subplot(1, 2, 2)
-    plt.imshow(img, cmap="gray")
-    plt.title("Raw image")
-    plt.axis("off")
+    def show_raw(b):
+        with out:
+            clear_output(wait=True)
+            plt.figure(figsize=(12, 12))
+            plt.imshow(img, cmap="gray")
+            plt.title(f"Raw Frame {frame:05d}, Channel {channel}")
+            plt.axis("off")
+            plt.show()
 
-    plt.show()
+    def show_seg(b):
+        with out:
+            clear_output(wait=True)
+            plt.figure(figsize=(12, 12))
+            plt.imshow(overlay)
+            plt.title(f"Segmentation Frame {frame:05d}, Channel {channel}")
+            plt.axis("off")
+            plt.show()
+
+    raw_button.on_click(show_raw)
+    seg_button.on_click(show_seg)
+
+    display(widgets.HBox([raw_button, seg_button]))
+    display(out)
+    show_raw(None)  # default
 
 
 def update_masks(channel_updates, mask_dir, curr_mask_dir):
