@@ -70,16 +70,10 @@ def compute_setpoint(initial_masks):
 def last_processed_frame():
     frames = []
     for f in os.listdir(final_dir):
-        # ignore the new actions.toml
-        if f == "actions.toml":
-            continue
-        if f.endswith('.toml'):
+        if f.endswith('.toml') and f != "actions.toml":
             frame_idx = f.split('.')[0]
             if frame_idx.isdigit():
                 frames.append(int(frame_idx))
-    # ALSO: if actions.toml exists, treat the last frame as processed
-    if os.path.exists(os.path.join(final_dir, "actions.toml")) and frames:
-        return max(frames)
     return max(frames) if frames else -1
 
 def save_setpoints(setpoint, basic, acidic):
@@ -158,19 +152,15 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
             log(f"Failed to process frame {frame} channel {ch} after {cfg['num_tries']} retries. Skipping.")
 
 def finalize_decisions(frame):
-    # --- skip if actions.toml already exists
-    actions_path = os.path.join(final_dir, "actions.toml")
-    if os.path.exists(actions_path):
-        log(f"actions.toml already exists for frame {frame}, skipping rebuild.")
-        return
-
+    # Wait until all channel decisions exist
     while True:
         decs = [f for f in os.listdir(decision_dir)
-                if f.startswith(f"frame{frame:05d}_channel") and f.endswith('.txt')]
+                if f.startswith(f"{frame:05d}_channel") and f.endswith('.txt')]
         if len(decs) >= num_channels:
             break
         time.sleep(cfg["sleep_time"])
 
+    # Build actions list
     actions = []
     for ch in range(1, num_channels+1):
         dec_path = os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt")
@@ -178,17 +168,15 @@ def finalize_decisions(frame):
             decision_val = int(f.read().strip())
         actions.append([ch, ["media", decision_val]])
 
-    # write as <frame>.toml
-    temp_path = os.path.join(final_dir, f"{frame}.toml")
-    with open(temp_path, "w") as f:
+    # Write lock file
+    lock_path = os.path.join(final_dir, f"{frame}.lock")
+    with open(lock_path, "w") as f:
         tomlkit.dump({"actions": actions}, f)
 
-    # then rename to actions.toml
-    if os.path.exists(actions_path):
-        os.remove(actions_path)
-    os.rename(temp_path, actions_path)
-
-    log(f"Finalized decisions for frame {frame} into {actions_path}")
+    # Rename to actions.toml
+    actions_path = os.path.join(final_dir, "actions.toml")
+    os.rename(lock_path, actions_path)
+    log(f"Frame {frame}: wrote {actions_path}")
 
 # ---- INITIAL SETUP ----
 log("Waiting for initial frame (0) masks and images to compute setpoint...")
@@ -215,37 +203,12 @@ log(f"Setpoint computed: {setpoint:.3f}, basic={basic_media:.3f}, acidic={acidic
     f"and saved to {setpoint_file}")
 
 # ---- MAIN LOOP ----
+frame = 0
 while True:
-    last_frame = last_processed_frame()
-    frame_indices = sorted(
-        {parse_filename(f)[1] for f in os.listdir(watch_dir) if f.endswith('.png') and parse_filename(f)[1] is not None}
-    )
-    next_frames = [f for f in frame_indices if f > last_frame]
-
-    if not next_frames:
+    try:
+        process_frame(frame, setpoint, basic_media, acidic_media)
+        finalize_decisions(frame)
+        frame += 1
+    except (OSError, ValueError, EOFError, AttributeError) as e:
+        log(f"Error while finalizing frame {frame}: {e}")
         time.sleep(cfg["sleep_time"])
-        continue
-
-    for frame in next_frames:
-        lock_path = os.path.join(final_dir, f"{frame}.lock")
-        if os.path.exists(lock_path):
-            continue
-
-        open(lock_path, 'w').close()
-
-        retries = 0
-        while retries < cfg["num_tries"]:
-            try:
-                process_frame(frame, setpoint, basic_media, acidic_media)
-                finalize_decisions(frame)
-                os.remove(lock_path)
-                break  # success
-            except (OSError, ValueError, EOFError, AttributeError) as e:
-                retries += 1
-                log(f"Retry {retries}/{cfg['num_tries']} for frame {frame}: {e}")
-                time.sleep(cfg["sleep_time"])
-
-        else:
-            log(f"Failed to finalize frame {frame} after {cfg['num_tries']} retries. Skipping.")
-            if os.path.exists(lock_path):
-                os.remove(lock_path)
