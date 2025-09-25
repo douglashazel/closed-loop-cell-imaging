@@ -10,6 +10,7 @@ SAVE_PATH="TEST/analysis"
 FLOW_THRESHOLD=0.4       # default=0.4; higher = stricter flow consistency, fewer masks
 CELLPROB_THRESHOLD=0.0   # default=0.0; higher = fewer cells accepted, lower = more cells
 NITER=200                # default=200; higher = slower but can improve accuracy
+DIAMETER=0               # default=0
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"
@@ -31,7 +32,8 @@ python3 "$SCRIPT1" \
     --mask_dir "$MASK_DIR" \
     --flow_threshold "$FLOW_THRESHOLD" \
     --cellprob_threshold "$CELLPROB_THRESHOLD" \
-    --niter "$NITER" &
+    --niter "$NITER" \
+    --diameter "$DIAMETER" &
 PID1=$!
 
 sleep 5

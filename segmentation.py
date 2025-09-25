@@ -10,6 +10,7 @@ parser.add_argument("--mask_dir", required=True)
 parser.add_argument("--flow_threshold", type=float, default=0.4)
 parser.add_argument("--cellprob_threshold", type=float, default=0.0)
 parser.add_argument("--niter", type=int, default=200)
+parser.add_argument("--diameter", type=int, default=0)
 args = parser.parse_args()
 
 image_dir = args.image_dir
@@ -32,7 +33,7 @@ with tqdm(images, desc='Segmenting Images...') as pbar:
             flow_threshold=args.flow_threshold,
             cellprob_threshold=args.cellprob_threshold,
             niter=args.niter,
-            diameter=None
+            diameter=args.diameter,
         )
         masks = masks[0]
 
