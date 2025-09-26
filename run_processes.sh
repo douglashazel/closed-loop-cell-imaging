@@ -4,13 +4,13 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="TEST/frames"
-MASK_DIR="TEST/masks"
-SAVE_PATH="TEST/analysis"
+IMAGE_DIR="pc3_carbachol_1/frames"
+MASK_DIR="pc3_carbachol_1/masks"
+SAVE_PATH="pc3_carbachol_1/analysis"
 FLOW_THRESHOLD=0.4       # default=0.4; higher = stricter flow consistency, fewer masks
 CELLPROB_THRESHOLD=0.0   # default=0.0; higher = fewer cells accepted, lower = more cells
 NITER=200                # default=200; higher = slower but can improve accuracy
-DIAMETER=0               # default=0
+DIAMETER=10               # default=0
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"

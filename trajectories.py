@@ -14,7 +14,7 @@ from multiprocessing import Pool
 
 # ---------------- helpers from tracking code ---------------- #
 def extract_number(filename):
-    match = re.search(r'(\d+)', filename)
+    match = re.search(r'timepoint_(\d+)', filename)
     return int(match.group(1)) if match else -1
 
 def load_image(path):
