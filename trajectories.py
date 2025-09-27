@@ -276,8 +276,9 @@ def plot_luminosities_from_csv(traj_csv, save_path, cmap_name="twilight"):
 
     plt.figure(dpi=300)
     for (cell_id, row), color in tqdm(zip(df.iterrows(), colors), total=len(df), desc='Plotting cells...'):
-        vals = row.dropna().values
-        frames = range(len(vals))
+        non_nan = row.dropna()
+        frames = [int(str(x).lstrip("f")) for x in non_nan.index]  # clean column labels
+        vals = non_nan.values
         plt.plot(frames, vals, alpha=0.7, color=color)
 
     plt.xlabel("Frame")
