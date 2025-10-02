@@ -269,7 +269,7 @@ while not exit_loop:
 print("\nAll frames processed.")
 
 # ---------------- plot luminosities ---------------- #
-def plot_luminosities_from_csv(traj_csv, save_path, cmap_name="twilight_shifted"):
+def plot_luminosities_from_csv(traj_csv, save_path, tag, cmap_name="twilight_shifted"):
     df = pd.read_csv(traj_csv, index_col=0)  # CellID as index
     cmap = plt.get_cmap(cmap_name)
     colors = cmap(np.linspace(0, 1, len(df)))
@@ -285,10 +285,77 @@ def plot_luminosities_from_csv(traj_csv, save_path, cmap_name="twilight_shifted"
     plt.ylabel("Average luminosity")
     plt.title("Cell luminosity over time")
     plt.tight_layout()
-    plot_name = 'average_luminosity.png'
+    plot_name = f'average_luminosity{tag}.png'
     plt.savefig(f"{save_path}/{plot_name}", dpi=300)
     plt.close()
     return plot_name
 
-plot_name = plot_luminosities_from_csv(f"{save_path}/luminosity.csv", save_path, cmap_name="twilight_shifted")
+plot_name = plot_luminosities_from_csv(f"{save_path}/luminosity.csv", save_path, "", cmap_name="twilight_shifted")
 print(f"Figure saved to {save_path}/{plot_name} frames processed.")
+
+# ---------------- save first frame cells ---------------- #
+def filter_first_frame_cells(traj_path):
+    df = pd.read_csv(traj_path)
+
+    coord_cols = [c for c in df.columns if c != "CellID"]
+
+    # Identify columns for the first frame (first x and y)
+    first_frame_cols = coord_cols[:2]
+
+    # Keep only rows where the first frame coordinates are not NaN
+    filtered = df.dropna(subset=first_frame_cols, how="any")
+
+    base, ext = os.path.splitext(traj_path)
+    output_path = base + "_firstframe" + ext
+    filtered.to_csv(output_path, index=False)
+    return output_path
+
+traj_path = os.path.join(save_path, "trajectories.csv")
+out_path = filter_first_frame_cells(traj_path)
+print("Saved:", out_path)
+
+# ---------------- save complete cells ---------------- #
+def filter_complete_cells(input_csv, output_csv=None):
+    df = pd.read_csv(input_csv)
+    complete_df = df.dropna()
+    
+    # If no output path provided, auto-generate one
+    if output_csv is None:
+        base, ext = os.path.splitext(input_csv)
+        output_csv = base + "_complete" + ext
+    
+    complete_df.to_csv(output_csv, index=False)
+    return output_csv
+
+traj_path = os.path.join(save_path, "trajectories.csv")
+out_path = filter_complete_cells(traj_path)
+print("Saved:", out_path)
+
+# ---------------- plot complete cells ---------------- #
+def process_movies(data_path, traj_suffixes=["complete"]):
+
+        for suffix in traj_suffixes:
+            trajectories_csv = f"{data_path}/trajectories_{suffix}.csv"
+            luminosity_csv = f"{data_path}/luminosity.csv"
+            output_lum_csv = f"{data_path}/luminosity_{suffix}.csv"
+
+            traj_df = pd.read_csv(trajectories_csv)
+            lum_df = pd.read_csv(luminosity_csv)
+
+            # Ensure consistent types
+            traj_df['CellID'] = traj_df['CellID'].astype(str)
+            lum_df['CellID'] = lum_df['CellID'].astype(str)
+
+            # Keep only CellIDs present in trajectories
+            lum_df = lum_df[lum_df['CellID'].isin(traj_df['CellID'].unique())]
+
+            # Collapse duplicates
+            lum_merged = lum_df.groupby('CellID', as_index=False).mean()
+
+            lum_merged.to_csv(output_lum_csv, index=False)
+            print(f"Merged luminosity saved to {output_lum_csv}")
+
+            plot_name = plot_luminosities_from_csv(output_lum_csv, f"{data_path}", "_complete", cmap_name="twilight_shifted")
+            print(f"Figure saved to {data_path}/{plot_name}")
+
+process_movies(save_path)
