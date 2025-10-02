@@ -4,9 +4,9 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="pc3_carbachol_1/frames"
-MASK_DIR="pc3_carbachol_1/masks"
-SAVE_PATH="pc3_carbachol_1/analysis"
+IMAGE_DIR="pc3_carbachol_1_NEW/frames"
+MASK_DIR="pc3_carbachol_1_NEW/masks"
+SAVE_PATH="pc3_carbachol_1_NEW/analysis"
 
 SCRIPT2="trajectories.py"
 
