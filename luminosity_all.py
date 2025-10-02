@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -21,8 +22,11 @@ def plot_luminosities_from_csv(lum_csv, save_path, cmap_name="twilight_shifted")
     plt.ylabel("Average luminosity")
     plt.title("Cell luminosity over time")
     plt.tight_layout()
+
+    os.makedirs(save_path, exist_ok=True)
+
     plot_name = f'average_luminosity_{lum_csv.split("_")[-1].replace(".csv","")}.png'
-    plt.savefig(f"{save_path}/{plot_name}", dpi=300)
+    plt.savefig(os.path.join(save_path, plot_name), dpi=300)
     plt.close()
     return plot_name
 

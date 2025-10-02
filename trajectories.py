@@ -299,8 +299,12 @@ def plot_luminosities_from_csv(traj_csv, save_path, tag, cmap_name="twilight_shi
     plt.ylabel("Average luminosity")
     plt.title("Cell luminosity over time")
     plt.tight_layout()
+
+    plot_dir = os.path.join(save_path, "plots")
+    os.makedirs(plot_dir, exist_ok=True)
+
     plot_name = f'average_luminosity{tag}.png'
-    plt.savefig(f"{save_path}/{plot_name}", dpi=300)
+    plt.savefig(os.path.join(plot_dir, plot_name), dpi=300)
     plt.close()
     return plot_name
 

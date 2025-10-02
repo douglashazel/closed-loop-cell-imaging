@@ -4,15 +4,15 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="pc3_carbachol_1/frames"
-MASK_DIR="pc3_carbachol_1/masks"
-SAVE_PATH="pc3_carbachol_1/analysis"
+IMAGE_DIR="c2c12_carbachol_1/frames"
+MASK_DIR="c2c12_carbachol_1/masks"
+SAVE_PATH="c2c12_carbachol_1/analysis"
 
 SCRIPT2="trajectories.py"
 
 SHIFT_FRAME=5
-SHIFT_DX=-250
-SHIFT_DY=10
+SHIFT_DX=0
+SHIFT_DY=0
 
 # -----------------------------
 # Ensure script exists
