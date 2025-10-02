@@ -7,10 +7,14 @@ set -euo pipefail
 IMAGE_DIR="c2c12_carbachol_1/frames"
 MASK_DIR="c2c12_carbachol_1/masks"
 SAVE_PATH="c2c12_carbachol_1/analysis"
-FLOW_THRESHOLD=0.8      # default=0.4; higher = stricter flow consistency, fewer masks
-CELLPROB_THRESHOLD=-1.25   # default=0.0; higher = fewer cells accepted, lower = more cells
-NITER=200                # default=200; higher = slower but can improve accuracy
-DIAMETER=11             # default=0
+FLOW_THRESHOLD=0.8
+CELLPROB_THRESHOLD=-1.25
+NITER=200
+DIAMETER=11
+
+SHIFT_FRAME=5      # frame where shift occurs
+SHIFT_DX=-260      # x displacement
+SHIFT_DY=10        # y displacement
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"
@@ -45,7 +49,9 @@ echo "Starting trajectory processing..."
 python3 "$SCRIPT2" \
     --mask_dir "$MASK_DIR" \
     --image_dir "$IMAGE_DIR" \
-    --save_path "$SAVE_PATH" &
+    --save_path "$SAVE_PATH" \
+    --shift_frame "$SHIFT_FRAME" \
+    --shift_xy "$SHIFT_DX" "$SHIFT_DY" &
 PID2=$!
 
 wait $PID1 $PID2

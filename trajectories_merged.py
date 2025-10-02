@@ -5,13 +5,13 @@ from tqdm import tqdm
 # -----------------------------
 # Config
 # -----------------------------
-exp = "pc3_carbachol_1"
+exp = "pc3_carbachol_2_NEW"
 
-# -----------------------------
-# Parameters
-# -----------------------------
 distance_threshold = 200  # pixels, adjust as needed
-jump_length = 10  # number of frames to allow for jumps
+jump_length = 2  # number of frames to allow for jumps
+
+# Shift configuration: apply this shift starting at the given frame
+frame_shift = {1: (0, 0)}  # frame: (dx, dy)
 
 data_path = f"{exp}/analysis"
 input_csv = f"{data_path}/trajectories.csv"
@@ -43,12 +43,11 @@ incomplete_df = df[num_frames_per_cell < max_frames].copy()
 print(f"Found {len(incomplete_df)} incomplete tracks out of {len(df)} total cells.")
 
 # -----------------------------
-# Merge candidate cells based on distance + jump_length
+# Merge candidate cells based on distance + jump_length with shift
 # -----------------------------
 merged_ids = {}
 
 for i, row_i in tqdm(incomplete_df.iterrows(), total=len(incomplete_df)):
-    # Skip rows with no valid positions
     valid_i = [j for j, val in enumerate(row_i[x_cols]) if not pd.isna(val)]
     if len(valid_i) == 0:
         continue
@@ -61,7 +60,6 @@ for i, row_i in tqdm(incomplete_df.iterrows(), total=len(incomplete_df)):
     pos_start_i = np.array([row_i[x_cols[start_i_idx]], row_i[y_cols[start_i_idx]]])
     pos_end_i   = np.array([row_i[x_cols[end_i_idx]], row_i[y_cols[end_i_idx]]])
 
-    # Compare against all other incomplete tracks (excluding the target itself)
     for j, row_j in incomplete_df.iterrows():
         if row_i['CellID'] == row_j['CellID']:
             continue
@@ -80,15 +78,15 @@ for i, row_i in tqdm(incomplete_df.iterrows(), total=len(incomplete_df)):
 
         # --- forward merge: i ends before j starts ---
         if end_i_frame < start_j_frame and (start_j_frame - end_i_frame) <= jump_length:
-            dist = np.linalg.norm(pos_end_i - pos_start_j)
+            dx, dy = 0, 0
+            for f, (sdx, sdy) in frame_shift.items():
+                if start_j_frame >= f:
+                    dx += sdx
+                    dy += sdy
+            pos_start_j_shifted = pos_start_j + np.array([dx, dy])
+            dist = np.linalg.norm(pos_end_i - pos_start_j_shifted)
             if dist <= distance_threshold:
                 merged_ids[row_j['CellID']] = row_i['CellID']
-
-        # --- backward merge: j ends before i starts ---
-        elif end_j_frame < start_i_frame and (start_i_frame - end_j_frame) <= jump_length:
-            dist = np.linalg.norm(pos_end_j - pos_start_i)
-            if dist <= distance_threshold:
-                merged_ids[row_i['CellID']] = row_j['CellID']
 
 # -----------------------------
 # Apply merged IDs

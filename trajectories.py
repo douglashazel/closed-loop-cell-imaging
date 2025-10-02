@@ -84,6 +84,8 @@ def update_trajectories(new_frame_id, new_centers, save_path):
     traj_path = os.path.join(save_path, "trajectories.csv")
     existing = os.path.exists(traj_path)
 
+    frame_shift = {shift_frame: (shift_dx, shift_dy)}
+
     if existing:
         traj_df = pd.read_csv(traj_path)
         prev_id = new_frame_id - 1
@@ -98,7 +100,15 @@ def update_trajectories(new_frame_id, new_centers, save_path):
                 traj_df.loc[i, f'x{new_frame_id}'] = np.nan
                 traj_df.loc[i, f'y{new_frame_id}'] = np.nan
                 continue
-            curr_center = np.array([prev_x, prev_y], dtype=np.float64)
+
+            # Apply shift if crossing frame 4 → 5
+            dx, dy = 0, 0
+            for f, (sdx, sdy) in frame_shift.items():
+                if prev_id < f <= new_frame_id:
+                    dx += sdx
+                    dy += sdy
+
+            curr_center = np.array([prev_x + dx, prev_y + dy], dtype=np.float64)
             status, match_idx = run_all(curr_center, new_centers_np)
             if status and match_idx != -1:
                 traj_df.loc[i, f'x{new_frame_id}'] = valid_centers[match_idx][0]
@@ -220,11 +230,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--image_dir", required=True)
 parser.add_argument("--mask_dir", required=True)
 parser.add_argument("--save_path", required=True)
+parser.add_argument("--shift_frame", type=int, default=5, help="Frame where shift occurs")
+parser.add_argument("--shift_xy", type=float, nargs=2, default=[-260, 10], help="Shift dx dy for frame")
 args = parser.parse_args()
 
 image_dir = args.image_dir
 mask_dir = args.mask_dir
 save_path = args.save_path
+shift_frame = args.shift_frame
+shift_dx, shift_dy = args.shift_xy
 
 os.makedirs(mask_dir, exist_ok=True)
 os.makedirs(save_path, exist_ok=True)

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # -----------------------------
 # Plotting function
 # -----------------------------
-def plot_luminosities_from_csv(lum_csv, save_path, cmap_name="twilight"):
+def plot_luminosities_from_csv(lum_csv, save_path, cmap_name="twilight_shifted"):
     df = pd.read_csv(lum_csv, index_col=0)
     cmap = plt.get_cmap(cmap_name)
     colors = cmap(np.linspace(0, 1, len(df)))
@@ -53,11 +53,11 @@ def process_movies(exp, traj_suffixes=["merged"]):
         lum_merged.to_csv(output_lum_csv, index=False)
         print(f"Merged luminosity saved to {output_lum_csv}")
 
-        plot_name = plot_luminosities_from_csv(output_lum_csv, f"{data_path}", cmap_name="twilight")
+        plot_name = plot_luminosities_from_csv(output_lum_csv, f"{data_path}", cmap_name="twilight_shifted")
         print(f"Figure saved to {data_path}/{plot_name}")
 
 # -----------------------------
 # Main
 # -----------------------------
-exp = "pc3_carbachol_1"
+exp = "pc3_carbachol_2_NEW"
 process_movies(exp)
