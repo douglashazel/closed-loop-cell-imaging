@@ -4,12 +4,12 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="hela_carbachol_2/frames"
-MASK_DIR="hela_carbachol_2/masks"
-SAVE_PATH="hela_carbachol_2/analysis"
+IMAGE_DIR="c2c12_carbachol_1/frames"
+MASK_DIR="c2c12_carbachol_1/masks"
+SAVE_PATH="c2c12_carbachol_1/analysis"
 FLOW_THRESHOLD=0.8      # default=0.4; higher = stricter flow consistency, fewer masks
-CELLPROB_THRESHOLD=-1.75   # default=0.0; higher = fewer cells accepted, lower = more cells
-NITER=250                # default=200; higher = slower but can improve accuracy
+CELLPROB_THRESHOLD=-1.25   # default=0.0; higher = fewer cells accepted, lower = more cells
+NITER=200                # default=200; higher = slower but can improve accuracy
 DIAMETER=11             # default=0
 
 SCRIPT1="segmentation.py"

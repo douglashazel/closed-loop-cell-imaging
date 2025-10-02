@@ -269,7 +269,7 @@ while not exit_loop:
 print("\nAll frames processed.")
 
 # ---------------- plot luminosities ---------------- #
-def plot_luminosities_from_csv(traj_csv, save_path, cmap_name="twilight"):
+def plot_luminosities_from_csv(traj_csv, save_path, cmap_name="twilight_shifted"):
     df = pd.read_csv(traj_csv, index_col=0)  # CellID as index
     cmap = plt.get_cmap(cmap_name)
     colors = cmap(np.linspace(0, 1, len(df)))
@@ -290,5 +290,5 @@ def plot_luminosities_from_csv(traj_csv, save_path, cmap_name="twilight"):
     plt.close()
     return plot_name
 
-plot_name = plot_luminosities_from_csv(f"{save_path}/luminosity.csv", save_path, cmap_name="twilight")
+plot_name = plot_luminosities_from_csv(f"{save_path}/luminosity.csv", save_path, cmap_name="twilight_shifted")
 print(f"Figure saved to {save_path}/{plot_name} frames processed.")
