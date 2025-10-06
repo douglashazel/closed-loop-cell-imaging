@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="pc3_carbachol_2"
+EXP="c2c12_carbachol_2"
 STIM_FRAME="5"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
