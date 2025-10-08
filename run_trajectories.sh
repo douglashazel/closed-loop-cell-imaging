@@ -4,9 +4,9 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="nrk_carbachol_1/frames"
-MASK_DIR="nrk_carbachol_1/masks"
-SAVE_PATH="nrk_carbachol_1/analysis"
+IMAGE_DIR="u87_carbachol_1/frames"
+MASK_DIR="u87_carbachol_1/masks"
+SAVE_PATH="u87_carbachol_1/analysis"
 
 SCRIPT2="trajectories.py"
 

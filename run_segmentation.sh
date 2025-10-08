@@ -4,8 +4,8 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="nrk_carbachol_1/frames"
-MASK_DIR="nrk_carbachol_1/masks"
+IMAGE_DIR="u87_carbachol_1/frames"
+MASK_DIR="u87_carbachol_1/masks"
 FLOW_THRESHOLD=0.4
 CELLPROB_THRESHOLD=0.0
 NITER=200
