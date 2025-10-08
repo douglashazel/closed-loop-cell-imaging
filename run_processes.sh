@@ -4,13 +4,13 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="c2c12_carbachol_2/frames"
-MASK_DIR="c2c12_carbachol_2/masks"
-SAVE_PATH="c2c12_carbachol_2/analysis"
-FLOW_THRESHOLD=0.75 #default 0.4
-CELLPROB_THRESHOLD=-5 #default 0.0
-NITER=250 #default 200
-DIAMETER=17
+IMAGE_DIR="nrk_carbachol_1/frames"
+MASK_DIR="nrk_carbachol_1/masks"
+SAVE_PATH="nrk_carbachol_1/analysis"
+FLOW_THRESHOLD=0.95 #default 0.4
+CELLPROB_THRESHOLD=-6 #default 0.0
+NITER=425 #default 200
+DIAMETER=16
 
 SHIFT_FRAME=5      # frame where shift occurs
 SHIFT_DX=0      # x displacement
