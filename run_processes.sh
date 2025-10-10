@@ -4,17 +4,17 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="ht29_carbachol_1/frames"
-MASK_DIR="ht29_carbachol_1/masks"
-SAVE_PATH="ht29_carbachol_1/analysis"
-FLOW_THRESHOLD=0.8 #default 0.4
+IMAGE_DIR="ht29_carbachol_2/frames"
+MASK_DIR="ht29_carbachol_2/masks"
+SAVE_PATH="ht29_carbachol_2/analysis"
+FLOW_THRESHOLD=0.9 #default 0.4
 CELLPROB_THRESHOLD=-6 #default 0.0
 NITER=245 #default 200
 DIAMETER=12
 
 SHIFT_FRAME=5      # frame where shift occurs
-SHIFT_DX=.51      # x displacement
-SHIFT_DY=-4.37       # y displacement
+SHIFT_DX=1.09      # x displacement
+SHIFT_DY=19.01       # y displacement
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"

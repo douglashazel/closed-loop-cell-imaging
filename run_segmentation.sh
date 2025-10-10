@@ -4,9 +4,9 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="ht29_carbachol_1/frames"
-MASK_DIR="ht29_carbachol_1/masks"
-FLOW_THRESHOLD=0.8
+IMAGE_DIR="ht29_carbachol_2/frames"
+MASK_DIR="ht29_carbachol_2/masks"
+FLOW_THRESHOLD=0.9
 CELLPROB_THRESHOLD=-6
 NITER=245
 DIAMETER=12
