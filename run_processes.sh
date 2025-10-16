@@ -4,17 +4,17 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="pc3_thapsigargin_2/frames"
-MASK_DIR="pc3_thapsigargin_2/masks"
-SAVE_PATH="pc3_thapsigargin_2/analysis"
-FLOW_THRESHOLD=0.8 #default 0.4
+IMAGE_DIR="hela_thapsigargin_2/frames"
+MASK_DIR="hela_thapsigargin_2/masks"
+SAVE_PATH="hela_thapsigargin_2/analysis"
+FLOW_THRESHOLD=0.875 #default 0.4
 CELLPROB_THRESHOLD=-6 #default 0.0
-NITER=270 #default 200
-DIAMETER=13
+NITER=450 #default 200
+DIAMETER=20
 
-SHIFT_FRAME=5      # frame where shift occurs
-SHIFT_DX=-25.84      # x displacement
-SHIFT_DY=-13.76       # y displacement
+SHIFT_FRAME=3      # frame where shift occurs
+SHIFT_DX=-23.8376     # x displacement
+SHIFT_DY=2.354      # y displacement
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"

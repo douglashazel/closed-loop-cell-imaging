@@ -4,8 +4,8 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="pc3_thapsigargin_2"
-STIM_FRAME="5"
+EXP="hela_thapsigargin_2"
+STIM_FRAME="3"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
 ANALYSIS_DIR="${EXP}/analysis"

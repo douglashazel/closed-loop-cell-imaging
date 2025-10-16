@@ -9,3 +9,5 @@ nrk*
 pc3*
 u87*
 
+*.csv
+*.parquet
