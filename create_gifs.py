@@ -35,7 +35,8 @@ mask_dir = f"{exp}/masks"
 save_cell_path = f"{exp}/analysis"
 
 traj_path = f"{save_cell_path}/trajectories.csv"
-cells_of_interest = load_cells_of_interest(f"{save_cell_path}/selected_cells.txt")
+# cells_of_interest = load_cells_of_interest(f"{save_cell_path}/selected_cells.txt")
+cells_of_interest = {exp: ['Cell17']}
 
 for movie, cell_list in cells_of_interest.items():
 
@@ -123,7 +124,7 @@ for movie, cell_list in cells_of_interest.items():
             image_files.append(output_file)
 
         gif_path = f"{save_path}/{movie}_{cell_id}.gif"
-        with imageio.get_writer(gif_path, mode='I', duration=0.1, loop=0) as writer:
+        with imageio.get_writer(gif_path, mode='I', duration=1, loop=0) as writer:
             for image_file in image_files:
                 image = imageio.imread(image_file)
                 writer.append_data(image)
