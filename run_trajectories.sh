@@ -4,15 +4,15 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="ht29_thapsigargin_2/frames"
-MASK_DIR="ht29_thapsigargin_2/masks"
-SAVE_PATH="ht29_thapsigargin_2/analysis"
+IMAGE_DIR="hela_dmso_2/frames"
+MASK_DIR="hela_dmso_2/masks"
+SAVE_PATH="hela_dmso_2/analysis"
 
 SCRIPT2="trajectories.py"
 
-SHIFT_FRAME=4
-SHIFT_DX=0.2969
-SHIFT_DY=-0.6581
+SHIFT_FRAME=2
+SHIFT_DX=-25.5992
+SHIFT_DY=-12.2778
 
 # -----------------------------
 # Ensure script exists

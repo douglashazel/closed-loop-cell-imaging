@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="ht29_thapsigargin_2"
+EXP="ht29_dmso_1"
 STIM_FRAME="5"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
