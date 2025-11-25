@@ -4,8 +4,8 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="ht29_dmso_1"
-STIM_FRAME="5"
+EXP="hela_naoh_2"
+STIM_FRAME="2"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
 ANALYSIS_DIR="${EXP}/analysis"

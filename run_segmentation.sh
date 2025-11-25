@@ -4,12 +4,12 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="hela_dmso_2/frames"
-MASK_DIR="hela_dmso_2/masks"
-FLOW_THRESHOLD=1.3
-CELLPROB_THRESHOLD=-1.55
-NITER=400
-DIAMETER=27
+IMAGE_DIR="ht29_naoh_2/frames"
+MASK_DIR="ht29_naoh_2/masks"
+FLOW_THRESHOLD=0.965
+CELLPROB_THRESHOLD=-6
+NITER=800
+DIAMETER=15
 
 SCRIPT1="segmentation.py"
 

@@ -4,17 +4,17 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="hela_dmso_2/frames"
-MASK_DIR="hela_dmso_2/masks"
-SAVE_PATH="hela_dmso_2/analysis"
-FLOW_THRESHOLD=1.3 #default 0.4
-CELLPROB_THRESHOLD=-1.55 #default 0.0
-NITER=400 #default 200
-DIAMETER=27
+IMAGE_DIR="ht29_naoh_2/frames"
+MASK_DIR="ht29_naoh_2/masks"
+SAVE_PATH="ht29_naoh_2/analysis"
+FLOW_THRESHOLD=0.965 #default 0.4
+CELLPROB_THRESHOLD=-6 #default 0.0
+NITER=800 #default 200
+DIAMETER=15
 
 SHIFT_FRAME=2      # frame where shift occurs
-SHIFT_DX=-25.5992 # x displacement
-SHIFT_DY=-12.2778 # y displacement
+SHIFT_DX=1.2582 #x displacement
+SHIFT_DY=-5.1693  #y displacement
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"
