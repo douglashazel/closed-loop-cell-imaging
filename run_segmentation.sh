@@ -4,12 +4,12 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="ht29_naoh_2/frames"
-MASK_DIR="ht29_naoh_2/masks"
-FLOW_THRESHOLD=0.965
+IMAGE_DIR="nrk_fluoxetine_1/frames"
+MASK_DIR="nrk_fluoxetine_1/masks"
+FLOW_THRESHOLD=0.98
 CELLPROB_THRESHOLD=-6
-NITER=800
-DIAMETER=15
+NITER=900
+DIAMETER=19
 
 SCRIPT1="segmentation.py"
 

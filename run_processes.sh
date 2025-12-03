@@ -4,17 +4,17 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="ht29_naoh_2/frames"
-MASK_DIR="ht29_naoh_2/masks"
-SAVE_PATH="ht29_naoh_2/analysis"
-FLOW_THRESHOLD=0.965 #default 0.4
+IMAGE_DIR="nrk_fluoxetine_1/frames"
+MASK_DIR="nrk_fluoxetine_1/masks"
+SAVE_PATH="nrk_fluoxetine_1/analysis"
+FLOW_THRESHOLD=0.98 #default 0.4
 CELLPROB_THRESHOLD=-6 #default 0.0
-NITER=800 #default 200
-DIAMETER=15
+NITER=900 #default 200
+DIAMETER=19
 
 SHIFT_FRAME=2      # frame where shift occurs
-SHIFT_DX=1.2582 #x displacement
-SHIFT_DY=-5.1693  #y displacement
+SHIFT_DX=-0.07 #x displacement
+SHIFT_DY=0.05 #y displacement
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"

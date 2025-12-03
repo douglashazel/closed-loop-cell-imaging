@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="hela_naoh_2"
+EXP="nrk_fluoxetine_1"
 STIM_FRAME="2"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
