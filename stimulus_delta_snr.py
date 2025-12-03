@@ -34,6 +34,24 @@ def process_tag(tag, analysis_dir, stim_frame, prev_frame):
     rms_pos = np.sqrt(np.mean(vals[vals >= 0] ** 2))
     rms_neg = 0 - np.sqrt(np.mean(vals[vals < 0] ** 2))
 
+    # calculate SNR (mean delta / std dev baseline)
+    signal_mean = df_delta["delta"].mean()
+    noise_std = df[prev_col].std()
+    
+    # POSITIVE SNR
+    positive_deltas = df_delta[df_delta["delta"] >= 0]["delta"]
+    signal_mean_pos = positive_deltas.mean()
+    snr_pos = signal_mean_pos / noise_std if noise_std != 0 else np.nan
+
+    # NEGATIVE SNR
+    negative_deltas = df_delta[df_delta["delta"] < 0]["delta"]
+    signal_mean_neg = abs(negative_deltas.mean()) 
+    snr_neg = signal_mean_neg / noise_std if noise_std != 0 else np.nan
+
+    # Z-Score (mean delta / std dev delta)
+    delta_std = df_delta["delta"].std()
+    z_score = signal_mean / delta_std if delta_std != 0 else np.nan
+
     # save CSV
     delta_csv = os.path.join(analysis_dir, f"stimulus_delta{tag}.csv")
     df_delta.to_csv(delta_csv, index=False)
@@ -46,8 +64,8 @@ def process_tag(tag, analysis_dir, stim_frame, prev_frame):
     plt.figure(dpi=300)
     plt.bar(df_delta["CellID"], df_delta["delta"], color="black", alpha=0.7)
     plt.axhline(0, color="red", linestyle="--")
-    plt.axhline(rms_pos, color="purple", linestyle="--", label='positive RMS')
-    plt.axhline(rms_neg, color="orange", linestyle="--", label='negative RMS')
+    plt.axhline(rms_pos, color="purple", linestyle="--", label='pos RMS')
+    plt.axhline(rms_neg, color="orange", linestyle="--", label='neg RMS')
     plt.xlabel("Cell ID")
     plt.ylabel("Δ Luminosity (stim - pre-stim)")
     plt.title(f"Luminosity change at stimulus frame f{stim_frame}")
@@ -55,6 +73,12 @@ def process_tag(tag, analysis_dir, stim_frame, prev_frame):
     plt.tight_layout()
     plt.savefig(fig_path, dpi=300)
     plt.close()
+
+    print(f"Processed {tag}:")
+    print(f"  Positive SNR: {snr_pos:.2f}")
+    print(f"  Negative SNR: {snr_neg:.2f}")
+    print(f"  Z-Score: {z_score:.2f}")
+    print(f"  Saved: \n{delta_csv}\n{fig_path}")
 
     print(f"Processed {tag} - saved: \n{delta_csv}\n{fig_path}")
 
