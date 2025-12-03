@@ -4,15 +4,15 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="nrk_fluoxetine_1/frames"
-MASK_DIR="nrk_fluoxetine_1/masks"
-SAVE_PATH="nrk_fluoxetine_1/analysis"
+IMAGE_DIR="nrk_fluoxetine_2/frames"
+MASK_DIR="nrk_fluoxetine_2/masks"
+SAVE_PATH="nrk_fluoxetine_2/analysis"
 
 SCRIPT2="trajectories.py"
 
 SHIFT_FRAME=2
-SHIFT_DX=-0.07
-SHIFT_DY=0.05
+SHIFT_DX=-0.02
+SHIFT_DY=0.03
 
 # -----------------------------
 # Ensure script exists
