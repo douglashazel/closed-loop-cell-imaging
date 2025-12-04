@@ -64,12 +64,18 @@ for cell_type in cell_types.keys():
         f_condition = f.split(tag)[0].split(cell_type)[1][1:-1]
         f_path = f'{dir_path}/{f}'
         df = pd.read_csv(f_path).dropna()
+        if len(df) < 2:
+            print(f"SKIPPING: cell={cell_type}, cond={f_condition}, n_cond={len(df)}")
+            continue
         f_mean_response = np.average(df['delta'])
-
+        
         for c in control_files:
             c_condition = c.split(tag)[0].split(cell_type)[1][1:-1]
             c_path = f'{dir_path}/{c}'
             df_control = pd.read_csv(c_path).dropna()
+            if len(df_control) < 2:
+                print(f"SKIPPING CONTROL: cell={cell_type}, cond={c_condition}, n_cond={len(df_control)}")
+                continue
             c_mean_response = np.average(df_control['delta'])
                         
             # Match sample sizes for less crazy small p-values (still crazy small)
@@ -81,10 +87,6 @@ for cell_type in cell_types.keys():
             resp_diff = f_mean_response - c_mean_response
 
             # Perform the two-sample t-test
-            if len(df) < 2 or len(df_control) < 2:
-                print(f"SKIPPING: cell={cell_type}, cond={f_condition}, control={c_condition}, "
-                    f"n_cond={len(df)}, n_ctrl={len(df_control)}")
-                continue
             _, p = ttest(cond_sample['delta'], ctrl_sample['delta'])
             
             measurements = {'mean_resp_diff': resp_diff, 'resp_pval': p}
