@@ -62,31 +62,28 @@ for cell_type in cell_types.keys():
     if len(controls) < 1:
         print(f"No control files found in {dir_path}. Skipping.")
         continue
-    
-    # Compute baseline data
-    control_dfs = []
-    for control_file in controls:
-        df_control = pd.read_csv(f'{dir_path}/{control_file}').dropna()
-        control_dfs.append(df_control)
-    dfc = pd.concat(control_dfs, ignore_index=True)
-    
-    if dfc.empty or 'delta' not in dfc.columns:
-        print(f"Control data is empty or missing 'delta' column in {dir_path}. Skipping.")
-        continue
-        
-    control_mean_response = np.average(dfc['delta'])
 
     for file in files:
         condition = file.split(tag)[0].split(cell_type)[1][1:-1]
+        replicate = condition[-1]
         file_path = f'{dir_path}/{file}'
+
+        control_file = [f for f in controls if f'Control_{replicate}' in f][0]
+        df_control = pd.read_csv(f'{dir_path}/{control_file}').dropna()
+        control_mean_response = np.average(df_control['delta'])
         
         try:
             df = pd.read_csv(file_path).dropna()
             if 'delta' in df.columns and not df.empty:
                 mean_response = np.average(df['delta'])
                 
+                # Match sample sizes for better p-values
+                n = min(len(df_control), len(df))
+                cond_sample = df.sample(n, random_state=0)
+                ctrl_sample = df_control.sample(n, random_state=0)
+
                 # Perform the two-sample t-test
-                t_statistic, p = ttest(df['delta'], dfc['delta'])
+                _, p = ttest(cond_sample['delta'], ctrl_sample['delta'])
                 
                 new_row = {
                     'cell_type': cell_type,
