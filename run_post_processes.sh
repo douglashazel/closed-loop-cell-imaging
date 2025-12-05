@@ -4,8 +4,8 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="c2c12_dmem_2"
-STIM_FRAME="2"
+EXP="hela_carbachol_2"
+STIM_FRAME="5"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
 ANALYSIS_DIR="${EXP}/analysis"
