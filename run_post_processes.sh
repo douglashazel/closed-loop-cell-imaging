@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="hela_carbachol_2"
+EXP="c2c12_carbachol_1"
 STIM_FRAME="5"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
@@ -24,7 +24,7 @@ python bground_normalization.py \
 # Run stimulus delta
 # -----------------------------
 echo ">>> Running stimulus delta computation for ${EXP} (stim_frame=${STIM_FRAME})"
-python stimulus_delta.py \
+python stimulus_delta_snr.py \
     --exp "$EXP" \
     --analysis_dir "$ANALYSIS_DIR" \
     --stim_frame "$STIM_FRAME"

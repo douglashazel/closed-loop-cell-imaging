@@ -69,6 +69,7 @@ def process_tag(tag, analysis_dir, stim_frame, prev_frame):
     plt.xlabel("Cell ID")
     plt.ylabel("Δ Luminosity (stim - pre-stim)")
     plt.title(f"Luminosity change at stimulus frame f{stim_frame}")
+    plt.legend()
     fig_path = os.path.join(plot_dir, f"stimulus_delta{tag}.png")
     plt.tight_layout()
     plt.savefig(fig_path, dpi=300)
