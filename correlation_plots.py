@@ -5,7 +5,7 @@ from scipy.stats import pearsonr, spearmanr
 from itertools import combinations
 import numba
 
-# --- Core Functions ---
+# --- Core Functions (No change) ---
 @numba.jit(nopython=True)
 def pairwise_distances_unique_numba(centers):
     """Calculates all unique pairwise Euclidean distances using Numba."""
@@ -78,9 +78,11 @@ def calculate_pairwise_trace_correlation(lum_df, cell_ids, frame_start=None, fra
         "TraceCorrelation_R": correlations,
     })
 
+# --- Modified Plot Function ---
 def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix):
     """
-    Plots the pairwise distance vs a chosen Y-variable (luminosity difference or trace correlation).
+    Plots the pairwise distance vs a chosen Y-variable (luminosity difference or trace correlation)
+    using a **hexbin plot** for better density visualization.
     """
     # Assuming the Y column name is either 'LuminosityChangeDiff' or 'TraceCorrelation_R'
     y_col = y_data_df.columns[-1]
@@ -117,31 +119,38 @@ def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix)
     print(f"Spearman r={spearman_r:.4f}, p={spearman_p:.4f}")
 
     plt.figure(figsize=(8, 8))
-    plt.scatter(x, y, s=15, alpha=0.6, label="Cell Pairs")
 
+    # *** MODIFICATION HERE: Use hexbin instead of scatter ***
+    # 'gridsize' controls the number of hexagons. 'cmap' sets the color scheme.
+    # The 'mincnt' argument ensures only hexagons with at least one point are shown.
+    plt.hexbin(x, y, gridsize=30, cmap='Blues', mincnt=1)
+    cb = plt.colorbar(label='Count in Bin')
+    # *** END MODIFICATION ***
+    
     # Linear Fit
     m_p, b_p = np.polyfit(x, y, 1)
     label_text = (
         f"Linear Fit (Pearson $r$={pearson_r:.3f}, $p$={pearson_p:.4f})\n"
         f"Spearman $\\rho$={spearman_r:.3f}, $p$={spearman_p:.4f}"
     )
-    plt.plot(np.sort(x), m_p * np.sort(x) + b_p, color="red", linewidth=2, label=label_text)
+    # Plot the fit line on top of the hexbin
+    plt.plot(np.sort(x), m_p * np.sort(x) + b_p, color="red", linewidth=2, linestyle='--', label=label_text)
 
     plt.xlabel("Pairwise Distance (pixels)")
     plt.ylabel(ylabel)
-    plt.title(f"{analysis_name}\n{title_suffix}")
+    plt.title(f"{analysis_name} (Hexbin Plot)\n{title_suffix}")
     plt.legend()
     if ylim_val:
         plt.ylim(ylim_val)
-    plt.grid(True, linestyle="--", linewidth=0.5)
     plt.tight_layout()
 
     out_png = f"{data_path}/plots/{analysis_name.replace(' ', '_').replace(':', '')}.png"
     plt.savefig(out_png, dpi=300)
+    plt.close()
     print(f"Plot complete for {analysis_name}")
     print(f"Saved plot: {out_png}")
 
-# --- Unified Main Execution ---
+# --- Unified Main Execution (No change) ---
 def run_all_analyses(exp):
     """Loads data, calculates constant distance, and runs all four analyses."""
     
@@ -232,8 +241,8 @@ def run_all_analyses(exp):
 
     plot_correlation(
         df_dist_f5, df_delta_lum_diff, data_path, 
-        analysis_name="Distance vs. ΔΔLuminosity", 
-        title_suffix=f"Frame {analysis_frame} Distance, $\Delta L$ from F{analysis_frame-1} to F{analysis_frame}"
+        analysis_name="Distance vs ΔΔLuminosity", 
+        title_suffix=f"Frame {analysis_frame} Distance (F{analysis_frame-1} to F{analysis_frame})"
     )
 
     # --- Analysis 2, 3, 4: Distance (F0) vs. Trace Correlation (Segments) ---
@@ -260,9 +269,9 @@ def run_all_analyses(exp):
         # Plot the physical distance (F0) vs. functional correlation
         plot_correlation(
             df_dist_ref, df_corr, data_path, 
-            analysis_name=f"Distance vs. {segment['name']}", 
+            analysis_name=f"Distance vs {segment['name']}", 
             title_suffix=title_suffix
         )
         
-exp = 'c2c12_carbachol_2'
-run_all_analyses()
+exp = 'c2c12_carbachol_1'
+run_all_analyses(exp) # Calling the function
