@@ -26,7 +26,7 @@ def plot_luminosity_std(traj_csv, save_path, tag):
     plt.savefig(os.path.join(plot_dir, plot_name), dpi=300)
     plt.close()
 
-experiments = [item for item in os.listdir() if os.path.isdir(item) and item not in ["gifs", "archive"]][:1]
+experiments = [item for item in os.listdir() if os.path.isdir(item) and item not in ["gifs", "archive"]]
 
 for exp in tqdm(experiments, desc='Calculating...'):
     analysis_dir_path = os.path.join(exp, 'analysis')
