@@ -6,6 +6,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from itertools import combinations
 from scipy.stats import pearsonr, spearmanr
+from statsmodels.tsa.stattools import grangercausalitytests
 
 # --- Utility Function for Logging ---
 def log_message(log_file_path, message, print_to_console=False):
@@ -123,10 +124,72 @@ def calculate_pairwise_delta_delta_luminosity(lum_df, frame1, frame2, cell_ids, 
         "LuminosityChangeDiff": diffs,
     })
 
+def calculate_pairwise_granger_causality(lum_df, cell_ids, maxlag, log_file_path):
+    """
+    Calculates Granger Causality F-statistic and p-value for all unique cell pairs.
+    
+    Returns a DataFrame with the F-statistic and p-value for the direction:
+    CellID (A) Granger-causes TargetCellID (B) (A -> B).
+    """
+    lum_cols = [col for col in lum_df.columns if col.startswith('f')]
+    
+    sorted_lum_df = lum_df.set_index("CellID").sort_index()
+    traces_df = sorted_lum_df.loc[cell_ids, lum_cols].T # Transpose: frames are rows, CellIDs are columns
+    
+    # Filter for valid traces (no NaN, non-zero variance)
+    cells_with_nan = traces_df.columns[traces_df.isnull().any()].tolist()
+    trace_stdev = traces_df.std(axis=0)
+    cells_with_zero_variance = trace_stdev.index[trace_stdev == 0].tolist()
+    invalid_cell_ids = set(cells_with_nan + cells_with_zero_variance)
+    valid_cell_ids = [cid for cid in cell_ids if cid not in invalid_cell_ids]
+
+    log_message(log_file_path, f"Granger Causality: Excluded {len(invalid_cell_ids)} cells due to invalid trace.")
+    
+    # Further check: Granger requires at least (maxlag + 1) observations.
+    num_observations = len(lum_cols)
+    if num_observations <= maxlag:
+        log_message(log_file_path, f"Warning: Not enough observations ({num_observations}) for maxlag={maxlag}. Skipping Granger analysis.")
+        return pd.DataFrame({"CellID": [], "TargetCellID": [], "Granger_F_AB": [], "Granger_P_AB": []})
+
+
+    valid_traces_df = traces_df[valid_cell_ids]
+    # n_valid_cells = len(valid_cell_ids)
+    
+    granger_results = []
+    cell_pairs = []
+
+    # Iterate over all unique pairs
+    for cid_A, cid_B in combinations(valid_cell_ids, 2):
+        data_AB = pd.concat([valid_traces_df[cid_B], valid_traces_df[cid_A]], axis=1)
+
+        try:
+            # Test: A does NOT Granger-cause B (Null Hypothesis)
+            results = grangercausalitytests(data_AB, maxlag=maxlag)
+            
+            # Extract results for the F-test at the maximum lag
+            # Index 0 is the F-test; Index 1 is the p-value
+            f_stat_ab = results[maxlag][0]['ssr_ftest'][0]
+            p_val_ab = results[maxlag][0]['ssr_ftest'][1]
+
+            granger_results.append({
+                "CellID": cid_A, # Independent variable (Cause)
+                "TargetCellID": cid_B, # Dependent variable (Effect)
+                "Granger_F_AB": f_stat_ab,
+                "Granger_P_AB": p_val_ab,
+            })
+            cell_pairs.append((cid_A, cid_B))
+
+        except Exception as e:
+            log_message(log_file_path, f"Error running Granger test for pair {cid_A}-{cid_B}: {e}")
+            continue
+
+    return pd.DataFrame(granger_results)
+
 # --- Modified Plot Function ---
 def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix, log_file_path):
     """
     Plots the pairwise distance vs a chosen Y-variable and logs correlation stats.
+    Includes special handling for Granger Causality plotting.
     """
     y_col = y_data_df.columns[-1]
     
@@ -140,42 +203,51 @@ def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix,
     x = merged["Distance"].values
     y = merged[y_col].values
     
+    # --- Y-Axis Configuration ---
     if "LuminosityChangeDiff" in y_col:
         y = np.abs(y)
         ylabel = "|Δ(ΔLuminosity)|"
         ylim_val = None
-    else:
+        log_metrics = True
+    elif "Granger" in y_col:
+        ylabel = "Granger Causality F-Statistic (A -> B)" if 'F' in y_col else "Granger Causality P-value (A -> B)"
+        ylim_val = (0, 1) if 'P' in y_col else None
+        log_metrics = False # Correlation metrics are not relevant here
+    else: # Pearson/Spearman correlation
         ylabel = "Luminosity Trace Correlation ($R_{trace}$)"
         ylim_val = (-1.05, 1.05)
+        log_metrics = True
     
     if len(x) < 2:
         log_message(log_file_path, f"Warning: Insufficient cell pairs for {analysis_name}.")
         return
 
-    # Calculate and Log correlations
-    pearson_r, pearson_p = pearsonr(x, y)
-    spearman_r, spearman_p = spearmanr(x, y)
-
-    log_message(log_file_path, f"--- Analysis: {analysis_name} ---")
-    log_message(log_file_path, f"Pearson r={pearson_r:.4f}, p={pearson_p:.4f}")
-    log_message(log_file_path, f"Spearman rho={spearman_r:.4f}, p={spearman_p:.4f}")
+    # Calculate and Log correlations (ONLY for non-Granger/non-Diff plots)
+    if log_metrics:
+        pearson_r, pearson_p = pearsonr(x, y)
+        spearman_r, spearman_p = spearmanr(x, y)
+        log_message(log_file_path, f"--- Analysis: {analysis_name} ---")
+        log_message(log_file_path, f"Pearson r={pearson_r:.4f}, p={pearson_p:.4f}")
+        log_message(log_file_path, f"Spearman rho={spearman_r:.4f}, p={spearman_p:.4f}")
 
     # Plotting...
     plt.figure(figsize=(8, 8))
     plt.hexbin(x, y, gridsize=30, cmap='Blues', mincnt=1, vmin=0, vmax=200)
     plt.colorbar(label='Count in Bin')
     
-    m_p, b_p = np.polyfit(x, y, 1)
-    label_text = (
-        f"Linear Fit (Pearson $r$={pearson_r:.3f}, $p$={pearson_p:.4f})\n"
-        f"Spearman $\\rho$={spearman_r:.3f}, $p$={spearman_p:.4f}"
-    )
-    plt.plot(np.sort(x), m_p * np.sort(x) + b_p, color="red", linewidth=2, linestyle='--', label=label_text)
+    if log_metrics:
+        m_p, b_p = np.polyfit(x, y, 1)
+        label_text = (
+            f"Linear Fit (Pearson $r$={pearson_r:.3f}, $p$={pearson_p:.4f})\n"
+            f"Spearman $\\rho$={spearman_r:.3f}, $p$={spearman_p:.4f}"
+        )
+        plt.plot(np.sort(x), m_p * np.sort(x) + b_p, color="red", linewidth=2, linestyle='--', label=label_text)
 
     plt.xlabel("Pairwise Distance (pixels)")
     plt.ylabel(ylabel)
     plt.title(f"{analysis_name} (Hexbin Plot)\n{title_suffix}")
-    plt.legend()
+    if log_metrics:
+        plt.legend()
     if ylim_val:
         plt.ylim(ylim_val)
     plt.tight_layout()
@@ -254,7 +326,28 @@ def run_all_analyses(exp, log_file_path):
             title_suffix=title_suffix,
             log_file_path=log_file_path
         )
-
+    
+    # --- NEW ANALYSIS: Distance (F0) vs. Granger Causality ---
+    MAX_LAG = 2
+    log_message(log_file_path, f"\n--- Starting Granger Causality Analysis (Max Lag: {MAX_LAG}) ---")
+    
+    df_granger = calculate_pairwise_granger_causality(
+        lum_df, cell_ids, 
+        maxlag=MAX_LAG, 
+        log_file_path=log_file_path
+    )
+    
+    if not df_granger.empty:
+        # Plot Granger P-value vs Distance
+        plot_correlation(
+            df_dist_ref, df_granger.rename(columns={'Granger_P_AB': 'Granger_P_AB_Value'}), data_path, 
+            analysis_name=f"Distance vs Granger P-value (Lag{MAX_LAG})", 
+            title_suffix=f"A -> B Causality P-value (Distance at F{frame_for_distance})",
+            log_file_path=log_file_path
+        )
+    
+    log_message(log_file_path, "Granger Causality Analysis Complete.")
+    
 # --- Delta Delta Luminosity Analysis ---
 def run_delta_delta_luminosity_analysis(exp, log_file_path):
     """Executes the specific F5 Distance vs. Delta(F5-F4) Luminosity analysis."""
