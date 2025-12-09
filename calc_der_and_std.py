@@ -30,7 +30,7 @@ experiments = [item for item in os.listdir() if os.path.isdir(item) and item not
 
 for exp in tqdm(experiments, desc='Calculating...'):
     analysis_dir_path = os.path.join(exp, 'analysis')
-    if os.path.isdir(analysis_dir_path) and not os.path.exists(f'{analysis_dir_path}/plots/luminosity_derivative_complete.png'):
+    if os.path.isdir(analysis_dir_path):# and not os.path.exists(f'{analysis_dir_path}/plots/luminosity_derivative_complete.png'):
         file_path = os.path.join(analysis_dir_path, 'luminosity_complete.csv')
         df = pd.read_csv(file_path)
 

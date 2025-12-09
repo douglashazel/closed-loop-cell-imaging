@@ -162,7 +162,7 @@ def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix,
 
     # Plotting...
     plt.figure(figsize=(8, 8))
-    plt.hexbin(x, y, gridsize=30, cmap='Blues', mincnt=1)
+    plt.hexbin(x, y, gridsize=30, cmap='Blues', mincnt=1, vmin=0, vmax=200)
     plt.colorbar(label='Count in Bin')
     
     m_p, b_p = np.polyfit(x, y, 1)

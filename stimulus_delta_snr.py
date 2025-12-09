@@ -74,14 +74,28 @@ def process_tag(tag, analysis_dir, stim_frame, prev_frame):
     plt.tight_layout()
     plt.savefig(fig_path, dpi=300)
     plt.close()
+    
+    # Define the path for the log file (in the same directory as the plot)
+    log_file_path = os.path.join(plot_dir, "stimulus_delta_log.txt")
+    
+    # Create the content to be written to the log file
+    log_content = (
+        f"--- Metrics for tag: {tag} ---\n"
+        f"Stimulus Frame: f{stim_frame}\n"
+        f"Baseline Frame: f{prev_frame}\n"
+        f"Positive SNR: {snr_pos:.2f}\n"
+        f"Negative SNR: {snr_neg:.2f}\n"
+        f"Z-Score: {z_score:.2f}\n"
+        f"RMS Positive Delta: {rms_pos:.2f}\n"
+        f"RMS Negative Delta: {rms_neg:.2f}\n"
+        f"CSV Delta Saved To: {delta_csv}\n"
+        f"Plot Saved To: {fig_path}\n\n"
+    )
 
-    print(f"Processed {tag}:")
-    print(f"  Positive SNR: {snr_pos:.2f}")
-    print(f"  Negative SNR: {snr_neg:.2f}")
-    print(f"  Z-Score: {z_score:.2f}")
-    print(f"  Saved: \n{delta_csv}\n{fig_path}")
+    with open(log_file_path, 'a') as f:
+        f.write(log_content)
 
-    print(f"Processed {tag} - saved: \n{delta_csv}\n{fig_path}")
+    print(f"Processed {tag}. Metrics saved to {log_file_path}. Plot saved to {fig_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -94,6 +108,12 @@ if __name__ == "__main__":
     analysis_dir = args.analysis_dir
     stim_frame = args.stim_frame
     prev_frame = stim_frame - 1
+
+    # Before processing tags, ensure the log file is clean (optional, but good practice)
+    plot_dir = os.path.join(analysis_dir, "plots")
+    log_file_path = os.path.join(plot_dir, "stimulus_delta_log.txt")
+    if os.path.exists(log_file_path):
+        os.remove(log_file_path) # Delete old log file
 
     for tag in ["_no_bground_complete", "_complete"]:
         process_tag(tag, analysis_dir, stim_frame, prev_frame)
