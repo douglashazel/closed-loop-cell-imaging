@@ -164,7 +164,7 @@ def calculate_pairwise_granger_causality(lum_df, cell_ids, maxlag, log_file_path
 
         try:
             # Test: A does NOT Granger-cause B (Null Hypothesis)
-            results = grangercausalitytests(data_AB, maxlag=maxlag)
+            results = grangercausalitytests(data_AB, maxlag=maxlag, verbose=False)
             
             # Extract results for the F-test at the maximum lag
             # Index 0 is the F-test; Index 1 is the p-value
@@ -231,8 +231,12 @@ def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix,
         log_message(log_file_path, f"Spearman rho={spearman_r:.4f}, p={spearman_p:.4f}")
 
     # Plotting...
+    gridsize = 50
+    vmax = 80
+    if 'Delta-Delta' in analysis_name:
+        vmax = 300
     plt.figure(figsize=(8, 8))
-    plt.hexbin(x, y, gridsize=30, cmap='Blues', mincnt=1, vmin=0, vmax=200)
+    plt.hexbin(x, y, gridsize=gridsize, cmap='Blues', mincnt=1, vmin=0, vmax=vmax)
     plt.colorbar(label='Count in Bin')
     
     if log_metrics:
@@ -341,7 +345,7 @@ def run_all_analyses(exp, log_file_path):
         # Plot Granger P-value vs Distance
         plot_correlation(
             df_dist_ref, df_granger.rename(columns={'Granger_P_AB': 'Granger_P_AB_Value'}), data_path, 
-            analysis_name=f"Distance vs Granger P-value (Lag{MAX_LAG})", 
+            analysis_name=f"Distance vs Granger pvalue (Lag{MAX_LAG})", 
             title_suffix=f"A -> B Causality P-value (Distance at F{frame_for_distance})",
             log_file_path=log_file_path
         )
