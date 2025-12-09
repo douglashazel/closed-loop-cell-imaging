@@ -145,7 +145,7 @@ def plot_sliding_window_correlations(dist_df, lum_df, cell_ids, num_frames, data
         log_message(log_file_path, f"Spearman rho={spearman_r:.4f}, p={spearman_p:.4f}")
 
         # Plotting (using hexbin for density)
-        ax.hexbin(x, y, gridsize=20, cmap='Blues', mincnt=1, vmin=0, vmax=400)
+        ax.hexbin(x, y, gridsize=20, cmap='Blues', mincnt=1, vmin=0, vmax=600)
         
         # Linear Fit Plot
         m_p, b_p = np.polyfit(x, y, 1)
@@ -239,7 +239,7 @@ def run_all_analyses(exp, log_file_path):
     )
 
 # --- Final Execution (Unchanged) ---
-exp = 'c2c12_carbachol_1'
+exp = 'u87_pipettingControl_2'
 data_path = f"{exp}/analysis"
 plots_dir = os.path.join(data_path, "plots")
 os.makedirs(plots_dir, exist_ok=True)
