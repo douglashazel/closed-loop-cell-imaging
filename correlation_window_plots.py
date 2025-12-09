@@ -105,7 +105,7 @@ def plot_sliding_window_correlations(dist_df, lum_df, cell_ids, num_frames, data
     num_plots = len(windows)
     ncols = 2
     nrows = int(np.ceil(num_plots / ncols))
-    fig, axes = plt.subplots(nrows, ncols, squeeze=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5 * nrows), squeeze=False)
     
     log_message(log_file_path, f"\nStarting {num_plots} sliding window analyses ({window_size} frames, step {step_size})...")
 
@@ -145,7 +145,7 @@ def plot_sliding_window_correlations(dist_df, lum_df, cell_ids, num_frames, data
         log_message(log_file_path, f"Spearman rho={spearman_r:.4f}, p={spearman_p:.4f}")
 
         # Plotting (using hexbin for density)
-        ax.hexbin(x, y, gridsize=20, cmap='Blues', mincnt=1, vmin=0, vmax=200)
+        ax.hexbin(x, y, gridsize=20, cmap='Blues', mincnt=1, vmin=0, vmax=300)
         
         # Linear Fit Plot
         m_p, b_p = np.polyfit(x, y, 1)

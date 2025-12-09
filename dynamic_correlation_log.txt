@@ -1,6 +1,0 @@
-Starting Analysis at 2025-12-07 12:04:09
-Loaded data for 300 cells over 10 frames.
-Starting dynamic neighbor correlation. Proximity=200px, Window=11 frames.
-Excluded 0 cells from correlation due to invalid trace (NaN or zero variance).
-Starting movie generation for 10 frames.
-Saved correlation movie to: c2c12_carbachol_1/masks/c2c12_carbachol_1_neighbor_correlation_movie.gif

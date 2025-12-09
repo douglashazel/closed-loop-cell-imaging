@@ -1,0 +1,769 @@
+[2025-12-09 15:19:22] --- STARTING T-TEST ANALYSIS LOG ---
+[2025-12-09 15:19:22] Aggregating data and copying files...
+[2025-12-09 15:19:22] Cell Type Check: hela found.
+[2025-12-09 15:19:22] Cell Type Check: u87 found.
+[2025-12-09 15:19:22] Cell Type Check: nrk found.
+[2025-12-09 15:19:22] Cell Type Check: pc3 found.
+[2025-12-09 15:19:22] Cell Type Check: c2c12 found.
+[2025-12-09 15:19:22] Cell Type Check: ht29 found.
+[2025-12-09 15:19:22] --- BEGINNING STATISTICAL ANALYSIS ---
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_1 vs Ctrl: dmem_1 (N=980)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.6307e-72, Mean Diff: 0.0009
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_1 vs Ctrl: dmem_2 (N=684)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 2.1852e-46, Mean Diff: 0.0008
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_1 vs Ctrl: dmso_1 (N=503)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.0152e-36, Mean Diff: 0.0010
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_1 vs Ctrl: dmso_2 (N=665)
+[2025-12-09 15:19:22]        Levene p-value: 0.8207. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 1.1704e-06, Mean Diff: 0.0005
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_1 vs Ctrl: dmem_1 (N=980)
+[2025-12-09 15:19:22]        Levene p-value: 0.2712. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 2.8572e-24, Mean Diff: 0.0004
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_1 vs Ctrl: dmem_2 (N=684)
+[2025-12-09 15:19:22]        Levene p-value: 0.0824. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 1.1658e-19, Mean Diff: 0.0003
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_1 vs Ctrl: dmso_1 (N=503)
+[2025-12-09 15:19:22]        Levene p-value: 0.0110. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.0576e-20, Mean Diff: 0.0004
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_1 vs Ctrl: dmso_2 (N=665)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 2.9960e-01, Mean Diff: -0.0001
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_1 vs Ctrl: dmem_1 (N=227)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 8.3828e-49, Mean Diff: 0.0023
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_1 vs Ctrl: dmem_2 (N=227)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.0645e-45, Mean Diff: 0.0022
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_1 vs Ctrl: dmso_1 (N=227)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.1360e-49, Mean Diff: 0.0023
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_1 vs Ctrl: dmso_2 (N=227)
+[2025-12-09 15:19:22]        Levene p-value: 0.0238. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 2.2951e-14, Mean Diff: 0.0018
+[2025-12-09 15:19:22] SKIPPING: cell=hela, cond=carbachol_2, n_cond=0
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_2 vs Ctrl: dmem_1 (N=277)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 9.6670e-56, Mean Diff: 0.0023
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_2 vs Ctrl: dmem_2 (N=277)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.0460e-53, Mean Diff: 0.0022
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_2 vs Ctrl: dmso_1 (N=277)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.0972e-58, Mean Diff: 0.0023
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: thapsigargin_2 vs Ctrl: dmso_2 (N=277)
+[2025-12-09 15:19:22]        Levene p-value: 0.0011. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 5.5051e-19, Mean Diff: 0.0018
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_2 vs Ctrl: dmem_1 (N=980)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.0207e-49, Mean Diff: 0.0010
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_2 vs Ctrl: dmem_2 (N=684)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 3.2254e-37, Mean Diff: 0.0009
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_2 vs Ctrl: dmso_1 (N=503)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 6.2859e-31, Mean Diff: 0.0010
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: naoh_2 vs Ctrl: dmso_2 (N=665)
+[2025-12-09 15:19:22]        Levene p-value: 0.6137. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 1.3825e-07, Mean Diff: 0.0005
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: carbachol_1 vs Ctrl: dmem_1 (N=208)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 5.3389e-21, Mean Diff: 0.0013
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: carbachol_1 vs Ctrl: dmem_2 (N=208)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 9.1066e-19, Mean Diff: 0.0012
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: carbachol_1 vs Ctrl: dmso_1 (N=208)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 4.9796e-22, Mean Diff: 0.0014
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: carbachol_1 vs Ctrl: dmso_2 (N=208)
+[2025-12-09 15:19:22]        Levene p-value: 0.2295. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 1.8364e-03, Mean Diff: 0.0008
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_2 vs Ctrl: dmem_1 (N=791)
+[2025-12-09 15:19:22]        Levene p-value: 0.0188. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 8.0737e-08, Mean Diff: 0.0002
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_2 vs Ctrl: dmem_2 (N=684)
+[2025-12-09 15:19:22]        Levene p-value: 0.3136. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 1.7191e-04, Mean Diff: 0.0001
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_2 vs Ctrl: dmso_1 (N=503)
+[2025-12-09 15:19:22]        Levene p-value: 0.6069. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 1.5465e-07, Mean Diff: 0.0003
+[2025-12-09 15:19:22] CHECK: Cell: hela, Cond: fluoxetine_2 vs Ctrl: dmso_2 (N=665)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 2.3191e-03, Mean Diff: -0.0002
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: fluoxetine_2 vs Ctrl: dmem_1 (N=2225)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 7.8344e-05, Mean Diff: -0.0003
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: fluoxetine_2 vs Ctrl: dmso_2 (N=1885)
+[2025-12-09 15:19:22]        Levene p-value: 0.6505. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 2.5438e-67, Mean Diff: -0.0016
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: fluoxetine_2 vs Ctrl: pipettingControl_2 (N=1827)
+[2025-12-09 15:19:22]        Levene p-value: 0.8586. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 1.3126e-03, Mean Diff: 0.0003
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: fluoxetine_2 vs Ctrl: dmem_2 (N=2225)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.5420e-01, Mean Diff: 0.0001
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: fluoxetine_2 vs Ctrl: dmso_1 (N=1744)
+[2025-12-09 15:19:22]        Levene p-value: 0.0003. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 5.9982e-17, Mean Diff: -0.0007
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: fluoxetine_2 vs Ctrl: pipettingControl_1 (N=853)
+[2025-12-09 15:19:22]        Levene p-value: 0.1415. Setting equal_var to: True
+[2025-12-09 15:19:22]        T-Test p-value: 3.6390e-01, Mean Diff: 0.0001
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: carbachol_2 vs Ctrl: dmem_1 (N=618)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 6.9889e-13, Mean Diff: 0.0013
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: carbachol_2 vs Ctrl: dmso_2 (N=618)
+[2025-12-09 15:19:22]        Levene p-value: 0.0357. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 3.3019e-01, Mean Diff: -0.0001
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: carbachol_2 vs Ctrl: pipettingControl_2 (N=618)
+[2025-12-09 15:19:22]        Levene p-value: 0.0172. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 5.9307e-19, Mean Diff: 0.0018
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: carbachol_2 vs Ctrl: dmem_2 (N=618)
+[2025-12-09 15:19:22]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.3466e-18, Mean Diff: 0.0016
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: carbachol_2 vs Ctrl: dmso_1 (N=618)
+[2025-12-09 15:19:22]        Levene p-value: 0.0001. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.8248e-04, Mean Diff: 0.0008
+[2025-12-09 15:19:22] CHECK: Cell: u87, Cond: carbachol_2 vs Ctrl: pipettingControl_1 (N=618)
+[2025-12-09 15:19:22]        Levene p-value: 0.0015. Setting equal_var to: False
+[2025-12-09 15:19:22]        T-Test p-value: 1.6634e-15, Mean Diff: 0.0016
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_2 vs Ctrl: dmem_1 (N=1893)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2913e-43, Mean Diff: 0.0035
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_2 vs Ctrl: dmso_2 (N=1885)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.0856e-17, Mean Diff: 0.0022
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_2 vs Ctrl: pipettingControl_2 (N=1827)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.6872e-54, Mean Diff: 0.0041
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_2 vs Ctrl: dmem_2 (N=1893)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.2539e-52, Mean Diff: 0.0039
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_2 vs Ctrl: dmso_1 (N=1744)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.8352e-31, Mean Diff: 0.0030
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_2 vs Ctrl: pipettingControl_1 (N=853)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.3889e-26, Mean Diff: 0.0039
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: fluoxetine_1 vs Ctrl: dmem_1 (N=1460)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.6247e-111, Mean Diff: 0.0051
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: fluoxetine_1 vs Ctrl: dmso_2 (N=1460)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.5494e-61, Mean Diff: 0.0038
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: fluoxetine_1 vs Ctrl: pipettingControl_2 (N=1460)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.7030e-126, Mean Diff: 0.0057
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: fluoxetine_1 vs Ctrl: dmem_2 (N=1460)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 7.9282e-124, Mean Diff: 0.0055
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: fluoxetine_1 vs Ctrl: dmso_1 (N=1460)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.8586e-90, Mean Diff: 0.0047
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: fluoxetine_1 vs Ctrl: pipettingControl_1 (N=853)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.1636e-68, Mean Diff: 0.0055
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_1 vs Ctrl: dmem_1 (N=1953)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.3321e-113, Mean Diff: 0.0058
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_1 vs Ctrl: dmso_2 (N=1885)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.5326e-63, Mean Diff: 0.0044
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_1 vs Ctrl: pipettingControl_2 (N=1827)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2074e-117, Mean Diff: 0.0063
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_1 vs Ctrl: dmem_2 (N=1953)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.7682e-126, Mean Diff: 0.0061
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_1 vs Ctrl: dmso_1 (N=1744)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.5585e-82, Mean Diff: 0.0053
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: naoh_1 vs Ctrl: pipettingControl_1 (N=853)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.0558e-55, Mean Diff: 0.0061
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: carbachol_1 vs Ctrl: dmem_1 (N=674)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.0836e-16, Mean Diff: 0.0019
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: carbachol_1 vs Ctrl: dmso_2 (N=674)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.7287e-01, Mean Diff: 0.0005
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: carbachol_1 vs Ctrl: pipettingControl_2 (N=674)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.3376e-23, Mean Diff: 0.0024
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: carbachol_1 vs Ctrl: dmem_2 (N=674)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.8940e-21, Mean Diff: 0.0022
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: carbachol_1 vs Ctrl: dmso_1 (N=674)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.3553e-08, Mean Diff: 0.0014
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: carbachol_1 vs Ctrl: pipettingControl_1 (N=674)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.1364e-19, Mean Diff: 0.0022
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_1 vs Ctrl: dmem_1 (N=903)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.0891e-252, Mean Diff: 0.0125
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_1 vs Ctrl: dmso_2 (N=903)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.8853e-219, Mean Diff: 0.0111
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_1 vs Ctrl: pipettingControl_2 (N=903)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 7.2025e-270, Mean Diff: 0.0130
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_1 vs Ctrl: dmem_2 (N=903)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.2024e-260, Mean Diff: 0.0128
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_1 vs Ctrl: dmso_1 (N=903)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.2721e-246, Mean Diff: 0.0120
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_1 vs Ctrl: pipettingControl_1 (N=853)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2016e-247, Mean Diff: 0.0128
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_2 vs Ctrl: dmem_1 (N=771)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.9266e-65, Mean Diff: 0.0062
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_2 vs Ctrl: dmso_2 (N=771)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.3665e-38, Mean Diff: 0.0048
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_2 vs Ctrl: pipettingControl_2 (N=771)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.9316e-71, Mean Diff: 0.0067
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_2 vs Ctrl: dmem_2 (N=771)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.9888e-71, Mean Diff: 0.0065
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_2 vs Ctrl: dmso_1 (N=771)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.5592e-56, Mean Diff: 0.0057
+[2025-12-09 15:19:23] CHECK: Cell: u87, Cond: thapsigargin_2 vs Ctrl: pipettingControl_1 (N=771)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2586e-69, Mean Diff: 0.0065
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_2 vs Ctrl: dmem_1 (N=50)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.6453e-13, Mean Diff: -0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_2 vs Ctrl: dmso_2 (N=50)
+[2025-12-09 15:19:23]        Levene p-value: 0.0001. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.0299e-08, Mean Diff: -0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_2 vs Ctrl: dmem_2 (N=50)
+[2025-12-09 15:19:23]        Levene p-value: 0.0011. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.7047e-37, Mean Diff: -0.0006
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_2 vs Ctrl: dmso_1 (N=50)
+[2025-12-09 15:19:23]        Levene p-value: 0.0002. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.9027e-12, Mean Diff: -0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_1 vs Ctrl: dmem_1 (N=35)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 6.6735e-16, Mean Diff: 0.0016
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_1 vs Ctrl: dmso_2 (N=35)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.1305e-17, Mean Diff: 0.0016
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_1 vs Ctrl: dmem_2 (N=35)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2335e-13, Mean Diff: 0.0014
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_1 vs Ctrl: dmso_1 (N=35)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.6419e-16, Mean Diff: 0.0016
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_2 vs Ctrl: dmem_1 (N=38)
+[2025-12-09 15:19:23]        Levene p-value: 0.0002. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.0946e-09, Mean Diff: -0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_2 vs Ctrl: dmso_2 (N=38)
+[2025-12-09 15:19:23]        Levene p-value: 0.0125. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.1559e-04, Mean Diff: -0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_2 vs Ctrl: dmem_2 (N=38)
+[2025-12-09 15:19:23]        Levene p-value: 0.9779. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 7.9008e-25, Mean Diff: -0.0005
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_2 vs Ctrl: dmso_1 (N=38)
+[2025-12-09 15:19:23]        Levene p-value: 0.0643. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.0433e-07, Mean Diff: -0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_1 vs Ctrl: dmem_1 (N=286)
+[2025-12-09 15:19:23]        Levene p-value: 0.0029. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.5448e-62, Mean Diff: 0.0004
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_1 vs Ctrl: dmso_2 (N=265)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.2739e-35, Mean Diff: 0.0004
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_1 vs Ctrl: dmem_2 (N=286)
+[2025-12-09 15:19:23]        Levene p-value: 0.0010. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.3808e-19, Mean Diff: 0.0002
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_1 vs Ctrl: dmso_1 (N=286)
+[2025-12-09 15:19:23]        Levene p-value: 0.0968. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.6626e-55, Mean Diff: 0.0004
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_2 vs Ctrl: dmem_1 (N=210)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.3976e-32, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_2 vs Ctrl: dmso_2 (N=210)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.3150e-15, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_2 vs Ctrl: dmem_2 (N=210)
+[2025-12-09 15:19:23]        Levene p-value: 0.0132. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.4725e-03, Mean Diff: 0.0000
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: naoh_2 vs Ctrl: dmso_1 (N=210)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.3500e-23, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_1 vs Ctrl: dmem_1 (N=44)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 6.9026e-08, Mean Diff: -0.0002
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_1 vs Ctrl: dmso_2 (N=44)
+[2025-12-09 15:19:23]        Levene p-value: 0.0013. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.9307e-04, Mean Diff: -0.0002
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_1 vs Ctrl: dmem_2 (N=44)
+[2025-12-09 15:19:23]        Levene p-value: 0.0559. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 4.2681e-28, Mean Diff: -0.0005
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: carbachol_1 vs Ctrl: dmso_1 (N=44)
+[2025-12-09 15:19:23]        Levene p-value: 0.0013. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.5217e-06, Mean Diff: -0.0002
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_2 vs Ctrl: dmem_1 (N=86)
+[2025-12-09 15:19:23]        Levene p-value: 0.0001. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.6289e-02, Mean Diff: 0.0002
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_2 vs Ctrl: dmso_2 (N=86)
+[2025-12-09 15:19:23]        Levene p-value: 0.0010. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.9905e-03, Mean Diff: 0.0002
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_2 vs Ctrl: dmem_2 (N=86)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.5317e-01, Mean Diff: -0.0000
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: thapsigargin_2 vs Ctrl: dmso_1 (N=86)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.5350e-04, Mean Diff: 0.0002
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_1 vs Ctrl: dmem_1 (N=185)
+[2025-12-09 15:19:23]        Levene p-value: 0.0021. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.0865e-06, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_1 vs Ctrl: dmso_2 (N=185)
+[2025-12-09 15:19:23]        Levene p-value: 0.0624. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.4341e-05, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_1 vs Ctrl: dmem_2 (N=185)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.6415e-02, Mean Diff: 0.0001
+[2025-12-09 15:19:23] CHECK: Cell: nrk, Cond: fluoxetine_1 vs Ctrl: dmso_1 (N=185)
+[2025-12-09 15:19:23]        Levene p-value: 0.0015. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.0547e-07, Mean Diff: 0.0004
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_2 vs Ctrl: pipettingControl_2 (N=610)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.8273e-01, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_2 vs Ctrl: dmso_2 (N=1398)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.6546e-28, Mean Diff: -0.0020
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_2 vs Ctrl: dmem_2 (N=556)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2835e-241, Mean Diff: 0.0095
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_2 vs Ctrl: pipettingControl_1 (N=534)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.3548e-71, Mean Diff: 0.0038
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_2 vs Ctrl: dmso_1 (N=1241)
+[2025-12-09 15:19:23]        Levene p-value: 0.0002. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.8586e-03, Mean Diff: -0.0005
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_2 vs Ctrl: dmem_1 (N=593)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.3380e-241, Mean Diff: 0.0091
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_1 vs Ctrl: pipettingControl_2 (N=151)
+[2025-12-09 15:19:23]        Levene p-value: 0.0007. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.4389e-14, Mean Diff: 0.0037
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_1 vs Ctrl: dmso_2 (N=151)
+[2025-12-09 15:19:23]        Levene p-value: 0.9322. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.6515e-02, Mean Diff: 0.0014
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_1 vs Ctrl: dmem_2 (N=151)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 6.6361e-68, Mean Diff: 0.0129
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_1 vs Ctrl: pipettingControl_1 (N=151)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.4912e-37, Mean Diff: 0.0072
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_1 vs Ctrl: dmso_1 (N=151)
+[2025-12-09 15:19:23]        Levene p-value: 0.5348. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 4.5128e-07, Mean Diff: 0.0029
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_1 vs Ctrl: dmem_1 (N=151)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 6.6132e-63, Mean Diff: 0.0125
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_1 vs Ctrl: pipettingControl_2 (N=610)
+[2025-12-09 15:19:23]        Levene p-value: 0.0003. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.7058e-04, Mean Diff: -0.0009
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_1 vs Ctrl: dmso_2 (N=1220)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.8611e-60, Mean Diff: -0.0031
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_1 vs Ctrl: dmem_2 (N=556)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.4966e-206, Mean Diff: 0.0084
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_1 vs Ctrl: pipettingControl_1 (N=534)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.2442e-42, Mean Diff: 0.0027
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_1 vs Ctrl: dmso_1 (N=1220)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.4354e-19, Mean Diff: -0.0016
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: naoh_1 vs Ctrl: dmem_1 (N=593)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.4018e-206, Mean Diff: 0.0079
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_2 vs Ctrl: pipettingControl_2 (N=160)
+[2025-12-09 15:19:23]        Levene p-value: 0.1062. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.4230e-02, Mean Diff: -0.0012
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_2 vs Ctrl: dmso_2 (N=160)
+[2025-12-09 15:19:23]        Levene p-value: 0.0286. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.7933e-10, Mean Diff: -0.0034
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_2 vs Ctrl: dmem_2 (N=160)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.1818e-64, Mean Diff: 0.0081
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_2 vs Ctrl: pipettingControl_1 (N=160)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.2597e-14, Mean Diff: 0.0024
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_2 vs Ctrl: dmso_1 (N=160)
+[2025-12-09 15:19:23]        Levene p-value: 0.0682. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 2.5402e-05, Mean Diff: -0.0020
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_2 vs Ctrl: dmem_1 (N=160)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 6.3218e-58, Mean Diff: 0.0076
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_1 vs Ctrl: pipettingControl_2 (N=161)
+[2025-12-09 15:19:23]        Levene p-value: 0.0559. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.1841e-02, Mean Diff: -0.0012
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_1 vs Ctrl: dmso_2 (N=161)
+[2025-12-09 15:19:23]        Levene p-value: 0.0368. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 6.3564e-11, Mean Diff: -0.0034
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_1 vs Ctrl: dmem_2 (N=161)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.1631e-67, Mean Diff: 0.0080
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_1 vs Ctrl: pipettingControl_1 (N=161)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.3513e-14, Mean Diff: 0.0024
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_1 vs Ctrl: dmso_1 (N=161)
+[2025-12-09 15:19:23]        Levene p-value: 0.0843. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.5577e-05, Mean Diff: -0.0020
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: carbachol_1 vs Ctrl: dmem_1 (N=161)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.0494e-60, Mean Diff: 0.0076
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_2 vs Ctrl: pipettingControl_2 (N=256)
+[2025-12-09 15:19:23]        Levene p-value: 0.1351. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.4862e-01, Mean Diff: 0.0002
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_2 vs Ctrl: dmso_2 (N=256)
+[2025-12-09 15:19:23]        Levene p-value: 0.0001. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.8740e-07, Mean Diff: -0.0020
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_2 vs Ctrl: dmem_2 (N=256)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.2318e-128, Mean Diff: 0.0095
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_2 vs Ctrl: pipettingControl_1 (N=256)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.9968e-45, Mean Diff: 0.0038
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_2 vs Ctrl: dmso_1 (N=256)
+[2025-12-09 15:19:23]        Levene p-value: 0.0218. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.9404e-01, Mean Diff: -0.0006
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: thapsigargin_2 vs Ctrl: dmem_1 (N=256)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2757e-115, Mean Diff: 0.0090
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_1 vs Ctrl: pipettingControl_2 (N=610)
+[2025-12-09 15:19:23]        Levene p-value: 0.2239. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 4.1358e-02, Mean Diff: -0.0003
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_1 vs Ctrl: dmso_2 (N=1229)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.8744e-52, Mean Diff: -0.0025
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_1 vs Ctrl: dmem_2 (N=556)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: 0.0089
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_1 vs Ctrl: pipettingControl_1 (N=534)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.3440e-101, Mean Diff: 0.0033
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_1 vs Ctrl: dmso_1 (N=1229)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.4351e-11, Mean Diff: -0.0011
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_1 vs Ctrl: dmem_1 (N=593)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: 0.0085
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_2 vs Ctrl: pipettingControl_2 (N=610)
+[2025-12-09 15:19:23]        Levene p-value: 0.9719. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 2.2638e-03, Mean Diff: -0.0005
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_2 vs Ctrl: dmso_2 (N=1057)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.8319e-51, Mean Diff: -0.0027
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_2 vs Ctrl: dmem_2 (N=556)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: 0.0087
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_2 vs Ctrl: pipettingControl_1 (N=534)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.2448e-99, Mean Diff: 0.0031
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_2 vs Ctrl: dmso_1 (N=1057)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 7.2460e-14, Mean Diff: -0.0013
+[2025-12-09 15:19:23] CHECK: Cell: pc3, Cond: fluoxetine_2 vs Ctrl: dmem_1 (N=593)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: 0.0083
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_1 vs Ctrl: dmso_2 (N=612)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.5125e-52, Mean Diff: -0.0039
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_1 vs Ctrl: dmso_1 (N=1475)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.6339e-114, Mean Diff: -0.0023
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_1 vs Ctrl: pipettingControl_2 (N=818)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.1318e-56, Mean Diff: 0.0013
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_1 vs Ctrl: dmem_1 (N=1475)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.1878e-145, Mean Diff: 0.0016
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_1 vs Ctrl: pipettingControl_1 (N=549)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.5343e-58, Mean Diff: 0.0016
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_1 vs Ctrl: dmem_2 (N=1475)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.1321e-148, Mean Diff: 0.0016
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_2 vs Ctrl: dmso_2 (N=455)
+[2025-12-09 15:19:23]        Levene p-value: 0.2315. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.0166e-01, Mean Diff: 0.0009
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_2 vs Ctrl: dmso_1 (N=455)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.8485e-19, Mean Diff: 0.0025
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_2 vs Ctrl: pipettingControl_2 (N=455)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.4410e-85, Mean Diff: 0.0061
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_2 vs Ctrl: dmem_1 (N=455)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 7.2872e-92, Mean Diff: 0.0064
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_2 vs Ctrl: pipettingControl_1 (N=455)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.6191e-92, Mean Diff: 0.0064
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_2 vs Ctrl: dmem_2 (N=455)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.8671e-92, Mean Diff: 0.0064
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_1 vs Ctrl: dmso_2 (N=612)
+[2025-12-09 15:19:23]        Levene p-value: 0.8408. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 2.3896e-17, Mean Diff: 0.0027
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_1 vs Ctrl: dmso_1 (N=3180)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: 0.0044
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_1 vs Ctrl: pipettingControl_2 (N=818)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.5595e-249, Mean Diff: 0.0079
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_1 vs Ctrl: dmem_1 (N=3025)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: 0.0083
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_1 vs Ctrl: pipettingControl_1 (N=549)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.3742e-176, Mean Diff: 0.0083
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_1 vs Ctrl: dmem_2 (N=2082)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: 0.0083
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_2 vs Ctrl: dmso_2 (N=288)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.9160e-37, Mean Diff: -0.0050
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_2 vs Ctrl: dmso_1 (N=288)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.6804e-55, Mean Diff: -0.0034
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_2 vs Ctrl: pipettingControl_2 (N=288)
+[2025-12-09 15:19:23]        Levene p-value: 0.3639. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 1.9890e-04, Mean Diff: 0.0002
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_2 vs Ctrl: dmem_1 (N=288)
+[2025-12-09 15:19:23]        Levene p-value: 0.7909. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 5.6967e-23, Mean Diff: 0.0005
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_2 vs Ctrl: pipettingControl_1 (N=288)
+[2025-12-09 15:19:23]        Levene p-value: 0.0001. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.8621e-31, Mean Diff: 0.0005
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_2 vs Ctrl: dmem_2 (N=288)
+[2025-12-09 15:19:23]        Levene p-value: 0.0527. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 4.0198e-29, Mean Diff: 0.0005
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_1 vs Ctrl: dmso_2 (N=427)
+[2025-12-09 15:19:23]        Levene p-value: 0.3909. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 6.9285e-01, Mean Diff: 0.0006
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_1 vs Ctrl: dmso_1 (N=427)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.0836e-14, Mean Diff: 0.0022
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_1 vs Ctrl: pipettingControl_2 (N=427)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.2420e-76, Mean Diff: 0.0058
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_1 vs Ctrl: dmem_1 (N=427)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 5.7445e-83, Mean Diff: 0.0061
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_1 vs Ctrl: pipettingControl_1 (N=427)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.0114e-83, Mean Diff: 0.0061
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: thapsigargin_1 vs Ctrl: dmem_2 (N=427)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.1579e-83, Mean Diff: 0.0061
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_1 vs Ctrl: dmso_2 (N=301)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.5841e-34, Mean Diff: -0.0046
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_1 vs Ctrl: dmso_1 (N=301)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.2577e-45, Mean Diff: -0.0029
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_1 vs Ctrl: pipettingControl_2 (N=301)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 4.9925e-14, Mean Diff: 0.0006
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_1 vs Ctrl: dmem_1 (N=301)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.9020e-28, Mean Diff: 0.0010
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_1 vs Ctrl: pipettingControl_1 (N=301)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 6.7984e-30, Mean Diff: 0.0010
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: carbachol_1 vs Ctrl: dmem_2 (N=301)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.9677e-29, Mean Diff: 0.0010
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_2 vs Ctrl: dmso_2 (N=612)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.0474e-47, Mean Diff: 0.0058
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_2 vs Ctrl: dmso_1 (N=1100)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.9701e-163, Mean Diff: 0.0075
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_2 vs Ctrl: pipettingControl_2 (N=818)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.9885e-202, Mean Diff: 0.0110
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_2 vs Ctrl: dmem_1 (N=1100)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.1710e-285, Mean Diff: 0.0114
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_2 vs Ctrl: pipettingControl_1 (N=549)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 8.9080e-140, Mean Diff: 0.0114
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: naoh_2 vs Ctrl: dmem_2 (N=1100)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.0144e-284, Mean Diff: 0.0114
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_2 vs Ctrl: dmso_2 (N=612)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 3.1630e-86, Mean Diff: -0.0053
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_2 vs Ctrl: dmso_1 (N=1994)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0036
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_2 vs Ctrl: pipettingControl_2 (N=818)
+[2025-12-09 15:19:23]        Levene p-value: 0.0014. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.8050e-02, Mean Diff: -0.0001
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_2 vs Ctrl: dmem_1 (N=1994)
+[2025-12-09 15:19:23]        Levene p-value: 0.8845. Setting equal_var to: True
+[2025-12-09 15:19:23]        T-Test p-value: 5.7243e-40, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_2 vs Ctrl: pipettingControl_1 (N=549)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 9.1323e-22, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: c2c12, Cond: fluoxetine_2 vs Ctrl: dmem_2 (N=1994)
+[2025-12-09 15:19:23]        Levene p-value: 0.0455. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 7.4611e-36, Mean Diff: 0.0003
+[2025-12-09 15:19:23] CHECK: Cell: ht29, Cond: carbachol_1 vs Ctrl: pipettingControl_1 (N=3805)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.4884e-89, Mean Diff: -0.0020
+[2025-12-09 15:19:23] CHECK: Cell: ht29, Cond: carbachol_1 vs Ctrl: dmem_1 (N=3805)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 1.5951e-100, Mean Diff: 0.0021
+[2025-12-09 15:19:23] CHECK: Cell: ht29, Cond: carbachol_1 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.0207e-01, Mean Diff: -0.0001
+[2025-12-09 15:19:23] CHECK: Cell: ht29, Cond: carbachol_1 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 2.8504e-11, Mean Diff: 0.0008
+[2025-12-09 15:19:23] CHECK: Cell: ht29, Cond: carbachol_1 vs Ctrl: dmso_1 (N=3805)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0077
+[2025-12-09 15:19:23] CHECK: Cell: ht29, Cond: carbachol_1 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0084
+[2025-12-09 15:19:23] CHECK: Cell: ht29, Cond: naoh_2 vs Ctrl: pipettingControl_1 (N=3979)
+[2025-12-09 15:19:23]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:23]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0039
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_2 vs Ctrl: dmem_1 (N=4007)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 5.3466e-03, Mean Diff: 0.0002
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_2 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 1.4070e-207, Mean Diff: -0.0021
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_2 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 1.2567e-64, Mean Diff: -0.0012
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_2 vs Ctrl: dmso_1 (N=6092)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0096
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_2 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0103
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_1 vs Ctrl: pipettingControl_1 (N=3979)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0051
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_1 vs Ctrl: dmem_1 (N=4007)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 1.1891e-163, Mean Diff: -0.0011
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_1 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0033
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_1 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0024
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_1 vs Ctrl: dmso_1 (N=5340)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0108
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_1 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0115
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_1 vs Ctrl: pipettingControl_1 (N=3979)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0035
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_1 vs Ctrl: dmem_1 (N=4007)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 9.3427e-21, Mean Diff: 0.0005
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_1 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 5.0221e-123, Mean Diff: -0.0017
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_1 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 3.8271e-24, Mean Diff: -0.0008
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_1 vs Ctrl: dmso_1 (N=6092)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0092
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: naoh_1 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0100
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_1 vs Ctrl: pipettingControl_1 (N=3979)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 2.1433e-88, Mean Diff: -0.0015
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_1 vs Ctrl: dmem_1 (N=4007)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 1.0292e-259, Mean Diff: 0.0025
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_1 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 2.7013e-06, Mean Diff: 0.0003
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_1 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 5.2435e-42, Mean Diff: 0.0012
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_1 vs Ctrl: dmso_1 (N=5771)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0072
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_1 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0079
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_2 vs Ctrl: pipettingControl_1 (N=3979)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0054
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_2 vs Ctrl: dmem_1 (N=4007)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 1.6042e-222, Mean Diff: -0.0014
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_2 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0036
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_2 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:24]        Levene p-value: 0.3941. Setting equal_var to: True
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0027
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_2 vs Ctrl: dmso_1 (N=6092)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0111
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: fluoxetine_2 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0118
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_2 vs Ctrl: pipettingControl_1 (N=3979)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 2.1257e-126, Mean Diff: -0.0016
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_2 vs Ctrl: dmem_1 (N=4007)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 2.9184e-252, Mean Diff: 0.0024
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_2 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 4.9971e-02, Mean Diff: 0.0002
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_2 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 3.3857e-29, Mean Diff: 0.0011
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_2 vs Ctrl: dmso_1 (N=4717)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0073
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: thapsigargin_2 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0081
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: carbachol_2 vs Ctrl: pipettingControl_1 (N=3134)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0037
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: carbachol_2 vs Ctrl: dmem_1 (N=3134)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 8.4362e-05, Mean Diff: 0.0003
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: carbachol_2 vs Ctrl: dmem_2 (N=3088)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 8.8195e-107, Mean Diff: -0.0019
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: carbachol_2 vs Ctrl: pipettingControl_2 (N=2004)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 5.4055e-20, Mean Diff: -0.0010
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: carbachol_2 vs Ctrl: dmso_1 (N=3134)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0094
+[2025-12-09 15:19:24] CHECK: Cell: ht29, Cond: carbachol_2 vs Ctrl: dmso_2 (N=3030)
+[2025-12-09 15:19:24]        Levene p-value: 0.0000. Setting equal_var to: False
+[2025-12-09 15:19:24]        T-Test p-value: 0.0000e+00, Mean Diff: -0.0101
+[2025-12-09 15:19:24] --- STATISTICAL ANALYSIS COMPLETE ---
+[2025-12-09 15:19:24] Saving final aggregated results to aggregated_results.csv
+[2025-12-09 15:19:24] --- END OF LOG ---
