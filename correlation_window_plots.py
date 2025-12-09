@@ -66,7 +66,7 @@ def calculate_pairwise_trace_correlation(lum_df, cell_ids, log_file_path, frame_
     valid_cell_ids = [cid for cid in cell_ids if cid not in invalid_cell_ids]
     
     # LOG exclusion message
-    log_message(log_file_path, f"Segment {segment_info}: Excluded {len(invalid_cell_ids)} cells due to invalid trace.")
+    log_message(log_file_path, f"Segmenting {segment_info}: Excluded {len(invalid_cell_ids)} cells due to invalid trace.")
     
     valid_traces = traces_df.loc[valid_cell_ids].values
     n_valid_cells = len(valid_cell_ids)
