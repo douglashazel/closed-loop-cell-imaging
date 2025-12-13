@@ -1,5 +1,6 @@
 import os
 import numba
+import argparse
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -232,7 +233,7 @@ def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix,
 
     # Plotting...
     gridsize = 50
-    vmax = 80
+    vmax = 160
     if 'Delta-Delta' in analysis_name:
         vmax = 300
     plt.figure(figsize=(8, 8))
@@ -412,24 +413,30 @@ def run_delta_delta_luminosity_analysis(exp, log_file_path):
     )
 
 # --- Final Execution ---
-exp = 'c2c12_carbachol_1'
-data_path = f"{exp}/analysis"
-plots_dir = os.path.join(data_path, "plots")
-os.makedirs(plots_dir, exist_ok=True)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--exp", required=True)
+    parser.add_argument("--analysis_dir", required=True)
+    args = parser.parse_args()
 
-LOG_FILE_PATH = os.path.join(plots_dir, "correlation_log.txt")
+    exp = args.exp
+    data_path = args.analysis_dir
+    plots_dir = os.path.join(data_path, "plots")
+    os.makedirs(plots_dir, exist_ok=True)
 
-# Clear the log file or add a header for a fresh run
-with open(LOG_FILE_PATH, 'w') as f:
-    f.write("--- Correlation Analysis Log ---\n")
-    f.write(f"Experiment: {exp}\n")
-    f.write(f"Run Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+    LOG_FILE_PATH = os.path.join(plots_dir, "correlation_log.txt")
 
-log_message(LOG_FILE_PATH, "Starting all analyses...")
+    # Clear the log file or add a header for a fresh run
+    with open(LOG_FILE_PATH, 'w') as f:
+        f.write("--- Correlation Analysis Log ---\n")
+        f.write(f"Experiment: {exp}\n")
+        f.write(f"Run Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
-# Run all analyses, passing the log file path
-run_all_analyses(exp, LOG_FILE_PATH)
-run_delta_delta_luminosity_analysis(exp, LOG_FILE_PATH)
+    log_message(LOG_FILE_PATH, "Starting all analyses...")
 
-log_message(LOG_FILE_PATH, "\nAll analyses complete.")
-print(f"Analysis complete. Results logged to: {LOG_FILE_PATH}")
+    # Run all analyses, passing the log file path
+    run_all_analyses(exp, LOG_FILE_PATH)
+    run_delta_delta_luminosity_analysis(exp, LOG_FILE_PATH)
+
+    log_message(LOG_FILE_PATH, "\nAll analyses complete.")
+    print(f"Analysis complete. Results logged to: {LOG_FILE_PATH}")

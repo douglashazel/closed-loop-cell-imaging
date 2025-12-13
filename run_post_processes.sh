@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="c2c12_carbachol_1"
+EXP="c2c12_pipettingControl_1"
 STIM_FRAME="5"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
@@ -28,5 +28,21 @@ python stimulus_delta_snr.py \
     --exp "$EXP" \
     --analysis_dir "$ANALYSIS_DIR" \
     --stim_frame "$STIM_FRAME"
+
+# -----------------------------
+# Correlation plotting
+# -----------------------------
+echo ">>> Running pairwise distance correlation for ${EXP}"
+python correlation_plots.py \
+    --exp "$EXP" \
+    --analysis_dir "$ANALYSIS_DIR" \
+
+# -----------------------------
+# Correlation window plotting
+# -----------------------------
+echo ">>> Running stimulus delta computation for ${EXP}"
+python correlation_window_plots.py \
+    --exp "$EXP" \
+    --analysis_dir "$ANALYSIS_DIR" \
 
 echo ">>> Pipeline finished for ${EXP}"
