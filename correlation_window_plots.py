@@ -147,7 +147,7 @@ def plot_sliding_window_correlations(dist_df, lum_df, cell_ids, num_frames, data
 
         # Plotting...
         gridsize = 50
-        vmax = 160
+        vmax = 400
         ax.hexbin(x, y, gridsize=gridsize, cmap='Blues', mincnt=1, vmin=0, vmax=vmax)
         
         # Linear Fit Plot
