@@ -75,9 +75,9 @@ while True:
                             flag_msg = (
                                 f"Frame: {frame}\n"
                                 f"Channel: {channel}\n"
-                                f"Previous: {prev_count}\n"
-                                f"Current: {current_count}\n"
-                                f"Change: {sign}{diff}\n"
+                                f"Previous: {prev_count} cells\n"
+                                f"Current: {current_count} cells\n"
+                                f"Change: {sign}{diff} cells\n"
                             )
                             create_flag_file(frame, channel, flag_msg)
 
