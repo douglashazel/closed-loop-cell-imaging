@@ -171,17 +171,17 @@ def finalize_decisions(frame):
     # Assumes decision_key in config.json defines:
     # "add neutral media": 0, "add basic media": 1, "add acidic media": 2
     ch1, ch2 = decisions[0], decisions[1]  # channel 1 and 2
-    if ch1 == decision_key['add neutral media'] and ch2 == decision_key['add neutral media']:
+    if ch1 == decision_key['add neutral media'] and ch2 == decision_key['add neutral media']: # Neutral all
         experiment_name = "experiment1"
-    elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add basic media']:
+    elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add basic media']: # Neutral 1 Basic 2
         experiment_name = "experiment2"
-    elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add neutral media']:
+    elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add neutral media']: # Basic 1 Neutral 2
         experiment_name = "experiment3"
-    elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add basic media']:
+    elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add basic media']: # Basic 1 Basic 2
         experiment_name = "experiment4"
-    elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add acidic media']:
+    elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add acidic media']: # Neutral 1 Acidic 2
         experiment_name = "experiment5"
-    elif ch1 == decision_key['add acidic media'] and ch2 == decision_key['add acidic media']:
+    elif ch1 == decision_key['add acidic media'] and ch2 == decision_key['add acidic media']: # Acidic 1 Acidic 2
         experiment_name = "experiment6"
 
     # Write TOML for ONIX with experiment name

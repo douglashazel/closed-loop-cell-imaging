@@ -5,7 +5,7 @@ global_path = "/mnt/data/Close_Loop_Data"
 
 config = {
     "gobal_path": global_path,
-    "watch_dir": f"{global_path}/images/feedback test",
+    "watch_dir": f"{global_path}/images/DOUG_TEST",
     "mask_dir": f"{global_path}/processed_masks",
     "temp_overlays": f"{global_path}/temp_overlays",
     "curr_mask_dir": f"{global_path}/current_masks",
@@ -19,7 +19,17 @@ config = {
     "sleep_time": 2,
     "decision_key": {'add neutral media': 1,
                 'add acidic media': 2,
-                'add basic media': 3}
+                'add basic media': 3},
+    "onix_server_ip": "192.0.2.10",
+    "onix_server_port": 8881,
+    "experiment_templates": {
+        "experiment1": "C:\\ONIX2\\Experiments\\Experiment1.OnixExp",
+        "experiment2": "C:\\ONIX2\\Experiments\\Experiment2.OnixExp",
+        "experiment3": "C:\\ONIX2\\Experiments\\Experiment3.OnixExp",
+        "experiment4": "C:\\ONIX2\\Experiments\\Experiment4.OnixExp",
+        "experiment5": "C:\\ONIX2\\Experiments\\Experiment5.OnixExp",
+        "experiment6": "C:\\ONIX2\\Experiments\\Experiment6.OnixExp"
+    }
 }
 
 # Ensure flags directory exists
