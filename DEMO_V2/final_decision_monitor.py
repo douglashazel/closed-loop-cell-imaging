@@ -9,6 +9,7 @@ from datetime import datetime
 with open("config.json", "r") as f:
     cfg = json.load(f)
 
+global_dir = cfg["global_path"]
 final_dir = cfg["final_dir"]
 sleep_time = cfg.get("sleep_time", 0.5)
 
@@ -41,7 +42,7 @@ class OnixController:
     def init_logging(self):
         """Creates a CSV file to track hardware flags over time."""
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        self.log_filename = f"ONIX_Hardware_Log_{timestamp}.csv"
+        self.log_filename = f"{global_dir}/ONIX_Hardware_Log_{timestamp}.csv"
         
         header = "PC_Time,Context,RunState,Flags0(Sys),Flags1(Gas/Leak),Flags2(Env),PressureX,PressureY,Temp_C\n"
         

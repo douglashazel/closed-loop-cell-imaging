@@ -4,7 +4,7 @@ import json
 global_path = "/mnt/data/Close_Loop_Data"
 
 config = {
-    "gobal_path": global_path,
+    "global_path": global_path,
     "watch_dir": f"{global_path}/images/DOUG_TEST",
     "mask_dir": f"{global_path}/processed_masks",
     "temp_overlays": f"{global_path}/temp_overlays",
