@@ -4,17 +4,17 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="hela_carbachol_2/frames"
-MASK_DIR="hela_carbachol_2/masks"
-SAVE_PATH="hela_carbachol_2/analysis"
-FLOW_THRESHOLD=0.7 #default 0.4
-CELLPROB_THRESHOLD=-1.25 #default 0.0
-NITER=300 #default 200
-DIAMETER=12
+IMAGE_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel 1/frames" # where the images are located
+MASK_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel 1/masks" # where you want to save the masks
+SAVE_PATH="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel 1/analysis" # where you want to save the analysis results
+FLOW_THRESHOLD=0.9715 #default 0.4
+CELLPROB_THRESHOLD=-6 #default 0.0
+NITER=7000 #default 200
+DIAMETER=29
 
-SHIFT_FRAME=5      # frame where shift occurs
-SHIFT_DX=3.8471 #x displacement
-SHIFT_DY=-3.0576 #y displacement
+SHIFT_FRAME=42      # frame where shift occurs
+SHIFT_DX=0 #x displacement
+SHIFT_DY=0 #y displacement
 
 SCRIPT1="segmentation.py"
 SCRIPT2="trajectories.py"

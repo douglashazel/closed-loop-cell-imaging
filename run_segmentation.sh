@@ -4,12 +4,12 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="hela_carbachol_2/frames"
-MASK_DIR="hela_carbachol_2/masks"
-FLOW_THRESHOLD=0.7
-CELLPROB_THRESHOLD=-1.25
-NITER=300
-DIAMETER=12
+IMAGE_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel 1/frames"
+MASK_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel 1/masks"
+FLOW_THRESHOLD=0.9715
+CELLPROB_THRESHOLD=-6
+NITER=7000
+DIAMETER=29
 
 SCRIPT1="segmentation.py"
 

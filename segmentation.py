@@ -23,6 +23,11 @@ model = models.CellposeModel(gpu=True)
 
 with tqdm(images, desc='Segmenting Images...') as pbar:
     for f in images:
+        base_name = os.path.splitext(f)[0]
+        save_path = os.path.join(mask_dir, base_name + '.npy')
+        if os.path.exists(save_path):
+            continue
+
         pbar.set_postfix_str(f)
 
         path = os.path.join(image_dir, f)
@@ -37,8 +42,6 @@ with tqdm(images, desc='Segmenting Images...') as pbar:
         )
         masks = masks[0]
 
-        base_name = os.path.splitext(f)[0]
-        save_path = os.path.join(mask_dir, base_name + '.npy')
         np.save(save_path, masks)
 
         pbar.update(1)
