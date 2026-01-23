@@ -18,18 +18,16 @@ ONIX_SERVER_IP = cfg.get("onix_server_ip", "192.0.2.10")
 ONIX_SERVER_PORT = cfg.get("onix_server_port", 8881)
 
 # Experiment name to template path mapping
-EXPERIMENT_TEMPLATES = cfg.get("experiment_templates", {
-    "experiment1": r"C:\ONIX2\Experiments\Experiment1.OnixExp",
-    "experiment2": r"C:\ONIX2\Experiments\Experiment2.OnixExp",
-    "experiment3": r"C:\ONIX2\Experiments\Experiment3.OnixExp",
-    "experiment4": r"C:\ONIX2\Experiments\Experiment4.OnixExp",
-    "experiment5": r"C:\ONIX2\Experiments\Experiment5.OnixExp",
-    "experiment6": r"C:\ONIX2\Experiments\Experiment6.OnixExp",
-})
+EXPERIMENT_TEMPLATES = cfg.get("experiment_templates", {})
+
+# Validate that experiment templates were loaded
 
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
 
+if not EXPERIMENT_TEMPLATES:
+    log("WARNING: No experiment templates found in config.json!")
+    log("Please ensure 'experiment_templates' is properly configured.")
 class OnixController:
     """Minimal ONIX2 controller for executing experiments."""
     

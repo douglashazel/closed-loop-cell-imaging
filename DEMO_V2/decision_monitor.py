@@ -129,7 +129,8 @@ def process_frame(frame, default_setpoint, default_basic, default_acidic):
                 mean_val = img[mask].mean()
 
                 if basic_media < mean_val < acidic_media:
-                    decision = decision_key['add neutral media']
+                    # decision = decision_key['add neutral media']
+                    decision = decision_key['add basic media']
                 elif mean_val <= basic_media:
                     decision = decision_key['add basic media']
                 else:
@@ -171,18 +172,27 @@ def finalize_decisions(frame):
     # Assumes decision_key in config.json defines:
     # "add neutral media": 0, "add basic media": 1, "add acidic media": 2
     ch1, ch2 = decisions[0], decisions[1]  # channel 1 and 2
-    if ch1 == decision_key['add neutral media'] and ch2 == decision_key['add neutral media']: # Neutral all
+    # if ch1 == decision_key['add neutral media'] and ch2 == decision_key['add neutral media']: # Neutral all
+    #     experiment_name = "experiment1"
+    # elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add basic media']: # Neutral 1 Basic 2
+    #     experiment_name = "experiment2"
+    # elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add neutral media']: # Basic 1 Neutral 2
+    #     experiment_name = "experiment3"
+    # elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add basic media']: # Basic 1 Basic 2
+    #     experiment_name = "experiment4"
+    # elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add acidic media']: # Neutral 1 Acidic 2
+    #     experiment_name = "experiment5"
+    # elif ch1 == decision_key['add acidic media'] and ch2 == decision_key['add acidic media']: # Acidic 1 Acidic 2
+    #     experiment_name = "experiment6"
+
+    if ch1 == decision_key['add basic media'] and ch2 == decision_key['add basic media']: # Basic all
         experiment_name = "experiment1"
-    elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add basic media']: # Neutral 1 Basic 2
+    elif ch1 == decision_key['add acidic media'] and ch2 == decision_key['add basic media']: # Acidic 1 Basic 2
         experiment_name = "experiment2"
-    elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add neutral media']: # Basic 1 Neutral 2
+    elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add acidic media']: # Basic 1 Acidic 2
         experiment_name = "experiment3"
-    elif ch1 == decision_key['add basic media'] and ch2 == decision_key['add basic media']: # Basic 1 Basic 2
-        experiment_name = "experiment4"
-    elif ch1 == decision_key['add neutral media'] and ch2 == decision_key['add acidic media']: # Neutral 1 Acidic 2
-        experiment_name = "experiment5"
     elif ch1 == decision_key['add acidic media'] and ch2 == decision_key['add acidic media']: # Acidic 1 Acidic 2
-        experiment_name = "experiment6"
+        experiment_name = "experiment4"
 
     # Write TOML for ONIX with experiment name
     actions_toml = {"experiment": experiment_name}

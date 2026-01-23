@@ -23,12 +23,12 @@ config = {
     "onix_server_ip": "192.0.2.10",
     "onix_server_port": 8881,
     "experiment_templates": {
-        "experiment1": "C:\\ONIX2\\Experiments\\Experiment1.OnixExp",
-        "experiment2": "C:\\ONIX2\\Experiments\\Experiment2.OnixExp",
-        "experiment3": "C:\\ONIX2\\Experiments\\Experiment3.OnixExp",
-        "experiment4": "C:\\ONIX2\\Experiments\\Experiment4.OnixExp",
-        "experiment5": "C:\\ONIX2\\Experiments\\Experiment5.OnixExp",
-        "experiment6": "C:\\ONIX2\\Experiments\\Experiment6.OnixExp"
+        "experiment1": "C:\\ONIX2\\Experiments\\BB.OnixExp",
+        "experiment2": "C:\\ONIX2\\Experiments\\AB.OnixExp",
+        "experiment3": "C:\\ONIX2\\Experiments\\BA.OnixExp",
+        "experiment4": "C:\\ONIX2\\Experiments\\AA.OnixExp",
+        # "experiment5": "C:\\ONIX2\\Experiments\\Experiment5.OnixExp",
+        # "experiment6": "C:\\ONIX2\\Experiments\\Experiment6.OnixExp"
     }
 }
 
