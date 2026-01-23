@@ -59,6 +59,14 @@ def parallel_extract_centers(args):
     return output_path
 
 def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
+    center_file = os.path.join(
+        center_save_path,
+        os.path.basename(seg_path).replace('.npy', '_centers.npy')
+    )
+
+    if os.path.exists(center_file):
+        return np.load(center_file, allow_pickle=True)
+    
     seg = load_segmentation(seg_path)
     num_masks = np.max(seg)
     all_ids = list(range(1, num_masks + 1))
@@ -269,6 +277,8 @@ while not exit_loop:
             segmentation = load_segmentation(mask_path)
 
             center_path = os.path.join(save_path, "cellpose_centers")
+            os.makedirs(center_path, exist_ok=True)
+
             centers = get_and_save_cell_centers(mask_path, center_path, num_workers=20)
             traj_df = update_trajectories(frame_id, centers, save_path)
             update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num_workers=1)
