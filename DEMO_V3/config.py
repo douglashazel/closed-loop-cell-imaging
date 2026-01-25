@@ -30,7 +30,7 @@ config = {
         # "experiment5": "C:\\ONIX2\\Experiments\\Experiment5.OnixExp",
         # "experiment6": "C:\\ONIX2\\Experiments\\Experiment6.OnixExp"
     },
-    "run_duration_sec": 300
+    "run_duration_sec": 600
 }
 
 # Ensure flags directory exists

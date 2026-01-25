@@ -12,7 +12,7 @@ with open("config.json", "r") as f:
 global_dir = cfg["global_path"]
 final_dir = cfg["final_dir"]
 sleep_time = cfg.get("sleep_time", 0.5)
-run_duration = cfg.get("run_duration_sec", 600)
+run_duration = cfg.get("run_duration_sec", 300)
 
 # ONIX Configuration
 ONIX_SERVER_IP = cfg.get("onix_server_ip", "192.0.2.10")
@@ -27,15 +27,12 @@ def log(msg):
 if not EXPERIMENT_TEMPLATES:
     log("WARNING: No experiment templates found in config.json!")
     log("Please ensure 'experiment_templates' is properly configured.")
-    
 class OnixController:
     """Minimal ONIX2 controller for executing experiments."""
     
     def __init__(self, host_ip, port):
         self.base_url = f"http://{host_ip}:{port}/onixserver"
         self.session = requests.Session()
-        self.abort_current = False  # NEW: flag to abort current experiment
-        self.current_experiment = None  # NEW: track current experiment name
         log(f"Connecting to ONIX2 Server at: {self.base_url}")
         self.init_logging()
 
@@ -121,19 +118,18 @@ class OnixController:
                 if run_state == 0:
                     return True
             
-            time.sleep(sleep_time)
+            time.sleep(sleep_time) # originally 1s
             
         log("Warning: Hardware Ready Flag did not set (System Busy).")
         return False
 
-    def run_experiment(self, template_path, experiment_name, run_duration=run_duration):  # MODIFIED: added experiment_name
+    def run_experiment(self, template_path, run_duration=run_duration):
         """
         Execute a single ONIX experiment:
         Create -> Open -> Start -> Wait -> Abort -> Close(Save)
         """
         log(f"Starting experiment: {template_path}")
         self.log_telemetry(f"Start_{os.path.basename(template_path)}")
-        self.current_experiment = experiment_name  # NEW: set current experiment
         
         # 1. ENSURE CLEAN SLATE
         try:
@@ -141,7 +137,7 @@ class OnixController:
             if check_resp.get("experimentOpen", False):
                 log("Found open experiment. Closing...")
                 self._send_request("CloseExperiment", {"save": "false"})
-                time.sleep(sleep_time)
+                time.sleep(sleep_time) # originally 3s
         except Exception as e:
             log(f"Warning: Cleanup check failed: {e}")
         
@@ -158,10 +154,9 @@ class OnixController:
         create_resp = self._send_request("CreateExperiment", params)
         if not create_resp.get("success"):
             log(f"Create failed: {create_resp}")
-            self.current_experiment = None  # NEW: clear on failure
             return False
 
-        time.sleep(sleep_time)
+        time.sleep(sleep_time) # originally 5s
 
         # 3. VERIFY AND OPEN
         log("Verifying active experiment...")
@@ -175,15 +170,14 @@ class OnixController:
             if is_open:
                 log("Mismatch! Closing wrong file...")
                 self._send_request("CloseExperiment", {"save": "false"})
-                time.sleep(sleep_time)
+                time.sleep(sleep_time) # originally 3s
 
             log("Opening experiment...")
             open_resp = self._send_request("OpenExperiment", {"filename": new_filename})
             if not open_resp.get("success"):
                 log(f"Open failed: {open_resp}")
-                self.current_experiment = None  # NEW: clear on failure
                 return False
-            time.sleep(sleep_time)
+            time.sleep(sleep_time) # originally 3s
         else:
             log("Correct file is already open.")
 
@@ -196,22 +190,20 @@ class OnixController:
                 log("File confirmed clean (No Run Data).")
                 break
             else:
-                log(f"File still registering run data... waiting {sleep_time}s...")
-                time.sleep(sleep_time)
+                log("File still registering run data... waiting 2s...")
+                time.sleep(sleep_time) # originally 2s
         else:
             log("Error: System insists file has run data. Cannot start.")
-            self.current_experiment = None  # NEW: clear on failure
             return False
 
         # Wait for Hardware Ready
         if not self.wait_for_hardware_idle():
             log("System stuck BUSY. Sending Force Abort to reset...")
             self._send_request("Abort")
-            time.sleep(sleep_time)
+            time.sleep(sleep_time) # originally 3s
             if not self.wait_for_hardware_idle():
                 log("Error: Hardware refused to go Idle.")
                 self.log_telemetry("Hardware_Stuck_Busy")
-                self.current_experiment = None  # NEW: clear on failure
                 return False
         
         log("Hardware is IDLE. Ready to start.")
@@ -220,7 +212,7 @@ class OnixController:
         self._send_request("ClearErrors")
         log("Enforcing pre-run save...")
         self._send_request("SaveExperiment")
-        time.sleep(sleep_time)
+        time.sleep(sleep_time) # originally 3s
 
         # 5. START RUN
         log("Starting run...")
@@ -229,9 +221,9 @@ class OnixController:
         
         # Retry Logic
         if not start_resp.get("success"):
-            log(f"Start failed: {start_resp}. Retrying in {sleep_time}s...")
+            log(f"Start failed: {start_resp}. Retrying in 3s...")
             self.log_telemetry("Start_Fail_Retry")
-            time.sleep(sleep_time)
+            time.sleep(sleep_time) # originally 3s
             start_resp = self._send_request("StartRun")
             
         if not start_resp.get("success"):
@@ -241,31 +233,22 @@ class OnixController:
              status = self.get_status()
              log(f"DEBUG RunState: {status.get('RunState')}")
              log(f"DEBUG Flags1: {status.get('Flags1')}")
-             self.current_experiment = None  # NEW: clear on failure
              return False
         
         success, state = self._poll_for_state([1])
         if not success:
             log(f"Run started but state did not transition to 1. State: {state}")
-            self.current_experiment = None  # NEW: clear on failure
             return False
         
-        log(f"Run STARTED. Running for {run_duration} seconds...")
+        log(f"Run STARTED. Waiting {run_duration} seconds...")
         self.log_telemetry("Run_Started")
         
-        # 6. WAIT FOR RUN DURATION (MODIFIED to check for abort signal)
-        start_run_time = time.time()
-        while time.time() - start_run_time < run_duration:
-            time.sleep(sleep_time)
+        # 6. WAIT FOR RUN DURATION
+        for _ in range(run_duration // 5):
+            time.sleep(sleep_time)  # originally 5s
             status = self.get_status()
             if int(status.get("RunState", -999)) not in [1]:
                 log("Alert: Run stopped unexpectedly!")
-                break
-            
-            # NEW: Check if we should abort for new experiment
-            if self.abort_current:
-                log("Aborting current experiment due to new experiment request...")
-                self.abort_current = False
                 break
 
         # 7. ABORT
@@ -275,11 +258,10 @@ class OnixController:
         success, state = self._poll_for_state([-2, 30, 0])
         if not success:
             log("Error: System did not stop.")
-            self.current_experiment = None  # NEW: clear on failure
             return False
             
         log(f"System stopped (State: {state}). Waiting for data flush...")
-        time.sleep(sleep_time)
+        time.sleep(sleep_time) # originally 5s
 
         # 8. CLOSE AND SAVE
         log("Closing and saving...")
@@ -287,7 +269,6 @@ class OnixController:
         
         log("Experiment complete.")
         self.log_telemetry("Experiment_Complete")
-        self.current_experiment = None  # NEW: clear after completion
         return True
 
 
@@ -313,8 +294,8 @@ def process_actions_toml(toml_path, onix_controller):
         log(f"Executing experiment: {experiment_name}")
         log(f"Template path: {template_path}")
         
-        # Execute the experiment on ONIX (MODIFIED: pass experiment_name)
-        success = onix_controller.run_experiment(template_path, experiment_name, run_duration=run_duration)
+        # Execute the experiment on ONIX
+        success = onix_controller.run_experiment(template_path, run_duration=run_duration)
         
         if success:
             log(f"Successfully completed experiment: {experiment_name}")
@@ -331,8 +312,7 @@ def watch_for_actions():
     """
     Continuously watch for actions.toml in final_dir.
     When found, read it, execute the experiment on ONIX, and delete it.
-    If a new actions.toml appears during an experiment, check if it's different
-    and abort the current experiment if needed.
+    Retry failed experiments up to num_tries times before discarding.
     """
     log(f"Starting TOML watcher on directory: {final_dir}")
     
@@ -341,48 +321,32 @@ def watch_for_actions():
     
     actions_path = os.path.join(final_dir, "actions.toml")
     
+    current_file_retries = 0
+    max_retries = cfg.get("num_tries", 5)
+    
     while True:
         try:
             # Check if actions.toml exists
             if os.path.exists(actions_path):
-                # NEW: Read the requested experiment name
-                try:
-                    with open(actions_path, 'r') as f:
-                        data = tomlkit.load(f)
-                    requested_experiment = data.get("experiment", "unknown")
-                except Exception as e:
-                    log(f"Error reading {actions_path}: {e}")
-                    time.sleep(sleep_time)
-                    continue
+                log(f"Found {actions_path}")
                 
-                # NEW: Check if this is a different experiment than what's running
-                if onix.current_experiment is not None:
-                    if requested_experiment == onix.current_experiment:
-                        log(f"Experiment '{requested_experiment}' is already running. Ignoring request.")
-                        os.remove(actions_path)
-                        log(f"Deleted {actions_path}")
-                    else:
-                        log(f"New experiment requested: '{requested_experiment}' (current: '{onix.current_experiment}')")
-                        log("Setting abort flag for current experiment...")
-                        onix.abort_current = True
-                        # Don't delete yet - will process after current experiment stops
+                # Process the TOML file and execute on ONIX
+                if process_actions_toml(actions_path, onix):
+                    # Delete the file after successful processing
+                    os.remove(actions_path)
+                    log(f"Deleted {actions_path}")
+                    current_file_retries = 0  # Reset for next file
                 else:
-                    # No experiment running, process normally
-                    log(f"Found {actions_path}")
+                    current_file_retries += 1
+                    log(f"Failed to process {actions_path}, attempt {current_file_retries}/{max_retries}")
                     
-                    # Validate experiment name before deleting file
-                    if requested_experiment not in EXPERIMENT_TEMPLATES:
-                        log(f"Error: Unknown experiment '{requested_experiment}'")
-                        log(f"Available experiments: {list(EXPERIMENT_TEMPLATES.keys())}")
+                    if current_file_retries >= max_retries:
+                        log(f"Max retries reached. Deleting problematic {actions_path}")
                         os.remove(actions_path)
-                        log(f"Deleted invalid {actions_path}")
-                    else:
-                        # Delete actions.toml immediately after successful start
-                        os.remove(actions_path)
-                        log(f"Deleted {actions_path}")
-                        
-                        # Now execute the experiment
-                        process_actions_toml_direct(requested_experiment, onix)
+                        current_file_retries = 0  # Reset for next file
+            else:
+                # No file present, reset retry counter
+                current_file_retries = 0
             
             # Sleep before checking again
             time.sleep(sleep_time)
@@ -393,21 +357,6 @@ def watch_for_actions():
         except Exception as e:
             log(f"Unexpected error in watcher loop: {e}")
             time.sleep(sleep_time)
-
-def process_actions_toml_direct(experiment_name, onix_controller):
-    """Execute an experiment directly by name."""
-    template_path = EXPERIMENT_TEMPLATES[experiment_name]
-    log(f"Executing experiment: {experiment_name}")
-    log(f"Template path: {template_path}")
-    
-    success = onix_controller.run_experiment(template_path, experiment_name, run_duration=run_duration)
-    
-    if success:
-        log(f"Successfully completed experiment: {experiment_name}")
-    else:
-        log(f"Failed to complete experiment: {experiment_name}")
-    
-    return success
 
 if __name__ == "__main__":
     watch_for_actions()
