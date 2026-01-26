@@ -107,7 +107,7 @@ def update_trajectories(new_frame_id, new_centers, save_path):
         valid_centers = [c for c in new_centers if c is not None]
         new_centers_np = np.array(valid_centers, dtype=np.float64)
 
-        print('Updating trajectories...')
+        print(f'Updating trajectories for frame {new_frame_id}...')
         for i, row in traj_df.iterrows():
             prev_x, prev_y = row.get(f'x{prev_id}'), row.get(f'y{prev_id}')
             if pd.isna(prev_x) or pd.isna(prev_y):
@@ -213,7 +213,7 @@ def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num
 
     chunks = []
     chunk_size = (len(traj_df) + num_workers - 1) // num_workers
-    print('Extracting luminosity...')
+    print(f'Extracting luminosity for frame {frame_id}...')
     for i in range(num_workers):
         start = i * chunk_size
         end = min(start + chunk_size, len(traj_df))

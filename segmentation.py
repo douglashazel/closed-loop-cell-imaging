@@ -41,7 +41,6 @@ with tqdm(images, desc='Segmenting Images...') as pbar:
             diameter=args.diameter,
         )
         masks = masks[0]
-
         np.save(save_path, masks)
 
         pbar.update(1)
