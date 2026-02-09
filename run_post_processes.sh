@@ -4,8 +4,8 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel 1"
-STIM_FRAME="42"
+EXP="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited"
+STIM_FRAME="46"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
 ANALYSIS_DIR="${EXP}/analysis"
