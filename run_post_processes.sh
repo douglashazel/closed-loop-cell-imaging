@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited"
+EXP="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374"
 STIM_FRAME="46"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"

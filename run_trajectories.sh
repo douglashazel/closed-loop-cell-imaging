@@ -4,15 +4,15 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited/frames"
-MASK_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited/masks"
-SAVE_PATH="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited/analysis"
+IMAGE_DIR="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/frames"
+MASK_DIR="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/masks"
+SAVE_PATH="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/analysis"
 
 SCRIPT2="trajectories.py"
 
 SHIFT_FRAME=46
-SHIFT_DX=1
-SHIFT_DY=-2
+SHIFT_DX=0
+SHIFT_DY=0
 
 # -----------------------------
 # Ensure script exists
