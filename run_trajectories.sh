@@ -8,7 +8,7 @@ IMAGE_DIR="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/frames"
 MASK_DIR="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/masks"
 SAVE_PATH="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/analysis"
 
-SCRIPT2="trajectories.py"
+SCRIPT2="trajectories_optimized.py"
 
 SHIFT_FRAME=46
 SHIFT_DX=0
