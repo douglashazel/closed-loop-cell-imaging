@@ -246,8 +246,8 @@ parser.add_argument("--save_interval", type=int, default=50, help="Save to disk 
 args = parser.parse_args()
 
 radius = 380  # set to 0 to disable circle filtering
-y_shift = -30
-x_shift = -50
+y_shift = 120
+x_shift = -30
 circle_mask = None
 valid_ids_set = None
 

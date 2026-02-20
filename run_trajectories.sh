@@ -31,4 +31,5 @@ python3 "$SCRIPT2" \
     --image_dir "$IMAGE_DIR" \
     --save_path "$SAVE_PATH" \
     --shift_frame "$SHIFT_FRAME" \
-    --shift_xy "$SHIFT_DX" "$SHIFT_DY"
+    --shift_xy "$SHIFT_DX" "$SHIFT_DY" \
+    --save_interval 500
