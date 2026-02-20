@@ -3,15 +3,14 @@ import gc
 import re
 import sys
 import time
+import json
 import numba
 import argparse
 import numpy as np
-import pandas as pd
 from PIL import Image
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
-from scipy.optimize import linear_sum_assignment
 
 # ---------------- helpers from tracking code ---------------- #
 def extract_number(filename):
@@ -29,13 +28,28 @@ def load_segmentation(path):
         return seg.item()['masks']
     except Exception:
         return seg
-    
-def calculate_circle_mask(image, radius):
-    h, w = image.shape[:2]  # works whether image is 2D or 3D
-    cy, cx = h / 2 + 70, w / 2
+
+def calculate_circle_mask(image, radius, y_shift=0, x_shift=0):
+    h, w = image.shape[:2]
+    cy, cx = h / 2 + y_shift, w / 2 + x_shift
     yy, xx = np.ogrid[:h, :w]
     circle_mask = (xx - cx)**2 + (yy - cy)**2 <= radius**2
     return circle_mask, (cx, cy)
+
+@numba.jit(nopython=True)
+def run_all(curr_center, next_centers, max_distance=40.0):
+    min_distance = np.inf
+    min_idx = -1
+    for i in range(next_centers.shape[0]):
+        dx = next_centers[i, 0] - curr_center[0]
+        dy = next_centers[i, 1] - curr_center[1]
+        distance = np.sqrt(dx * dx + dy * dy)
+        if distance < min_distance:
+            min_distance = distance
+            min_idx = i
+    status = min_distance <= max_distance
+    match = min_idx if status else -1
+    return status, match
 
 def parallel_extract_centers(args):
     seg, cell_ids, temp_path, worker_id = args
@@ -59,7 +73,7 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
 
     if os.path.exists(center_file):
         return np.load(center_file, allow_pickle=True)
-    
+
     seg = load_segmentation(seg_path)
     num_masks = np.max(seg)
     all_ids = list(range(1, num_masks + 1))
@@ -69,7 +83,6 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     os.makedirs(temp_path, exist_ok=True)
 
     args = [(seg, chunk, temp_path, i) for i, chunk in enumerate(chunks)]
-    # print("Computing cell centers...")
     with Pool(processes=num_workers) as pool:
         result_files = pool.map(parallel_extract_centers, args)
 
@@ -87,108 +100,76 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     )
     return frame_centers
 
-def update_trajectories(new_frame_id, new_centers, save_path, grace_period=3):
-    traj_path = os.path.join(save_path, "trajectories.csv")
-    existing = os.path.exists(traj_path)
+# ---------------- in-memory trajectory tracking ---------------- #
+def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_period=3):
+    """
+    Mutates traj_dict in place. No disk I/O.
+    traj_dict: {cell_id_str: {"x5": 100.0, "y5": 200.0, ...}}
+    """
     frame_shift = {shift_frame: (shift_dx, shift_dy)}
 
-    if existing:
-        traj_df = pd.read_csv(traj_path)
-        valid_centers = [c for c in new_centers if c is not None]
-        new_centers_np = np.array(valid_centers, dtype=np.float64)
+    valid_centers = [c for c in new_centers if c is not None]
+    new_centers_np = np.array(valid_centers, dtype=np.float64) if valid_centers else np.empty((0, 2))
+    new_assignments = [None] * len(new_centers)
 
-        # Find each cell's last known position within the grace window
-        # Returns: dict of {df_index: (last_x, last_y, last_frame_seen)}
-        cell_last_seen = {}
-        for look_back in range(1, grace_period + 2):  # check prev frame first, then older
-            check_frame = new_frame_id - look_back
-            if check_frame < 0:
-                break
-            xcol, ycol = f'x{check_frame}', f'y{check_frame}'
-            if xcol not in traj_df.columns:
+    xkey = f"x{new_frame_id}"
+    ykey = f"y{new_frame_id}"
+
+    if traj_dict:
+        for cell_id, coords in traj_dict.items():
+            last_seen = None
+            for look_back in range(1, grace_period + 2):
+                check_frame = new_frame_id - look_back
+                if check_frame < 0:
+                    break
+                cx_key = f"x{check_frame}"
+                cy_key = f"y{check_frame}"
+                if cx_key in coords and cy_key in coords:
+                    px = coords[cx_key]
+                    py = coords[cy_key]
+                    if px is not None and py is not None:
+                        last_seen = (px, py, check_frame)
+                        break
+
+            if last_seen is None or (new_frame_id - last_seen[2]) > grace_period:
                 continue
-            for i, row in traj_df.iterrows():
-                if i in cell_last_seen:
-                    continue  # already found a more recent position
-                if pd.notna(row[xcol]) and pd.notna(row[ycol]):
-                    cell_last_seen[i] = (row[xcol], row[ycol], check_frame)
 
-        # Only consider cells last seen within grace_period frames
-        active_cells = {i: v for i, v in cell_last_seen.items()
-                        if new_frame_id - v[2] <= grace_period}
+            prev_x, prev_y, last_frame = last_seen
 
-        # print(f"[DEBUG frame {new_frame_id}] active(+grace)={len(active_cells)}, new_centers={len(valid_centers)}")
-
-        if len(active_cells) == 0 or len(valid_centers) == 0:
-            traj_df[f'x{new_frame_id}'] = np.nan
-            traj_df[f'y{new_frame_id}'] = np.nan
-            traj_df.to_csv(traj_path, index=False)
-            return traj_df
-
-        active_indices = list(active_cells.keys())
-        prev_centers_np = np.array([[v[0], v[1]] for v in active_cells.values()], dtype=np.float64)
-
-        # Apply shift
-        for idx_pos, df_idx in enumerate(active_indices):
-            last_frame = active_cells[df_idx][2]
-            dx, dy = 0, 0
+            dx, dy = 0.0, 0.0
             for f, (sdx, sdy) in frame_shift.items():
                 if last_frame < f <= new_frame_id:
                     dx += sdx
                     dy += sdy
-            prev_centers_np[idx_pos, 0] += dx
-            prev_centers_np[idx_pos, 1] += dy
 
-        # Cost matrix + Hungarian
-        diff = prev_centers_np[:, np.newaxis, :] - new_centers_np[np.newaxis, :, :]
-        cost_matrix = np.sqrt((diff ** 2).sum(axis=2))
-        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+            curr_center = np.array([prev_x + dx, prev_y + dy], dtype=np.float64)
 
-        max_distance = 120.0
-        new_assignments = [None] * len(valid_centers)
-        new_x = {}
-        new_y = {}
-        matched_count = 0
-        unmatched_count = 0
+            if len(new_centers_np) == 0:
+                continue
 
-        for r, c in zip(row_ind, col_ind):
-            df_idx = active_indices[r]
-            if cost_matrix[r, c] <= max_distance:
-                new_x[df_idx] = valid_centers[c][0]
-                new_y[df_idx] = valid_centers[c][1]
-                new_assignments[c] = df_idx
-                matched_count += 1
-            else:
-                unmatched_count += 1
+            status, match_idx = run_all(curr_center, new_centers_np)
+            if status and match_idx != -1:
+                coords[xkey] = float(valid_centers[match_idx][0])
+                coords[ykey] = float(valid_centers[match_idx][1])
+                new_assignments[match_idx] = cell_id
 
-        newly_spawned = sum(1 for a in new_assignments if a is None)
-        # print(f"[DEBUG frame {new_frame_id}] matched={matched_count} lost={unmatched_count} new_spawned={newly_spawned}")
-
-        traj_df[f'x{new_frame_id}'] = pd.Series(new_x)
-        traj_df[f'y{new_frame_id}'] = pd.Series(new_y)
-
-        # Append genuinely new cells
-        max_id = traj_df['CellID'].astype(int).max()
-        for idx, center in enumerate(valid_centers):
-            if new_assignments[idx] is None:
+        max_id = max((int(k) for k in traj_dict.keys()), default=-1)
+        for idx, center in enumerate(new_centers):
+            if new_assignments[idx] is None and center is not None:
                 max_id += 1
-                new_row = {'CellID': str(max_id)}
-                for col in traj_df.columns:
-                    if col != 'CellID':
-                        new_row[col] = np.nan
-                new_row[f'x{new_frame_id}'] = center[0]
-                new_row[f'y{new_frame_id}'] = center[1]
-                traj_df = pd.concat([traj_df, pd.DataFrame([new_row])], ignore_index=True)
+                traj_dict[str(max_id)] = {
+                    xkey: float(center[0]),
+                    ykey: float(center[1])
+                }
     else:
-        traj_df = pd.DataFrame([{
-            'CellID': str(i),
-            f'x{new_frame_id}': center[0],
-            f'y{new_frame_id}': center[1]
-        } for i, center in enumerate(new_centers) if center is not None])
+        for i, center in enumerate(new_centers):
+            if center is not None:
+                traj_dict[str(i)] = {
+                    xkey: float(center[0]),
+                    ykey: float(center[1])
+                }
 
-    traj_df.to_csv(traj_path, index=False)
-    return traj_df
-
+# ---------------- in-memory luminosity extraction ---------------- #
 @numba.jit(nopython=True)
 def precompute_averages(segmentation, image):
     h, w = segmentation.shape
@@ -220,60 +201,39 @@ def compute_luminosity(x, y, segmentation, averages):
         return np.nan
     return averages[mask_id]
 
-def parallel_extract_luminosity(args):
-    traj_subset, frame_id, segmentation, averages, temp_path, worker_id = args
-    partial_lums = []
-    for _, row in traj_subset.iterrows():
-        cell_id = row['CellID']
-        x, y = row.get(f"x{frame_id}"), row.get(f"y{frame_id}")
-        lum = compute_luminosity(x, y, segmentation, averages) if not pd.isna(x) and not pd.isna(y) else np.nan
-        partial_lums.append((cell_id, lum))
-    output_path = os.path.join(temp_path, f'partial_lum_worker{worker_id}.npy')
-    np.save(output_path, partial_lums)
-    return output_path
-
-def update_luminosity_csv(traj_df, frame_id, image, segmentation, save_path, num_workers=1):
-    lum_path = os.path.join(save_path, "luminosity.csv")
-    if os.path.exists(lum_path):
-        lum_df = pd.read_csv(lum_path)
-    else:
-        lum_df = pd.DataFrame(columns=["CellID"])
-
+def update_luminosity_inplace(lum_dict, traj_dict, frame_id, image, segmentation):
+    """
+    Mutates lum_dict in place. No disk I/O.
+    lum_dict: {cell_id_str: {"f0": 0.42, "f1": 0.44, ...}}
+    """
     new_col = f"f{frame_id}"
-    if new_col in lum_df.columns:
-        return
+    xkey, ykey = f"x{frame_id}", f"y{frame_id}"
 
     averages = precompute_averages(segmentation, image)
-    temp_path = os.path.join(save_path, 'temp_luminosity')
-    os.makedirs(temp_path, exist_ok=True)
 
-    chunks = []
-    chunk_size = (len(traj_df) + num_workers - 1) // num_workers
-    # print(f'Extracting luminosity for frame {frame_id}...')
-    for i in range(num_workers):
-        start = i * chunk_size
-        end = min(start + chunk_size, len(traj_df))
-        chunks.append(traj_df.iloc[start:end])
+    for cell_id, coords in traj_dict.items():
+        x = coords.get(xkey)
+        y = coords.get(ykey)
+        if x is not None and y is not None:
+            lum = compute_luminosity(x, y, segmentation, averages)
+            lum_val = None if np.isnan(lum) else float(lum)
+        else:
+            lum_val = None
 
-    args = [(chunk, frame_id, segmentation, averages, temp_path, i) for i, chunk in enumerate(chunks)]
+        if cell_id not in lum_dict:
+            lum_dict[cell_id] = {}
+        lum_dict[cell_id][new_col] = lum_val
 
-    with Pool(processes=num_workers) as pool:
-        result_files = pool.map(parallel_extract_luminosity, args)
+# ---------------- disk save/load ---------------- #
+def save_json(data, path):
+    with open(path, 'w') as f:
+        json.dump(data, f)
 
-    all_lums = []
-    for file in result_files:
-        partial = np.load(file, allow_pickle=True)
-        all_lums.extend(partial)
-        os.remove(file)
-    os.rmdir(temp_path)
-
-    new_frame_df = pd.DataFrame(all_lums, columns=["CellID", new_col])
-    lum_df["CellID"] = lum_df["CellID"].astype(str).apply(lambda x: str(int(float(x))) if x != 'nan' else x)
-    new_frame_df["CellID"] = new_frame_df["CellID"].astype(str).apply(lambda x: str(int(float(x))) if x != 'nan' else x)
-
-    lum_df = pd.merge(lum_df, new_frame_df, on="CellID", how="outer")
-    lum_df.sort_values("CellID", key=lambda x: x.astype(int), inplace=True)
-    lum_df.to_csv(lum_path, index=False)
+def load_json(path):
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            return json.load(f)
+    return {}
 
 # ---------------- segmentation + live processing ---------------- #
 parser = argparse.ArgumentParser()
@@ -282,8 +242,12 @@ parser.add_argument("--mask_dir", required=True)
 parser.add_argument("--save_path", required=True)
 parser.add_argument("--shift_frame", type=int, default=5, help="Frame where shift occurs")
 parser.add_argument("--shift_xy", type=float, nargs=2, default=[-260, 10], help="Shift dx dy for frame")
+parser.add_argument("--save_interval", type=int, default=50, help="Save to disk every N frames")
 args = parser.parse_args()
-radius = 320 # set to 0 to disable circle filtering
+
+radius = 380  # set to 0 to disable circle filtering
+y_shift = -30
+x_shift = -50
 circle_mask = None
 valid_ids_set = None
 
@@ -292,15 +256,23 @@ mask_dir = args.mask_dir
 save_path = args.save_path
 shift_frame = args.shift_frame
 shift_dx, shift_dy = args.shift_xy
+save_interval = args.save_interval
 
 os.makedirs(mask_dir, exist_ok=True)
 os.makedirs(save_path, exist_ok=True)
 
+traj_json_path = os.path.join(save_path, "trajectories.json")
+lum_json_path  = os.path.join(save_path, "luminosity.json")
+
+# Load from disk if resuming
+traj_dict = load_json(traj_json_path)
+lum_dict  = load_json(lum_json_path)
+
 processed_frames = set()
 exit_loop = False
 start_time = time.time()
+frames_since_save = 0
 
-initial_count = None
 while not exit_loop:
     images = sorted([f for f in os.listdir(image_dir) if f.endswith(('.png', '.jpg'))], key=extract_number)
 
@@ -308,25 +280,23 @@ while not exit_loop:
     if all_masked and len(images) > 0:
         exit_loop = True
 
-    prev_cell_count = None
-    pbar = tqdm(images, desc="Processing images...", unit="image", colour="green")
-    for f in pbar:
+    for f in tqdm(images, desc="Processing images...", unit="image", colour="green"):
         frame_id = extract_number(f)
         mask_path = os.path.join(mask_dir, os.path.splitext(f)[0] + ".npy")
 
         if frame_id not in processed_frames and os.path.exists(mask_path):
+
             image = load_image(os.path.join(image_dir, f))
             segmentation = load_segmentation(mask_path)
-            # Compute circle mask once from first frame
+
             if circle_mask is None:
-                circle_mask, dimensions = calculate_circle_mask(image, radius)  # pass image not image.shape
+                circle_mask, dimensions = calculate_circle_mask(image, radius, y_shift, x_shift)
                 cx, cy = dimensions
                 cell_ids = np.unique(segmentation)
-                
-                if radius == 0:
-                    valid_ids_set = set(cell_ids)  # all cells
-                    print(f"{len(valid_ids_set)} ROIs (no circle filter)")
 
+                if radius == 0:
+                    valid_ids_set = set(cell_ids)
+                    print(f"{len(valid_ids_set)} ROIs (no circle filter)")
                 else:
                     valid_ids = []
                     for cell_id in cell_ids:
@@ -337,67 +307,57 @@ while not exit_loop:
                     valid_ids_set = set(valid_ids)
                     print(f"{len(valid_ids)} ROIs within circle (out of {len(cell_ids)} total)")
 
-            # Filter segmentation to only keep valid cells
             filtered_segmentation = segmentation.copy()
             filtered_segmentation[~np.isin(segmentation, list(valid_ids_set))] = 0
 
             center_path = os.path.join(save_path, "cellpose_centers")
-            os.makedirs(center_path, exist_ok=True)
-
-            # Use filtered segmentation for centers and luminosity
             centers = get_and_save_cell_centers(mask_path, center_path, num_workers=20)
             if radius == 0:
                 filtered_centers = [tuple(c) for c in centers if c is not None]
             else:
                 filtered_centers = [tuple(c) for c in centers if c is not None and
                                     (float(c[0]) - cx)**2 + (float(c[1]) - cy)**2 <= radius**2]
+            os.makedirs(center_path, exist_ok=True)
 
-            # if frame_id <= 2:  # only check early frames
-            #     print(f"[DEBUG] Sample filtered_centers (first 5): {filtered_centers[:5]}")
-            #     print(f"[DEBUG] Total filtered: {len(filtered_centers)}, circle center: ({cx:.1f}, {cy:.1f}), r={radius}")
-
-            curr_cell_count = len(filtered_centers)
-            lost = (prev_cell_count - curr_cell_count) if prev_cell_count is not None else 0
-            prev_cell_count = curr_cell_count
-
-            traj_df = update_trajectories(frame_id, filtered_centers, save_path, grace_period=3)
-            update_luminosity_csv(traj_df, frame_id, image, filtered_segmentation, save_path, num_workers=1)
-
-            if initial_count is None:
-                initial_count = curr_cell_count
-            pbar.set_postfix({
-                "frame": frame_id,
-                "cells": curr_cell_count,
-                "change": lost,
-                "total_lost": initial_count - curr_cell_count
-            })
+            # Pure in-memory updates — no disk I/O
+            update_trajectories_inplace(traj_dict, frame_id, filtered_centers, grace_period=3)
+            update_luminosity_inplace(lum_dict, traj_dict, frame_id, image, filtered_segmentation)
 
             processed_frames.add(frame_id)
+            frames_since_save += 1
             gc.collect()
-
             start_time = time.time()
 
-    # Print elapsed time in seconds on the same line
+            # Periodic disk save
+            if frames_since_save >= save_interval:
+                save_json(traj_dict, traj_json_path)
+                save_json(lum_dict, lum_json_path)
+                frames_since_save = 0
+
     elapsed = int(time.time() - start_time)
     sys.stdout.write(f"\rWaiting for new masks... {elapsed} sec elapsed")
     sys.stdout.flush()
 
     time.sleep(3)
 
-# optional: print newline when loop finishes
+# Final save when all frames done
+save_json(traj_dict, traj_json_path)
+save_json(lum_dict, lum_json_path)
 print("\nAll frames processed.")
 
+
 # ---------------- plot luminosities ---------------- #
-def plot_luminosities_from_csv(traj_csv, save_path, tag, cmap_name="twilight_shifted"):
-    df = pd.read_csv(traj_csv, index_col=0)  # CellID as index
+def plot_luminosities_from_dict(lum_dict, save_path, tag, cmap_name="twilight_shifted"):
     cmap = plt.get_cmap(cmap_name)
-    colors = cmap(np.linspace(0, 1, len(df)))
+    colors = cmap(np.linspace(0, 1, len(lum_dict)))
 
     plt.figure(dpi=300)
-    for (cell_id, row), color in tqdm(zip(df.iterrows(), colors), total=len(df), desc='Plotting cells...'):
-        non_nan = row.dropna()
-        frames = [int(str(x).lstrip("f")) for x in non_nan.index]  # clean column labels
-        vals = non_nan.values
+    for (cell_id, frame_lums), color in tqdm(zip(lum_dict.items(), colors), total=len(lum_dict), desc='Plotting cells...'):
+        frames_vals = [(int(k.lstrip('f')), v) for k, v in frame_lums.items() if v is not None]
+        if not frames_vals:
+            continue
+        frames_vals.sort()
+        frames, vals = zip(*frames_vals)
         plt.plot(frames, vals, alpha=0.7, color=color)
 
     plt.xlabel("Frame")
@@ -413,72 +373,68 @@ def plot_luminosities_from_csv(traj_csv, save_path, tag, cmap_name="twilight_shi
     plt.close()
     return plot_name
 
-plot_name = plot_luminosities_from_csv(f"{save_path}/luminosity.csv", save_path, "", cmap_name="twilight_shifted")
-print(f"Figure saved to {save_path}/{plot_name} frames processed.")
+plot_name = plot_luminosities_from_dict(lum_dict, save_path, "", cmap_name="twilight_shifted")
+print(f"Figure saved to {save_path}/{plot_name}")
 
-# ---------------- save first frame cells ---------------- #
-def filter_first_frame_cells(traj_path):
-    df = pd.read_csv(traj_path)
+# ---------------- filter first frame cells ---------------- #
+def filter_first_frame_cells(traj_dict):
+    all_frames = set()
+    for coords in traj_dict.values():
+        for key in coords:
+            if key.startswith('x'):
+                try:
+                    all_frames.add(int(key[1:]))
+                except ValueError:
+                    pass
+    if not all_frames:
+        return {}
+    first_frame = min(all_frames)
+    xkey, ykey = f"x{first_frame}", f"y{first_frame}"
+    return {cid: coords for cid, coords in traj_dict.items()
+            if xkey in coords and ykey in coords
+            and coords[xkey] is not None and coords[ykey] is not None}
 
-    coord_cols = [c for c in df.columns if c != "CellID"]
-
-    # Identify columns for the first frame (first x and y)
-    first_frame_cols = coord_cols[:2]
-
-    # Keep only rows where the first frame coordinates are not NaN
-    filtered = df.dropna(subset=first_frame_cols, how="any")
-
-    base, ext = os.path.splitext(traj_path)
-    output_path = base + "_firstframe" + ext
-    filtered.to_csv(output_path, index=False)
-    return output_path
-
-traj_path = os.path.join(save_path, "trajectories.csv")
-out_path = filter_first_frame_cells(traj_path)
+firstframe_traj = filter_first_frame_cells(traj_dict)
+out_path = os.path.join(save_path, "trajectories_firstframe.json")
+save_json(firstframe_traj, out_path)
 print("Saved:", out_path)
 
-# ---------------- save complete cells ---------------- #
-def filter_complete_cells(input_csv, output_csv=None):
-    df = pd.read_csv(input_csv)
-    complete_df = df.dropna()
-    
-    # If no output path provided, auto-generate one
-    if output_csv is None:
-        base, ext = os.path.splitext(input_csv)
-        output_csv = base + "_complete" + ext
-    
-    complete_df.to_csv(output_csv, index=False)
-    return output_csv
+# ---------------- filter complete cells ---------------- #
+def filter_complete_cells(traj_dict, lum_dict):
+    all_frames = set()
+    for coords in traj_dict.values():
+        for key in coords:
+            if key.startswith('x'):
+                try:
+                    all_frames.add(int(key[1:]))
+                except ValueError:
+                    pass
 
-traj_path = os.path.join(save_path, "trajectories.csv")
-out_path = filter_complete_cells(traj_path)
-print("Saved:", out_path)
+    complete_traj = {}
+    for cid, coords in traj_dict.items():
+        cell_frames = set()
+        for key in coords:
+            if key.startswith('x') and coords[key] is not None:
+                try:
+                    cell_frames.add(int(key[1:]))
+                except ValueError:
+                    pass
+        if cell_frames == all_frames:
+            complete_traj[cid] = coords
+
+    complete_ids = set(complete_traj.keys())
+    lum_complete = {cid: v for cid, v in lum_dict.items() if cid in complete_ids}
+    return complete_traj, lum_complete
+
+complete_traj, lum_complete = filter_complete_cells(traj_dict, lum_dict)
+
+traj_out = os.path.join(save_path, "trajectories_complete.json")
+lum_out  = os.path.join(save_path, "luminosity_complete.json")
+save_json(complete_traj, traj_out)
+save_json(lum_complete, lum_out)
+print("Saved:", traj_out)
+print("Saved:", lum_out)
 
 # ---------------- plot complete cells ---------------- #
-def process_movies(data_path, traj_suffixes=["complete"]):
-
-        for suffix in traj_suffixes:
-            trajectories_csv = f"{data_path}/trajectories_{suffix}.csv"
-            luminosity_csv = f"{data_path}/luminosity.csv"
-            output_lum_csv = f"{data_path}/luminosity_{suffix}.csv"
-
-            traj_df = pd.read_csv(trajectories_csv)
-            lum_df = pd.read_csv(luminosity_csv)
-
-            # Ensure consistent types
-            traj_df['CellID'] = traj_df['CellID'].astype(str)
-            lum_df['CellID'] = lum_df['CellID'].astype(str)
-
-            # Keep only CellIDs present in trajectories
-            lum_df = lum_df[lum_df['CellID'].isin(traj_df['CellID'].unique())]
-
-            # Collapse duplicates
-            lum_merged = lum_df.groupby('CellID', as_index=False).mean()
-
-            lum_merged.to_csv(output_lum_csv, index=False)
-            print(f"Merged luminosity saved to {output_lum_csv}")
-
-            plot_name = plot_luminosities_from_csv(output_lum_csv, f"{data_path}", "_complete", cmap_name="twilight_shifted")
-            print(f"Figure saved to {data_path}/{plot_name}")
-
-process_movies(save_path)
+plot_name = plot_luminosities_from_dict(lum_complete, save_path, "_complete", cmap_name="twilight_shifted")
+print(f"Figure saved to {save_path}/{plot_name}")
