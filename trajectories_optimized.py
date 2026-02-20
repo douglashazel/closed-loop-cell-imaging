@@ -3,8 +3,8 @@ import gc
 import re
 import sys
 import time
-import json
 import numba
+import msgpack
 import argparse
 import numpy as np
 from PIL import Image
@@ -226,13 +226,13 @@ def update_luminosity_inplace(lum_dict, traj_dict, frame_id, image, segmentation
 
 # ---------------- disk save/load ---------------- #
 def save_json(data, path):
-    with open(path, 'w') as f:
-        json.dump(data, f)
+    with open(path, 'wb') as f:
+        msgpack.pack(data, f)
 
 def load_json(path):
     if os.path.exists(path):
-        with open(path, 'r') as f:
-            return json.load(f)
+        with open(path, 'rb') as f:
+            return msgpack.unpack(f, raw=False)
     return {}
 
 # ---------------- segmentation + live processing ---------------- #
