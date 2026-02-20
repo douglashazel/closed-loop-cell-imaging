@@ -37,7 +37,7 @@ def calculate_circle_mask(image, radius, y_shift=0, x_shift=0):
     return circle_mask, (cx, cy)
 
 @numba.jit(nopython=True)
-def run_all(curr_center, next_centers, max_distance=40.0):
+def run_all(curr_center, next_centers, max_distance=80.0):
     min_distance = np.inf
     min_idx = -1
     for i in range(next_centers.shape[0]):
