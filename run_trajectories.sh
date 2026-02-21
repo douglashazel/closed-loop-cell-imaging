@@ -8,7 +8,7 @@ IMAGE_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited/frames"
 MASK_DIR="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited/masks"
 SAVE_PATH="DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited/analysis"
 
-SCRIPT2="trajectories_optimized.py"
+SCRIPT2="trajectories.py"
 
 SHIFT_FRAME=46
 SHIFT_DX=0
@@ -31,5 +31,4 @@ python3 "$SCRIPT2" \
     --image_dir "$IMAGE_DIR" \
     --save_path "$SAVE_PATH" \
     --shift_frame "$SHIFT_FRAME" \
-    --shift_xy "$SHIFT_DX" "$SHIFT_DY" \
-    --save_interval 500
+    --shift_xy "$SHIFT_DX" "$SHIFT_DY"
