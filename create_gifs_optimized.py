@@ -1,14 +1,14 @@
 import os
 import re
 import shutil
+import msgpack
 import numpy as np
 from tqdm import tqdm
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt
-from skimage.measure import find_contours
-from collections import defaultdict
-import msgpack
 from multiprocessing import Pool
+from collections import defaultdict
+from skimage.measure import find_contours
 
 def extract_number(filename):
     match = re.search(r'timepoint_(\d+)', filename)
@@ -33,6 +33,7 @@ def process_cell(args):
     for frame_idx in range(len(png_files)):
         xkey = f"x{frame_idx}"
         ykey = f"y{frame_idx}"
+
         if xkey in coords and ykey in coords and coords[xkey] is not None and coords[ykey] is not None:
             anchor_x = int(coords[xkey])
             anchor_y = int(coords[ykey])
@@ -44,6 +45,11 @@ def process_cell(args):
         return
 
     for frame_idx, png_file in enumerate(png_files):
+        xkey = f"x{frame_idx}"
+        ykey = f"y{frame_idx}"
+        curr_x = int(coords[xkey]) if coords.get(xkey) is not None else anchor_x
+        curr_y = int(coords[ykey]) if coords.get(ykey) is not None else anchor_y
+
         tif_image = plt.imread(os.path.join(tif_path, png_file))
         base_name = os.path.splitext(png_file)[0]
         mask_path = os.path.join(mask_dir, base_name + ".npy")
@@ -51,8 +57,8 @@ def process_cell(args):
         contours = []
         if os.path.exists(mask_path):
             mask_all = np.load(mask_path, allow_pickle=True)
-            if 0 <= anchor_y < mask_all.shape[0] and 0 <= anchor_x < mask_all.shape[1]:
-                mask_id = mask_all[anchor_y, anchor_x]
+            if 0 <= curr_y < mask_all.shape[0] and 0 <= curr_x < mask_all.shape[1]:
+                mask_id = mask_all[curr_y, curr_x]
                 if mask_id > 0:
                     mask = (mask_all == mask_id).astype(np.uint8)
                     contours = find_contours(mask, level=0.5)
@@ -97,12 +103,11 @@ def process_cell(args):
     print(f"GIF saved at: {gif_path}")
     shutil.rmtree(output_dir)
 
-
 # ----- CHANGE HERE ----- #
 movie = "DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited"
 FIXED_CROP_SIZE = 200
 save_path = "gifs"
-NUM_WORKERS = 10
+NUM_WORKERS = 5
 
 tif_path = f"{movie}/frames"
 mask_dir = f"{movie}/masks"
@@ -120,12 +125,9 @@ png_files = sorted([f for f in os.listdir(tif_path) if f.endswith('.png')], key=
 traj_dict = load_json(traj_path)
 os.makedirs(save_path, exist_ok=True)
 
-cell_ids = [val for idx, val in enumerate(traj_dict.keys()) if idx<=100]
+cell_ids = [val for idx, val in enumerate(traj_dict.keys()) if idx<=4]
 
-args_list = [
-    (cell_id, traj_dict[cell_id], png_files, tif_path, mask_dir, save_path, movie, FIXED_CROP_SIZE)
-    for cell_id in cell_ids
-]
+args_list = [(cell_id, traj_dict[cell_id], png_files, tif_path, mask_dir, save_path, movie, FIXED_CROP_SIZE) for cell_id in cell_ids]
 
 if __name__ == "__main__":
     with Pool(processes=NUM_WORKERS) as pool:

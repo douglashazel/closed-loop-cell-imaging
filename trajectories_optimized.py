@@ -58,7 +58,10 @@ def parallel_extract_centers(args):
         mask = seg == cellID
         y, x = np.nonzero(mask)
         if len(x) > 0 and len(y) > 0:
-            partial_centers.append((int(np.mean(x)), int(np.mean(y))))
+            cx, cy = np.mean(x), np.mean(y)
+            dists = (x - cx)**2 + (y - cy)**2
+            best = np.argmin(dists)
+            partial_centers.append((int(x[best]), int(y[best])))
         else:
             partial_centers.append(None)
     output_path = os.path.join(temp_path, f'partial_centers_worker{worker_id}.npy')
@@ -242,14 +245,13 @@ parser.add_argument("--mask_dir", required=True)
 parser.add_argument("--save_path", required=True)
 parser.add_argument("--shift_frame", type=int, default=5, help="Frame where shift occurs")
 parser.add_argument("--shift_xy", type=float, nargs=2, default=[-260, 10], help="Shift dx dy for frame")
-parser.add_argument("--save_interval", type=int, default=50, help="Save to disk every N frames")
+parser.add_argument("--save_interval", type=int, default=500, help="Save to disk every N frames")
 args = parser.parse_args()
 
 radius = 380  # set to 0 to disable circle filtering
 y_shift = -30
 x_shift = -50
 circle_mask = None
-valid_ids_set = None
 
 image_dir = args.image_dir
 mask_dir = args.mask_dir
@@ -294,21 +296,11 @@ while not exit_loop:
                 cx, cy = dimensions
                 cell_ids = np.unique(segmentation)
 
-                if radius == 0:
-                    valid_ids_set = set(cell_ids)
-                    print(f"{len(valid_ids_set)} ROIs (no circle filter)")
-                else:
-                    valid_ids = []
-                    for cell_id in cell_ids:
-                        ys, xs = np.where(segmentation == cell_id)
-                        centroid_y, centroid_x = ys.mean(), xs.mean()
-                        if (centroid_x - cx)**2 + (centroid_y - cy)**2 <= radius**2:
-                            valid_ids.append(cell_id)
-                    valid_ids_set = set(valid_ids)
-                    print(f"{len(valid_ids)} ROIs within circle (out of {len(cell_ids)} total)")
-
-            filtered_segmentation = segmentation.copy()
-            filtered_segmentation[~np.isin(segmentation, list(valid_ids_set))] = 0
+            if radius == 0:
+                filtered_segmentation = segmentation
+            else:
+                filtered_segmentation = segmentation.copy()
+                filtered_segmentation[~circle_mask] = 0
 
             center_path = os.path.join(save_path, "cellpose_centers")
             centers = get_and_save_cell_centers(mask_path, center_path, num_workers=20)
