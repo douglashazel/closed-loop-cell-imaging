@@ -104,7 +104,7 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     return frame_centers
 
 # ---------------- in-memory trajectory tracking ---------------- #
-def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_period=3):
+def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_period=3, max_distance=40.0):
     """
     Mutates traj_dict in place. No disk I/O.
     traj_dict: {cell_id_str: {"x5": 100.0, "y5": 200.0, ...}}
@@ -150,7 +150,7 @@ def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_peri
             if len(new_centers_np) == 0:
                 continue
 
-            status, match_idx = run_all(curr_center, new_centers_np)
+            status, match_idx = run_all(curr_center, new_centers_np, max_distance=max_distance)
             if status and match_idx != -1:
                 coords[xkey] = float(valid_centers[match_idx][0])
                 coords[ykey] = float(valid_centers[match_idx][1])
@@ -243,22 +243,30 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--image_dir", required=True)
 parser.add_argument("--mask_dir", required=True)
 parser.add_argument("--save_path", required=True)
+parser.add_argument("--max_distance", type=float, default=40.0, help="Max distance for trajectory linking")
+parser.add_argument("--grace_period", type=int, default=3, help="Number of frames to look back for linking")
+parser.add_argument("--radius", type=int, default=380, help="Radius for circular mask (0 to disable)")
+parser.add_argument("--y_shift", type=int, default=-30, help="Y shift for circular mask")
+parser.add_argument("--x_shift", type=int, default=-50, help="X shift for circular mask")
 parser.add_argument("--shift_frame", type=int, default=5, help="Frame where shift occurs")
 parser.add_argument("--shift_xy", type=float, nargs=2, default=[-260, 10], help="Shift dx dy for frame")
-parser.add_argument("--save_interval", type=int, default=500, help="Save to disk every N frames")
+parser.add_argument("--save_interval", type=int, default=10, help="Save to disk every N frames")
 args = parser.parse_args()
-
-radius = 380  # set to 0 to disable circle filtering
-y_shift = -30
-x_shift = -50
-circle_mask = None
 
 image_dir = args.image_dir
 mask_dir = args.mask_dir
 save_path = args.save_path
+max_distance = args.max_distance
+grace_period = args.grace_period
+
 shift_frame = args.shift_frame
 shift_dx, shift_dy = args.shift_xy
 save_interval = args.save_interval
+
+radius = args.radius
+y_shift = args.y_shift
+x_shift = args.x_shift
+circle_mask = None
 
 os.makedirs(mask_dir, exist_ok=True)
 os.makedirs(save_path, exist_ok=True)
@@ -312,7 +320,7 @@ while not exit_loop:
             os.makedirs(center_path, exist_ok=True)
 
             # Pure in-memory updates — no disk I/O
-            update_trajectories_inplace(traj_dict, frame_id, filtered_centers, grace_period=3)
+            update_trajectories_inplace(traj_dict, frame_id, filtered_centers, grace_period=grace_period, max_distance=max_distance)
             update_luminosity_inplace(lum_dict, traj_dict, frame_id, image, filtered_segmentation)
 
             processed_frames.add(frame_id)

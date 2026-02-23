@@ -30,5 +30,11 @@ python3 "$SCRIPT2" \
     --mask_dir "$MASK_DIR" \
     --image_dir "$IMAGE_DIR" \
     --save_path "$SAVE_PATH" \
+    --max_distance 40.0 \
+    --grace_period 3 \
+    --radius 380 \
+    --y_shift -30 \
+    --x_shift -50 \
     --shift_frame "$SHIFT_FRAME" \
-    --shift_xy "$SHIFT_DX" "$SHIFT_DY"
+    --shift_xy "$SHIFT_DX" "$SHIFT_DY" \
+    --save_interval 500
