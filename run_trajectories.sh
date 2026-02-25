@@ -23,6 +23,7 @@ if [[ ! -f "$SCRIPT2" ]]; then
     exit 1
 fi
 
+echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
 # Run trajectory processing
 # -----------------------------
