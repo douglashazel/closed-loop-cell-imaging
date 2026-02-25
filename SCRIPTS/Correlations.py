@@ -8,9 +8,7 @@ import matplotlib.pyplot as plt
 from itertools import combinations
 from scipy.stats import pearsonr, spearmanr
 from statsmodels.tsa.stattools import grangercausalitytests
-
 from io_utils import load_msgpack, lum_dict_to_df, traj_dict_to_df, log_message
-
 
 @numba.jit(nopython=True)
 def pairwise_distances_unique_numba(centers):
@@ -29,7 +27,6 @@ def pairwise_distances_unique_numba(centers):
             dists[k] = d
             k += 1
     return pairs, dists
-
 
 def calculate_pairwise_trace_correlation(lum_df, cell_ids, log_file_path, frame_start=None, frame_stop=None):
     if frame_start is None and frame_stop is None:
@@ -75,7 +72,6 @@ def calculate_pairwise_trace_correlation(lum_df, cell_ids, log_file_path, frame_
         "TraceCorrelation_R": correlations,
     })
 
-
 def calculate_pairwise_delta_delta_luminosity(lum_df, frame1, frame2, cell_ids, log_file_path):
     frame_cols = [f'f{frame1}', f'f{frame2}']
 
@@ -108,7 +104,6 @@ def calculate_pairwise_delta_delta_luminosity(lum_df, frame1, frame2, cell_ids, 
         "TargetCellID": [p[1] for p in cell_pairs],
         "LuminosityChangeDiff": diffs,
     })
-
 
 def calculate_pairwise_granger_causality(lum_df, cell_ids, maxlag, log_file_path):
     lum_cols = [col for col in lum_df.columns if col.startswith('f')]
@@ -148,7 +143,6 @@ def calculate_pairwise_granger_causality(lum_df, cell_ids, maxlag, log_file_path
             log_message(log_file_path, f"Error running Granger test for pair {cid_A}-{cid_B}: {e}")
 
     return pd.DataFrame(granger_results)
-
 
 def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix, log_file_path):
     y_col = y_data_df.columns[-1]
@@ -220,7 +214,6 @@ def plot_correlation(dist_df, y_data_df, data_path, analysis_name, title_suffix,
 
     log_message(log_file_path, f"Plot complete for {analysis_name}")
     log_message(log_file_path, f"Saved plot: {out_png}")
-
 
 def run_all_analyses(exp, log_file_path):
     data_path = f"{exp}/analysis"
@@ -296,7 +289,6 @@ def run_all_analyses(exp, log_file_path):
 
     log_message(log_file_path, "Granger Causality Analysis Complete.")
 
-
 def run_delta_delta_luminosity_analysis(exp, log_file_path):
     data_path = f"{exp}/analysis"
     traj_file = f"{data_path}/trajectories_complete.json"
@@ -342,7 +334,6 @@ def run_delta_delta_luminosity_analysis(exp, log_file_path):
         title_suffix=f"Physical Distance at F{analysis_frame_for_distance} vs. |ΔL(F{frame2_for_delta_L}-F{frame1_for_delta_L}) Diff|",
         log_file_path=log_file_path
     )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

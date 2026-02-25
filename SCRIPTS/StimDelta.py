@@ -2,9 +2,7 @@ import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-
 from io_utils import load_msgpack, save_msgpack, lum_dict_to_df
-
 
 def process_tag(tag, analysis_dir, stim_frame, prev_frame):
     lum_json = os.path.join(analysis_dir, f"luminosity{tag}.json")

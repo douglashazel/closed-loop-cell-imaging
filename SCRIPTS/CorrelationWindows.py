@@ -7,9 +7,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from itertools import combinations
 from scipy.stats import pearsonr, spearmanr
-
 from io_utils import load_msgpack, lum_dict_to_df, traj_dict_to_df, log_message
-
 
 @numba.jit(nopython=True)
 def pairwise_distances_unique_numba(centers):
@@ -28,7 +26,6 @@ def pairwise_distances_unique_numba(centers):
             dists[k] = d
             k += 1
     return pairs, dists
-
 
 def calculate_pairwise_trace_correlation(lum_df, cell_ids, log_file_path, frame_start=None, frame_stop=None):
     if frame_start is None and frame_stop is None:
@@ -73,7 +70,6 @@ def calculate_pairwise_trace_correlation(lum_df, cell_ids, log_file_path, frame_
         "TargetCellID": [p[1] for p in cell_pairs],
         "TraceCorrelation_R": correlations,
     })
-
 
 def plot_sliding_window_correlations(dist_df, lum_df, cell_ids, num_frames, data_path, window_size, step_size, log_file_path):
     windows = []
@@ -158,7 +154,6 @@ def plot_sliding_window_correlations(dist_df, lum_df, cell_ids, num_frames, data
     log_message(log_file_path, "Sliding window plot complete.")
     log_message(log_file_path, f"Saved plot: {out_png}")
 
-
 def run_all_analyses(exp, log_file_path):
     data_path = f"{exp}/analysis"
     traj_file = f"{data_path}/trajectories_complete.json"
@@ -206,7 +201,6 @@ def run_all_analyses(exp, log_file_path):
         step_size=STEP_SIZE,
         log_file_path=log_file_path
     )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

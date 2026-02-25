@@ -5,18 +5,14 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-
 from io_utils import load_msgpack, save_msgpack, lum_dict_to_df
-
 
 def extract_number(filename):
     match = re.search(r'timepoint_(\d+)', filename)
     return int(match.group(1)) if match else -1
 
-
 def load_image(path):
     return np.array(Image.open(path)) / 4095.0
-
 
 def compute_bground(images, image_dir, mask_dir):
     bg_trace = []
@@ -27,7 +23,6 @@ def compute_bground(images, image_dir, mask_dir):
         mask = np.load(os.path.join(mask_dir, os.path.splitext(fname)[0] + ".npy"))
         bg_trace.append(img[mask == 0].mean())
     return np.array(bg_trace)
-
 
 def process_tag(tag, images, bg_trace, analysis_dir):
     lum_json_path = os.path.join(analysis_dir, f"luminosity{tag}.json")
@@ -75,7 +70,6 @@ def process_tag(tag, images, bg_trace, analysis_dir):
     plt.close()
 
     return norm_json_path, fig_path
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

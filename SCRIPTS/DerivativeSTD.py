@@ -3,9 +3,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
 from io_utils import load_msgpack, lum_dict_to_df
-
 
 def plot_luminosity_std(df, save_path, tag):
     df_indexed = df.set_index('CellID')
@@ -27,7 +25,6 @@ def plot_luminosity_std(df, save_path, tag):
 
     plt.savefig(os.path.join(plot_dir, f'std_average_luminosity{tag}.png'), dpi=300)
     plt.close()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
