@@ -5,7 +5,7 @@ set -euo pipefail
 # User parameters
 # -----------------------------
 EXP="EXPERIMENTS/other/NRK_TEST"
-STIM_FRAME="46"
+STIM_FRAME=46
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
 ANALYSIS_DIR="${EXP}/analysis"
