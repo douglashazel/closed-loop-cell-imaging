@@ -104,7 +104,7 @@ def process_cell(args):
     shutil.rmtree(output_dir)
 
 # ----- CHANGE HERE ----- #
-movie = "DMSO_C2C12_repeat_pulse_16JAN26_take2/channel_1_edited"
+movie = "DMSO_TEST"
 FIXED_CROP_SIZE = 200
 save_path = "gifs"
 NUM_WORKERS = 5
