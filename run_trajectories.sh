@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/DMSO_TEST"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 SAVE_PATH="${GLOBAL_DIR}/analysis"
@@ -31,5 +31,11 @@ python3 "$SCRIPT2" \
     --mask_dir "$MASK_DIR" \
     --image_dir "$IMAGE_DIR" \
     --save_path "$SAVE_PATH" \
+    --max_distance 30 \
+    --grace_period 3 \
+    --radius 380 \
+    --y_shift 120 \
+    --x_shift -30 \
     --shift_frame "$SHIFT_FRAME" \
-    --shift_xy "$SHIFT_DX" "$SHIFT_DY"
+    --shift_xy "$SHIFT_DX" "$SHIFT_DY" \
+    --save_interval 500
