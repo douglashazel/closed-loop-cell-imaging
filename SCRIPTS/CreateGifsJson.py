@@ -62,30 +62,37 @@ def process_cell(args):
                     mask = (mask_all == mask_id).astype(np.uint8)
                     contours = find_contours(mask, level=0.5)
 
-        half_width = FIXED_CROP_SIZE // 2
         img_height, img_width = tif_image.shape[:2]
-        crop_min_y = max(0, anchor_y - half_width)
-        crop_max_y = min(img_height, anchor_y + half_width)
-        crop_min_x = max(0, anchor_x - half_width)
-        crop_max_x = min(img_width, anchor_x + half_width)
+        y_offset = 0
+        x_offset = 0
 
-        cropped_image = tif_image[crop_min_y:crop_max_y, crop_min_x:crop_max_x]
+        if FIXED_CROP_SIZE == 0:
+            crop_min_y, crop_min_x = 0, 0
+            crop_max_y, crop_max_x = img_height, img_width
+            cropped_image = tif_image
+        else:
+            half_width = FIXED_CROP_SIZE // 2
+            crop_min_y = max(0, anchor_y - half_width)
+            crop_max_y = min(img_height, anchor_y + half_width)
+            crop_min_x = max(0, anchor_x - half_width)
+            crop_max_x = min(img_width, anchor_x + half_width)
+            cropped_image = tif_image[crop_min_y:crop_max_y, crop_min_x:crop_max_x]
 
-        if cropped_image.shape[0] < FIXED_CROP_SIZE or cropped_image.shape[1] < FIXED_CROP_SIZE:
-            padded_image = np.zeros((FIXED_CROP_SIZE, FIXED_CROP_SIZE), dtype=cropped_image.dtype)
-            y_offset = (FIXED_CROP_SIZE - cropped_image.shape[0]) // 2
-            x_offset = (FIXED_CROP_SIZE - cropped_image.shape[1]) // 2
-            padded_image[y_offset:y_offset + cropped_image.shape[0],
-                         x_offset:x_offset + cropped_image.shape[1]] = cropped_image
-            cropped_image = padded_image
+            if cropped_image.shape[0] < FIXED_CROP_SIZE or cropped_image.shape[1] < FIXED_CROP_SIZE:
+                padded_image = np.zeros((FIXED_CROP_SIZE, FIXED_CROP_SIZE), dtype=cropped_image.dtype)
+                y_offset = (FIXED_CROP_SIZE - cropped_image.shape[0]) // 2
+                x_offset = (FIXED_CROP_SIZE - cropped_image.shape[1]) // 2
+                padded_image[y_offset:y_offset + cropped_image.shape[0],
+                             x_offset:x_offset + cropped_image.shape[1]] = cropped_image
+                cropped_image = padded_image
 
         plt.figure(dpi=300)
         plt.title(f"Frame{frame_idx}")
         plt.imshow(cropped_image, cmap='gray', alpha=1)
         for contour in contours:
-            cropped_contour_y = contour[:, 0] - crop_min_y
-            cropped_contour_x = contour[:, 1] - crop_min_x
-            plt.plot(cropped_contour_x, cropped_contour_y, color='red', linewidth=.5)
+            cropped_contour_y = contour[:, 0] - crop_min_y + y_offset
+            cropped_contour_x = contour[:, 1] - crop_min_x + x_offset
+            plt.plot(cropped_contour_x, cropped_contour_y, color='red', linewidth=0.5)
 
         plt.axis('off')
         output_file = f"{output_dir}/{movie_safe}_{cell_id}_frame_{frame_idx:03d}.png"
@@ -105,9 +112,9 @@ def process_cell(args):
 # ----- CHANGE HERE ----- #
 global_path = "../EXPERIMENTS/other"
 movie = "resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374"
-FIXED_CROP_SIZE = 200
+FIXED_CROP_SIZE = 0  # Set to 0 for entire frame size, or specify a fixed size (e.g., 128) for fixed cropping
 save_path = "gifs"
-NUM_WORKERS = 1
+NUM_WORKERS = 5
 
 tif_path = f"{global_path}/{movie}/frames"
 mask_dir = f"{global_path}/{movie}/masks"
