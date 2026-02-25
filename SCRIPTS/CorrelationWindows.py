@@ -188,9 +188,6 @@ def run_all_analyses(exp, log_file_path):
     })
     log_message(log_file_path, f"Calculated {len(df_dist_ref)} unique pairwise distances using Frame {frame_for_distance}.")
 
-    WINDOW_SIZE = 75
-    STEP_SIZE = 75
-
     plot_sliding_window_correlations(
         df_dist_ref,
         lum_df,
@@ -206,10 +203,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp", required=True)
     parser.add_argument("--analysis_dir", required=True)
+    parser.add_argument("--window_size", type=int, default=3, help="Number of frames in each sliding window")
+    parser.add_argument("--step_size", type=int, default=2, help="Number of frames to step for each window")
     args = parser.parse_args()
 
     exp = args.exp
     data_path = args.analysis_dir
+    WINDOW_SIZE = args.window_size
+    STEP_SIZE = args.step_size
     plots_dir = os.path.join(data_path, "plots")
     os.makedirs(plots_dir, exist_ok=True)
 

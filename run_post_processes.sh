@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="EXPERIMENTS/other/DMSO_TEST"
+EXP="EXPERIMENTS/other/NRK_TEST"
 STIM_FRAME="46"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
@@ -43,7 +43,9 @@ python SCRIPTS/Correlations.py \
 echo ">>> Running sliding window correlation analysis for ${EXP}"
 python SCRIPTS/CorrelationWindows.py \
     --exp "$EXP" \
-    --analysis_dir "$ANALYSIS_DIR"
+    --analysis_dir "$ANALYSIS_DIR" \
+    --window_size 500 \
+    --step_size 500
 
 # -----------------------------
 # Derivative and std measurements
