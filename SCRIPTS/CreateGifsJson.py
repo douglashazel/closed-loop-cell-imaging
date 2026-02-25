@@ -7,7 +7,6 @@ from tqdm import tqdm
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
-from collections import defaultdict
 from skimage.measure import find_contours
 
 def extract_number(filename):
@@ -44,7 +43,7 @@ def process_cell(args):
         shutil.rmtree(output_dir)
         return
 
-    for frame_idx, png_file in enumerate(png_files):
+    for frame_idx, png_file in enumerate(png_files[:100]):
         xkey = f"x{frame_idx}"
         ykey = f"y{frame_idx}"
         curr_x = int(coords[xkey]) if coords.get(xkey) is not None else anchor_x
@@ -104,14 +103,15 @@ def process_cell(args):
     shutil.rmtree(output_dir)
 
 # ----- CHANGE HERE ----- #
-movie = "DMSO_TEST"
+global_path = "../EXPERIMENTS/other"
+movie = "resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374"
 FIXED_CROP_SIZE = 200
 save_path = "gifs"
-NUM_WORKERS = 5
+NUM_WORKERS = 1
 
-tif_path = f"{movie}/frames"
-mask_dir = f"{movie}/masks"
-save_cell_path = f"{movie}/analysis"
+tif_path = f"{global_path}/{movie}/frames"
+mask_dir = f"{global_path}/{movie}/masks"
+save_cell_path = f"{global_path}/{movie}/analysis"
 traj_path = f"{save_cell_path}/trajectories_complete.json"
 
 if not os.path.exists(traj_path):
