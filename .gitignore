@@ -1,11 +1,12 @@
-EXPERIMENTS/*
+EXPERIMENTS/**
+!EXPERIMENTS/**/
+!EXPERIMENTS/**/.gitkeep
 MISCELLANEOUS/*
 
 gifs
 archive
-DMSO*
 
 *.gif
 *.csv
-*.parquet
 *.png
+*.parquet
