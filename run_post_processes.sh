@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-EXP="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374"
+EXP="EXPERIMENTS/other/DMSO_TEST"
 STIM_FRAME="46"
 IMAGE_DIR="${EXP}/frames"
 MASK_DIR="${EXP}/masks"
@@ -14,7 +14,7 @@ ANALYSIS_DIR="${EXP}/analysis"
 # Run background normalization
 # -----------------------------
 echo ">>> Running background normalization for ${EXP}"
-python bground_normalization.py \
+python SCRIPTS/NormBGround.py \
     --exp "$EXP" \
     --image_dir "$IMAGE_DIR" \
     --mask_dir "$MASK_DIR" \
@@ -24,25 +24,33 @@ python bground_normalization.py \
 # Run stimulus delta
 # -----------------------------
 echo ">>> Running stimulus delta computation for ${EXP} (stim_frame=${STIM_FRAME})"
-python stimulus_delta_snr.py \
+python SCRIPTS/StimDelta.py \
     --exp "$EXP" \
     --analysis_dir "$ANALYSIS_DIR" \
     --stim_frame "$STIM_FRAME"
 
 # -----------------------------
-# Correlation plotting
+# Correlation analysis
 # -----------------------------
-echo ">>> Running pairwise distance correlation for ${EXP}"
-python correlation_plots.py \
+echo ">>> Running pairwise correlation analysis for ${EXP}"
+python SCRIPTS/Correlations.py \
     --exp "$EXP" \
-    --analysis_dir "$ANALYSIS_DIR" \
+    --analysis_dir "$ANALYSIS_DIR"
 
 # -----------------------------
-# Correlation window plotting
+# Correlation window analysis
 # -----------------------------
-echo ">>> Running stimulus delta computation for ${EXP}"
-python correlation_window_plots.py \
+echo ">>> Running sliding window correlation analysis for ${EXP}"
+python SCRIPTS/CorrelationWindows.py \
     --exp "$EXP" \
-    --analysis_dir "$ANALYSIS_DIR" \
+    --analysis_dir "$ANALYSIS_DIR"
+
+# -----------------------------
+# Derivative and std measurements
+# -----------------------------
+echo ">>> Running derivative and std measurements for ${EXP}"
+python SCRIPTS/DerivativeSTD.py \
+    --exp "$EXP" \
+    --analysis_dir "$ANALYSIS_DIR"
 
 echo ">>> Pipeline finished for ${EXP}"

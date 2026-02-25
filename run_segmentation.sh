@@ -4,14 +4,16 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-IMAGE_DIR="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/frames"
-MASK_DIR="resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374/masks"
+GLOBAL_DIR="EXPERIMENTS/other/DMSO_TEST"
+IMAGE_DIR="${GLOBAL_DIR}/frames"
+MASK_DIR="${GLOBAL_DIR}/masks"
+
 FLOW_THRESHOLD=0.955
 CELLPROB_THRESHOLD=-3
 NITER=10000
 DIAMETER=10
 
-SCRIPT1="segmentation.py"
+SCRIPT1="SCRIPTS/segmentation.py"
 
 # -----------------------------
 # Ensure script exists
