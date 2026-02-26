@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST_V2"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 SAVE_PATH="${GLOBAL_DIR}/analysis"
