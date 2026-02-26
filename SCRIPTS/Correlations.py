@@ -42,7 +42,8 @@ def calculate_pairwise_trace_correlation(lum_df, cell_ids, log_file_path, frame_
 
     missing_cols = [col for col in lum_cols if col not in lum_df.columns]
     if missing_cols:
-        raise ValueError(f"Missing required frame columns: {missing_cols}")
+        log_message(log_file_path, f"Warning: Skipping {len(missing_cols)} missing frame columns in segment '{segment_info}': {missing_cols}")
+        lum_cols = [col for col in lum_cols if col in lum_df.columns]
 
     sorted_lum_df = lum_df.set_index("CellID").sort_index()
     traces_df = sorted_lum_df.loc[cell_ids, lum_cols].copy()

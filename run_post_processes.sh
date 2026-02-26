@@ -57,4 +57,4 @@ python SCRIPTS/DerivativeSTD.py \
     --exp "$GLOBAL_DIR" \
     --analysis_dir "$ANALYSIS_DIR"
 
-echo ">>> Pipeline finished for ${EXP}"
+echo ">>> Pipeline finished for ${GLOBAL_DIR}"
