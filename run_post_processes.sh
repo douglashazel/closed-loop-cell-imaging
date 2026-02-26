@@ -2,14 +2,16 @@
 set -euo pipefail
 
 # -----------------------------
-# User parameters
+# PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST_V2"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 
-STIM_FRAME=46
+STIM_FRAME=46 # frame shift
+WINDOW_SIZE=500 # tune according to experiment length (e.g. 500 for 3000 frames, 200 for 1000 frames)
+STEP_SIZE=500 # tune according to experiment length and desired resolution
 
 echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
@@ -46,8 +48,8 @@ echo ">>> Running sliding window correlation analysis for ${GLOBAL_DIR}"
 python SCRIPTS/CorrelationWindows.py \
     --exp "$GLOBAL_DIR" \
     --analysis_dir "$ANALYSIS_DIR" \
-    --window_size 500 \
-    --step_size 500
+    --window_size "$WINDOW_SIZE" \
+    --step_size "$STEP_SIZE"
 
 # -----------------------------
 # Derivative and std measurements

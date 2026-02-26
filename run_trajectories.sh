@@ -2,16 +2,12 @@
 set -euo pipefail
 
 # -----------------------------
-# User parameters
+# PATHS
 # -----------------------------
 GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST_V2"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 SAVE_PATH="${GLOBAL_DIR}/analysis"
-
-SHIFT_FRAME=46
-SHIFT_DX=0
-SHIFT_DY=0
 
 SCRIPT2="SCRIPTS/trajectories.py"
 
@@ -35,8 +31,8 @@ python3 "$SCRIPT2" \
     --max_distance 20 \
     --grace_period 3 \
     --radius 380 \
-    --y_shift 120 \
-    --x_shift -30 \
-    --shift_frame "$SHIFT_FRAME" \
-    --shift_xy "$SHIFT_DX" "$SHIFT_DY" \
+    --radius_y 120 \
+    --radius_x -30 \
+    --shift_frame 46 \
+    --shift_xy 0 0 \
     --save_interval 500

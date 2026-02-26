@@ -235,8 +235,8 @@ parser.add_argument("--save_path", required=True)
 parser.add_argument("--max_distance", type=float, default=40.0, help="Max distance for trajectory linking")
 parser.add_argument("--grace_period", type=int, default=3, help="Number of frames to look back for linking")
 parser.add_argument("--radius", type=int, default=0, help="Radius for circular mask (0 to disable)")
-parser.add_argument("--y_shift", type=int, default=0, help="Y shift for circular mask")
-parser.add_argument("--x_shift", type=int, default=0, help="X shift for circular mask")
+parser.add_argument("--radius_y", type=int, default=0, help="Y shift for circular mask")
+parser.add_argument("--radius_x", type=int, default=0, help="X shift for circular mask")
 parser.add_argument("--shift_frame", type=int, default=5, help="Frame where shift occurs")
 parser.add_argument("--shift_xy", type=float, nargs=2, default=[0, 0], help="Shift dx dy for frame")
 parser.add_argument("--save_interval", type=int, default=10, help="Save to disk every N frames")
@@ -253,8 +253,8 @@ shift_dx, shift_dy = args.shift_xy
 save_interval = args.save_interval
 
 radius = args.radius
-y_shift = args.y_shift
-x_shift = args.x_shift
+y_shift = args.radius_y
+x_shift = args.radius_x
 circle_mask = None
 
 os.makedirs(mask_dir, exist_ok=True)

@@ -2,18 +2,21 @@
 set -euo pipefail
 
 # -----------------------------
-# User parameters
+# PATHS
 # -----------------------------
 GLOBAL_DIR="EXPERIMENTS/other/DMSO_TEST"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 
+SCRIPT1="SCRIPTS/segmentation.py"
+
+# -----------------------------
+# CELLPOSE PARAMETERS
+# -----------------------------
 FLOW_THRESHOLD=0.955
 CELLPROB_THRESHOLD=-3
 NITER=10000
 DIAMETER=10
-
-SCRIPT1="SCRIPTS/segmentation.py"
 
 # -----------------------------
 # Ensure script exists
