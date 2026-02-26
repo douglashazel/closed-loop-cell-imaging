@@ -13,11 +13,11 @@ SCRIPT1="SCRIPTS/segmentation.py"
 SCRIPT2="SCRIPTS/trajectories.py"
 
 # -----------------------------
-# CELLPOSE PARAMETERS (determine through the cellpose GUI)
+# CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.955 #default 0.4
-CELLPROB_THRESHOLD=-3 #default 0.0
-NITER=10000 #default 200
+FLOW_THRESHOLD=0.955
+CELLPROB_THRESHOLD=-3
+NITER=10000
 DIAMETER=10
 
 # -----------------------------

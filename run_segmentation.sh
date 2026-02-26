@@ -11,7 +11,7 @@ MASK_DIR="${GLOBAL_DIR}/masks"
 SCRIPT1="SCRIPTS/segmentation.py"
 
 # -----------------------------
-# CELLPOSE PARAMETERS (determine through the cellpose GUI)
+# CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
 FLOW_THRESHOLD=0.955
 CELLPROB_THRESHOLD=-3
