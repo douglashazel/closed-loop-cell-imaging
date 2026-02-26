@@ -40,6 +40,38 @@ if [[ ! -f "$SCRIPT1" || ! -f "$SCRIPT2" ]]; then
     exit 1
 fi
 
+# -----------------------------
+# Log config
+# -----------------------------
+mkdir -p "$SAVE_PATH"
+CONFIG_FILE="${SAVE_PATH}/config.txt"
+cat > "$CONFIG_FILE" <<EOF
+Run date: $(date)
+
+[PATHS]
+GLOBAL_DIR=$GLOBAL_DIR
+IMAGE_DIR=$IMAGE_DIR
+MASK_DIR=$MASK_DIR
+SAVE_PATH=$SAVE_PATH
+
+[CELLPOSE]
+FLOW_THRESHOLD=$FLOW_THRESHOLD
+CELLPROB_THRESHOLD=$CELLPROB_THRESHOLD
+NITER=$NITER
+DIAMETER=$DIAMETER
+
+[TRAJECTORIES]
+MAX_DISTANCE=$MAX_DISTANCE
+GRACE_PERIOD=$GRACE_PERIOD
+RADIUS=$RADIUS
+RADIUS_Y=$RADIUS_Y
+RADIUS_X=$RADIUS_X
+SHIFT_FRAME=$SHIFT_FRAME
+SHIFT_XY=$SHIFT_XY
+SAVE_INTERVAL=$SAVE_INTERVAL
+EOF
+echo "Config saved to $CONFIG_FILE"
+
 echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
 # Run segmentation
