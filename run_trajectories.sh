@@ -32,7 +32,7 @@ python3 "$SCRIPT2" \
     --mask_dir "$MASK_DIR" \
     --image_dir "$IMAGE_DIR" \
     --save_path "$SAVE_PATH" \
-    --max_distance 30 \
+    --max_distance 20 \
     --grace_period 3 \
     --radius 380 \
     --y_shift 120 \
