@@ -12,6 +12,18 @@ SAVE_PATH="${GLOBAL_DIR}/analysis"
 SCRIPT2="SCRIPTS/trajectories.py"
 
 # -----------------------------
+# TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
+# -----------------------------
+MAX_DISTANCE=20
+GRACE_PERIOD=3
+RADIUS=380
+RADIUS_Y=120
+RADIUS_X=-30
+SHIFT_FRAME=46
+SHIFT_XY="0 0"
+SAVE_INTERVAL=500
+
+# -----------------------------
 # Ensure script exists
 # -----------------------------
 if [[ ! -f "$SCRIPT2" ]]; then
@@ -28,11 +40,11 @@ python3 "$SCRIPT2" \
     --mask_dir "$MASK_DIR" \
     --image_dir "$IMAGE_DIR" \
     --save_path "$SAVE_PATH" \
-    --max_distance 20 \
-    --grace_period 3 \
-    --radius 380 \
-    --radius_y 120 \
-    --radius_x -30 \
-    --shift_frame 46 \
-    --shift_xy 0 0 \
-    --save_interval 500
+    --max_distance "$MAX_DISTANCE" \
+    --grace_period "$GRACE_PERIOD" \
+    --radius "$RADIUS" \
+    --radius_y "$RADIUS_Y" \
+    --radius_x "$RADIUS_X" \
+    --shift_frame "$SHIFT_FRAME" \
+    --shift_xy $SHIFT_XY \
+    --save_interval "$SAVE_INTERVAL"

@@ -9,6 +9,9 @@ IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 
+# -----------------------------
+# ANALYSIS PARAMETERS
+# -----------------------------
 STIM_FRAME=46 # frame shift
 WINDOW_SIZE=500 # tune according to experiment length (e.g. 500 for 3000 frames, 200 for 1000 frames)
 STEP_SIZE=500 # tune according to experiment length and desired resolution
