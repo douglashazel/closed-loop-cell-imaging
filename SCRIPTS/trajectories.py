@@ -52,7 +52,7 @@ def run_all(curr_center, next_centers, max_distance=40.0):
     return status, match
 
 def parallel_extract_centers(args):
-    seg, cell_ids, temp_path, worker_id = args
+    seg, cell_ids = args
     partial_centers = []
     for cellID in cell_ids:
         mask = seg == cellID
@@ -64,9 +64,7 @@ def parallel_extract_centers(args):
             partial_centers.append((int(x[best]), int(y[best])))
         else:
             partial_centers.append(None)
-    output_path = os.path.join(temp_path, f'partial_centers_worker{worker_id}.npy')
-    np.save(output_path, partial_centers)
-    return output_path
+    return partial_centers
 
 def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     center_file = os.path.join(
@@ -82,20 +80,11 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     all_ids = list(range(1, num_masks + 1))
     chunks = [all_ids[i::num_workers] for i in range(num_workers)]
 
-    temp_path = os.path.join(center_save_path, 'temp_centers')
-    os.makedirs(temp_path, exist_ok=True)
-
-    args = [(seg, chunk, temp_path, i) for i, chunk in enumerate(chunks)]
+    args = [(seg, chunk) for chunk in chunks]
     with Pool(processes=num_workers) as pool:
-        result_files = pool.map(parallel_extract_centers, args)
+        results = pool.map(parallel_extract_centers, args)
 
-    frame_centers = []
-    for file in result_files:
-        partial = np.load(file, allow_pickle=True)
-        frame_centers.extend([c for c in partial if c is not None])
-        os.remove(file)
-
-    os.rmdir(temp_path)
+    frame_centers = [c for partial in results for c in partial if c is not None]
     os.makedirs(center_save_path, exist_ok=True)
     np.save(
         os.path.join(center_save_path, os.path.basename(seg_path).replace('.npy', '_centers.npy')),

@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # User parameters
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_TEST_V2"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 SAVE_PATH="${GLOBAL_DIR}/analysis"
