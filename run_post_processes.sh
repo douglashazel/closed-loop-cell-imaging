@@ -15,9 +15,9 @@ echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
 # Run background normalization
 # -----------------------------
-echo ">>> Running background normalization for ${EXP}"
+echo ">>> Running background normalization for ${GLOBAL_DIR}"
 python SCRIPTS/NormBGround.py \
-    --exp "$EXP" \
+    --exp "$GLOBAL_DIR" \
     --image_dir "$IMAGE_DIR" \
     --mask_dir "$MASK_DIR" \
     --analysis_dir "$ANALYSIS_DIR"
@@ -25,26 +25,26 @@ python SCRIPTS/NormBGround.py \
 # -----------------------------
 # Run stimulus delta
 # -----------------------------
-echo ">>> Running stimulus delta computation for ${EXP} (stim_frame=${STIM_FRAME})"
+echo ">>> Running stimulus delta computation for ${GLOBAL_DIR} (stim_frame=${STIM_FRAME})"
 python SCRIPTS/StimDelta.py \
-    --exp "$EXP" \
+    --exp "$GLOBAL_DIR" \
     --analysis_dir "$ANALYSIS_DIR" \
     --stim_frame "$STIM_FRAME"
 
 # -----------------------------
 # Correlation analysis
 # -----------------------------
-echo ">>> Running pairwise correlation analysis for ${EXP}"
+echo ">>> Running pairwise correlation analysis for ${GLOBAL_DIR}"
 python SCRIPTS/Correlations.py \
-    --exp "$EXP" \
+    --exp "$GLOBAL_DIR" \
     --analysis_dir "$ANALYSIS_DIR"
 
 # -----------------------------
 # Correlation window analysis
 # -----------------------------
-echo ">>> Running sliding window correlation analysis for ${EXP}"
+echo ">>> Running sliding window correlation analysis for ${GLOBAL_DIR}"
 python SCRIPTS/CorrelationWindows.py \
-    --exp "$EXP" \
+    --exp "$GLOBAL_DIR" \
     --analysis_dir "$ANALYSIS_DIR" \
     --window_size 500 \
     --step_size 500
@@ -52,9 +52,9 @@ python SCRIPTS/CorrelationWindows.py \
 # -----------------------------
 # Derivative and std measurements
 # -----------------------------
-echo ">>> Running derivative and std measurements for ${EXP}"
+echo ">>> Running derivative and std measurements for ${GLOBAL_DIR}"
 python SCRIPTS/DerivativeSTD.py \
-    --exp "$EXP" \
+    --exp "$GLOBAL_DIR" \
     --analysis_dir "$ANALYSIS_DIR"
 
 echo ">>> Pipeline finished for ${EXP}"
