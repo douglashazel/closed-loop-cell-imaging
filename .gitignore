@@ -2,6 +2,7 @@ EXPERIMENTS/**
 !EXPERIMENTS/**/
 !EXPERIMENTS/**/.gitkeep
 MISCELLANEOUS/*
+_cellpose_temp
 
 gifs
 archive
