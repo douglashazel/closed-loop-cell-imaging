@@ -19,7 +19,6 @@ def parse_filename(fname):
     frame = int(m.group(2))
     return frame, channel, base
 
-
 def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
     """
     Segment images in a directory using Cellpose with channel-specific parameters, save masks, 
@@ -90,7 +89,6 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
             plt.close(fig)  # free memory
             pbar.update(1)
 
-
 def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     img_name = f"channel_{channel}_image_0_a_timepoint_{frame:05d}.png"
     mask_name = f"{frame:05d}_channel{channel}.npy"
@@ -138,7 +136,6 @@ def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     display(widgets.HBox([raw_button, seg_button]))
     display(out)
     show_raw(None)  # default
-
 
 def update_masks(channel_updates, mask_dir, curr_mask_dir):
     """
