@@ -1,4 +1,4 @@
-name: closed_loop
+name: closed_loop_pipeline
 channels:
 - conda-forge
 - defaults
@@ -9,6 +9,6 @@ dependencies:
 - Pillow==10.4.0
 - tomlkit==0.13.3
 - matplotlib==3.9.2
-- cellpose==4.0.6
+- cellpose==3.*
 - scipy==1.14.1
 - tqdm==4.66.5
