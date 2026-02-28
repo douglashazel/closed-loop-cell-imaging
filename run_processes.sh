@@ -73,6 +73,7 @@ EOF
 echo "Config saved to $CONFIG_FILE"
 
 echo "--- Accessing ${GLOBAL_DIR} ---"
+
 # -----------------------------
 # Run segmentation
 # -----------------------------
