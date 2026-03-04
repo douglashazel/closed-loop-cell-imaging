@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/pc3/pc3_tropisetron_1"
+GLOBAL_DIR="EXPERIMENTS/c2c12/c2c12_tropisetron_2"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
@@ -13,8 +13,8 @@ ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 # ANALYSIS PARAMETERS
 # -----------------------------
 STIM_FRAME=2 # frame shift
-WINDOW_SIZE=4 # tune according to experiment length (e.g. 500 for 3000 frames, 200 for 1000 frames)
-STEP_SIZE=4 # tune according to experiment length and desired resolution
+WINDOW_SIZE=5 # tune according to experiment length (e.g. 500 for 3000 frames, 200 for 1000 frames)
+STEP_SIZE=5 # tune according to experiment length and desired resolution
 
 echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
