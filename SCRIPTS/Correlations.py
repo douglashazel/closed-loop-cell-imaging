@@ -235,8 +235,7 @@ def run_all_analyses(exp, log_file_path):
     num_frames = coords.shape[1] // 2
 
     if num_frames < 7:
-        log_message(log_file_path, f"CRITICAL ERROR: Need at least 7 frames. Found {num_frames}.", print_to_console=True)
-        raise ValueError(f"Need at least 7 frames (f0-f6) for all analyses. Found {num_frames}.")
+        log_message(log_file_path, f"Warning: Only {num_frames} frames found (< 7). Some segment analyses may produce empty results.", print_to_console=True)
 
     frame_for_distance = 0
     frame_coords = coords[:, (2*frame_for_distance):(2*frame_for_distance+2)]
@@ -306,6 +305,11 @@ def run_delta_delta_luminosity_analysis(exp, log_file_path):
     lum_df = lum_df[lum_df["CellID"] != 0]
     cell_ids = traj_df["CellID"].values
     coords = traj_df.drop(columns=["CellID"]).values
+    num_frames = coords.shape[1] // 2
+
+    if num_frames < 6:
+        log_message(log_file_path, f"Skipping delta-delta luminosity analysis: need at least 6 frames, found {num_frames}.", print_to_console=True)
+        return
 
     analysis_frame_for_distance = 5
     frame1_for_delta_L = 4
@@ -354,6 +358,12 @@ if __name__ == "__main__":
         f.write(f"Run Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
     log_message(LOG_FILE_PATH, "Starting all analyses...")
-    run_all_analyses(exp, LOG_FILE_PATH)
-    run_delta_delta_luminosity_analysis(exp, LOG_FILE_PATH)
+    try:
+        run_all_analyses(exp, LOG_FILE_PATH)
+    except Exception as e:
+        log_message(LOG_FILE_PATH, f"Skipping correlation analysis: {e}", print_to_console=True)
+    try:
+        run_delta_delta_luminosity_analysis(exp, LOG_FILE_PATH)
+    except Exception as e:
+        log_message(LOG_FILE_PATH, f"Skipping delta-delta luminosity analysis: {e}", print_to_console=True)
     log_message(LOG_FILE_PATH, "\nAll analyses complete.")

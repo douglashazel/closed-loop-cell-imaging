@@ -78,7 +78,7 @@ def plot_sliding_window_correlations(dist_df, lum_df, cell_ids, num_frames, data
         windows.append({"start": start, "stop": end, "name": f"F{start}-F{end-1}"})
 
     if not windows:
-        log_message(log_file_path, f"CRITICAL ERROR: No windows of size {window_size} found for {num_frames} frames.")
+        log_message(log_file_path, f"Skipping sliding window correlation analysis: no windows of size {window_size} fit within {num_frames} frames.")
         return
 
     num_plots = len(windows)
@@ -173,8 +173,8 @@ def run_all_analyses(exp, log_file_path):
     num_frames = coords.shape[1] // 2
 
     if num_frames < 3:
-        log_message(log_file_path, f"CRITICAL ERROR: Need at least 3 frames. Found {num_frames}.", print_to_console=True)
-        raise ValueError(f"Need at least 3 frames for a sliding window. Found {num_frames}.")
+        log_message(log_file_path, f"Skipping sliding window correlation analysis: need at least 3 frames, found {num_frames}.", print_to_console=True)
+        return
 
     frame_for_distance = 0
     frame_coords = coords[:, (2*frame_for_distance):(2*frame_for_distance+2)]
@@ -224,7 +224,7 @@ if __name__ == "__main__":
 
     try:
         run_all_analyses(exp, LOG_FILE_PATH)
-    except (FileNotFoundError, ValueError) as e:
-        pass
+    except Exception as e:
+        log_message(LOG_FILE_PATH, f"Skipping sliding window correlation analysis: {e}", print_to_console=True)
 
     log_message(LOG_FILE_PATH, "\nAll analyses complete.")
