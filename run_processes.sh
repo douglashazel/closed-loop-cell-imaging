@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/pc3/pc3_tropisetron_1"
+GLOBAL_DIR="EXPERIMENTS/other/DMSO_C2C12_repeat_kat_2"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -15,22 +15,22 @@ SCRIPT2="SCRIPTS/trajectories.py"
 # -----------------------------
 # CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.935
-CELLPROB_THRESHOLD=-4
-NITER=300
-DIAMETER=15
+FLOW_THRESHOLD=0.9975
+CELLPROB_THRESHOLD=-5
+NITER=40000
+DIAMETER=24
 
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=20
+MAX_DISTANCE=48
 GRACE_PERIOD=3
-RADIUS=380
-RADIUS_Y=120
-RADIUS_X=-30
-SHIFT_FRAME=2
-SHIFT_XY="-6 5"
-SAVE_INTERVAL=500
+RADIUS=280
+RADIUS_Y=-93
+RADIUS_X=-17
+SHIFT_FRAME=45
+SHIFT_XY="0 0"
+SAVE_INTERVAL=100
 
 # -----------------------------
 # Ensure scripts exist
