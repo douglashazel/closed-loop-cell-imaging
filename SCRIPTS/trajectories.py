@@ -2,6 +2,7 @@ import os
 import gc
 import re
 import sys
+import csv
 import time
 import numba
 import msgpack
@@ -423,6 +424,25 @@ save_json(complete_traj, traj_out)
 save_json(lum_complete, lum_out)
 print("Saved:", traj_out)
 print("Saved:", lum_out)
+
+# CSV exports for quick inspection
+def save_dict_as_csv(data, path):
+    if not data:
+        return
+    all_keys = sorted({k for row in data.values() for k in row.keys()},
+                      key=lambda k: (int(k[1:]) if k[1:].isdigit() else 0, k[0]))
+    with open(path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['cell_id'] + all_keys)
+        for cell_id, row in data.items():
+            writer.writerow([cell_id] + [row.get(k) for k in all_keys])
+
+traj_csv = os.path.join(save_path, "trajectories_complete.csv")
+lum_csv  = os.path.join(save_path, "luminosity_complete.csv")
+save_dict_as_csv(complete_traj, traj_csv)
+save_dict_as_csv(lum_complete, lum_csv)
+print("Saved:", traj_csv)
+print("Saved:", lum_csv)
 
 # ---------------- plot complete cells ---------------- #
 plot_name = plot_luminosities_from_dict(lum_complete, save_path, "_complete", cmap_name="twilight_shifted")
