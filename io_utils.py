@@ -155,7 +155,13 @@ def roi_tune_masks(watch_dir, mask_dir, curr_mask_dir, frame: int, channel: int,
     mask    = np.load(os.path.join(mask_dir, mask_name), allow_pickle=True)
     h, w    = img_arr.shape[:2]
 
-    # precompute cell centroids
+    # Normalise image to uint8 RGB for overlay display
+    img_f  = img_arr.astype(float)
+    img_u8 = ((img_f - img_f.min()) / (img_f.max() - img_f.min() + 1e-8) * 255).astype(np.uint8)
+    if img_u8.ndim == 2:
+        img_u8 = np.stack([img_u8] * 3, axis=-1)
+
+    # Precompute cell centroids
     cell_ids = np.unique(mask)
     cell_ids = cell_ids[cell_ids != 0]
     if len(cell_ids):
@@ -163,6 +169,19 @@ def roi_tune_masks(watch_dir, mask_dir, curr_mask_dir, frame: int, channel: int,
         cys = np.array([np.where(mask == cid)[0].mean() for cid in cell_ids])
     else:
         cxs = cys = np.array([])
+
+    def _build_overlay(cx, cy, r):
+        """RGB overlay: green = inside ROI (kept), red = outside (removed)."""
+        overlay = img_u8.copy().astype(float)
+        if not len(cxs):
+            return overlay.astype(np.uint8), 0
+        inside     = (cxs - cx)**2 + (cys - cy)**2 <= r**2
+        n          = int(inside.sum())
+        in_pixels  = np.isin(mask, cell_ids[inside])
+        out_pixels = (mask > 0) & ~in_pixels
+        overlay[in_pixels]  *= [0.3, 1.0, 0.3]
+        overlay[out_pixels] *= [1.0, 0.3, 0.3]
+        return overlay.astype(np.uint8), n
 
     def _filtered(cx, cy, r):
         if not len(cxs):
@@ -173,12 +192,12 @@ def roi_tune_masks(watch_dir, mask_dir, curr_mask_dir, frame: int, channel: int,
 
     state = dict(cx=w/2 + x_shift, cy=h/2 + y_shift,
                  radius=radius, dragging=False)
-    fm0, n0 = _filtered(state['cx'], state['cy'], state['radius'])
+    ov0, n0 = _build_overlay(state['cx'], state['cy'], state['radius'])
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 6), dpi=100)
     axes[0].imshow(img_arr, cmap='gray')
     axes[0].axis('off')
-    im1 = axes[1].imshow(fm0)
+    im1 = axes[1].imshow(ov0)
     axes[1].axis('off')
 
     circs = [
@@ -190,7 +209,7 @@ def roi_tune_masks(watch_dir, mask_dir, curr_mask_dir, frame: int, channel: int,
     for ax, c in zip(axes, circs):
         ax.add_patch(c)
     axes[0].set_title("Image with ROI  (drag=move · scroll=resize)")
-    axes[1].set_title(f"{n0} cells in ROI  (r={state['radius']} px)")
+    axes[1].set_title(f"{n0} cells in ROI  (green=keep · red=remove  r={state['radius']} px)")
 
     status = fig.text(
         0.5, 0.01,
@@ -202,12 +221,12 @@ def roi_tune_masks(watch_dir, mask_dir, curr_mask_dir, frame: int, channel: int,
 
     def _redraw():
         cx, cy, r = state['cx'], state['cy'], state['radius']
-        fm, n = _filtered(cx, cy, r)
+        ov, n = _build_overlay(cx, cy, r)
         for c in circs:
             c.center = (cx, cy)
             c.set_radius(r)
-        im1.set_data(fm)
-        axes[1].set_title(f"{n} cells in ROI  (r={r} px)")
+        im1.set_data(ov)
+        axes[1].set_title(f"{n} cells in ROI  (green=keep · red=remove  r={r} px)")
         status.set_text(
             f"radius={r}  "
             f"y_shift={int(round(cy-h/2))}  "
