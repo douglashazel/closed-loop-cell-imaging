@@ -4,6 +4,7 @@ import shutil
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from cellpose import models, io, utils
 from scipy.ndimage import binary_dilation
 import ipywidgets as widgets
@@ -136,6 +137,135 @@ def visualize_segmentation(watch_dir, mask_dir, frame: int, channel: int):
     display(widgets.HBox([raw_button, seg_button]))
     display(out)
     show_raw(None)  # default
+
+def roi_tune_masks(watch_dir, mask_dir, curr_mask_dir, frame: int, channel: int,
+                   radius=100, y_shift=0, x_shift=0):
+    """
+    Interactive circular ROI selector for a mask.
+    Drag the circle to move it, scroll to resize it.
+    Click 'Accept ROI' to zero all cells outside the circle and save
+    the filtered mask to mask_dir (and curr_mask_dir if that file exists).
+
+    Must be called from a notebook cell that begins with:  %matplotlib widget
+    """
+    img_name  = f"channel_{channel}_image_0_a_timepoint_{frame:05d}.png"
+    mask_name = f"{frame:05d}_channel{channel}.npy"
+
+    img_arr = io.imread(os.path.join(watch_dir, img_name))
+    mask    = np.load(os.path.join(mask_dir, mask_name), allow_pickle=True)
+    h, w    = img_arr.shape[:2]
+
+    # precompute cell centroids
+    cell_ids = np.unique(mask)
+    cell_ids = cell_ids[cell_ids != 0]
+    if len(cell_ids):
+        cxs = np.array([np.where(mask == cid)[1].mean() for cid in cell_ids])
+        cys = np.array([np.where(mask == cid)[0].mean() for cid in cell_ids])
+    else:
+        cxs = cys = np.array([])
+
+    def _filtered(cx, cy, r):
+        if not len(cxs):
+            return mask.copy(), 0
+        inside = (cxs - cx)**2 + (cys - cy)**2 <= r**2
+        valid  = cell_ids[inside]
+        return np.where(np.isin(mask, valid), mask, 0), int(inside.sum())
+
+    state = dict(cx=w/2 + x_shift, cy=h/2 + y_shift,
+                 radius=radius, dragging=False)
+    fm0, n0 = _filtered(state['cx'], state['cy'], state['radius'])
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 6), dpi=100)
+    axes[0].imshow(img_arr, cmap='gray')
+    axes[0].axis('off')
+    im1 = axes[1].imshow(fm0)
+    axes[1].axis('off')
+
+    circs = [
+        patches.Circle((state['cx'], state['cy']), state['radius'],
+                        linewidth=1.5, edgecolor='red', facecolor='none'),
+        patches.Circle((state['cx'], state['cy']), state['radius'],
+                        linewidth=1.5, edgecolor='red', facecolor='none'),
+    ]
+    for ax, c in zip(axes, circs):
+        ax.add_patch(c)
+    axes[0].set_title("Image with ROI  (drag=move · scroll=resize)")
+    axes[1].set_title(f"{n0} cells in ROI  (r={state['radius']} px)")
+
+    status = fig.text(
+        0.5, 0.01,
+        f"radius={state['radius']}  "
+        f"y_shift={int(round(state['cy']-h/2))}  "
+        f"x_shift={int(round(state['cx']-w/2))}",
+        ha='center', fontsize=10, color='steelblue')
+    plt.tight_layout()
+
+    def _redraw():
+        cx, cy, r = state['cx'], state['cy'], state['radius']
+        fm, n = _filtered(cx, cy, r)
+        for c in circs:
+            c.center = (cx, cy)
+            c.set_radius(r)
+        im1.set_data(fm)
+        axes[1].set_title(f"{n} cells in ROI  (r={r} px)")
+        status.set_text(
+            f"radius={r}  "
+            f"y_shift={int(round(cy-h/2))}  "
+            f"x_shift={int(round(cx-w/2))}")
+        fig.canvas.draw_idle()
+
+    def on_press(ev):
+        if ev.inaxes in axes and ev.xdata is not None:
+            state.update(dragging=True, cx=ev.xdata, cy=ev.ydata)
+            _redraw()
+
+    def on_motion(ev):
+        if state['dragging'] and ev.inaxes in axes and ev.xdata is not None:
+            state.update(cx=ev.xdata, cy=ev.ydata)
+            _redraw()
+
+    def on_release(ev):
+        state['dragging'] = False
+
+    def on_scroll(ev):
+        if ev.inaxes in axes:
+            state['radius'] = max(10, state['radius'] + (10 if ev.button == 'up' else -10))
+            _redraw()
+
+    fig.canvas.mpl_connect('button_press_event',  on_press)
+    fig.canvas.mpl_connect('motion_notify_event', on_motion)
+    fig.canvas.mpl_connect('button_release_event', on_release)
+    fig.canvas.mpl_connect('scroll_event',         on_scroll)
+
+    btn = widgets.Button(description='Accept ROI', button_style='success',
+                         layout=widgets.Layout(width='150px'))
+    out = widgets.Output()
+
+    def on_accept(_):
+        cx, cy, r = state['cx'], state['cy'], state['radius']
+        filtered, n = _filtered(cx, cy, r)
+
+        p1 = os.path.join(mask_dir, mask_name)
+        np.save(p1, filtered)
+
+        p2 = os.path.join(curr_mask_dir, mask_name)
+        updated = [p1]
+        if os.path.exists(p2):
+            np.save(p2, filtered)
+            updated.append(p2)
+
+        with out:
+            clear_output(wait=True)
+            print(f"Saved ROI-filtered mask: {n} cells kept")
+            for p in updated:
+                print(f"  → {p}")
+            print(f"  radius={r}  "
+                  f"y_shift={int(round(cy-h/2))}  "
+                  f"x_shift={int(round(cx-w/2))}")
+
+    btn.on_click(on_accept)
+    display(btn, out)
+
 
 def update_masks(channel_updates, mask_dir, curr_mask_dir):
     """
