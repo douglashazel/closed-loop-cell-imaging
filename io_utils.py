@@ -55,7 +55,7 @@ def tune_masks(unique_params, watch_dir, mask_dir, temp_overlays):
             eval_kwargs = {k: v for k, v in unique_params[channel].items() if v is not None}
 
             # run segmentation with channel-specific params
-            masks, flows, styles = model.eval(img, **eval_kwargs)
+            masks, _, _ = model.eval(img, **eval_kwargs)
 
             # save masks
 
