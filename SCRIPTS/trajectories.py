@@ -10,7 +10,6 @@ import argparse
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from multiprocessing import Pool
 
 # ---------------- helpers from tracking code ---------------- #
@@ -336,36 +335,6 @@ save_json(lum_dict, lum_json_path)
 print("\nAll frames processed.")
 
 
-# ---------------- plot luminosities ---------------- #
-def plot_luminosities_from_dict(lum_dict, save_path, tag, cmap_name="twilight_shifted"):
-    cmap = plt.get_cmap(cmap_name)
-    colors = cmap(np.linspace(0, 1, len(lum_dict)))
-
-    plt.figure(dpi=300)
-    for (cell_id, frame_lums), color in tqdm(zip(lum_dict.items(), colors), total=len(lum_dict), desc='Plotting cells...'):
-        frames_vals = [(int(k.lstrip('f')), v) for k, v in frame_lums.items() if v is not None]
-        if not frames_vals:
-            continue
-        frames_vals.sort()
-        frames, vals = zip(*frames_vals)
-        plt.plot(frames, vals, alpha=0.7, color=color)
-
-    plt.xlabel("Frame")
-    plt.ylabel("Average luminosity")
-    plt.title("Cell luminosity over time")
-    plt.tight_layout()
-
-    plot_dir = os.path.join(save_path, "plots")
-    os.makedirs(plot_dir, exist_ok=True)
-
-    plot_name = f'average_luminosity{tag}.png'
-    plt.savefig(os.path.join(plot_dir, plot_name), dpi=300)
-    plt.close()
-    return plot_name
-
-plot_name = plot_luminosities_from_dict(lum_dict, save_path, "", cmap_name="twilight_shifted")
-print(f"Figure saved to {save_path}/{plot_name}")
-
 # ---------------- filter first frame cells ---------------- #
 def filter_first_frame_cells(traj_dict):
     all_frames = set()
@@ -444,6 +413,4 @@ save_dict_as_csv(lum_complete, lum_csv)
 print("Saved:", traj_csv)
 print("Saved:", lum_csv)
 
-# ---------------- plot complete cells ---------------- #
-plot_name = plot_luminosities_from_dict(lum_complete, save_path, "_complete", cmap_name="twilight_shifted")
-print(f"Figure saved to {save_path}/{plot_name}")
+print("Done.")

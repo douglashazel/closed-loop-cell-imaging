@@ -108,3 +108,11 @@ python3 "$SCRIPT2" \
 PID2=$!
 
 wait $PID1 $PID2
+
+# -----------------------------
+# Pre-analysis plots
+# -----------------------------
+echo ">>> Running pre-analysis plots for ${GLOBAL_DIR}"
+python3 SCRIPTS/PreAnalysis.py \
+    --exp "$GLOBAL_DIR" \
+    --analysis_dir "$SAVE_PATH"
