@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/DMSO_C2C12_repeate_doug_2"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_doug"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 

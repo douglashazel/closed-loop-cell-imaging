@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/DMSO_C2C12_repeat_kat_2"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_doug"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -23,14 +23,14 @@ DIAMETER=24
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=48
+MAX_DISTANCE=20
 GRACE_PERIOD=3
-RADIUS=280
-RADIUS_Y=-93
-RADIUS_X=-17
+RADIUS=340
+RADIUS_Y=53
+RADIUS_X=-5
 SHIFT_FRAME=45
 SHIFT_XY="0 0"
-SAVE_INTERVAL=100
+SAVE_INTERVAL=1000
 
 # -----------------------------
 # Ensure scripts exist
