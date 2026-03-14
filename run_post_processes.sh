@@ -11,8 +11,8 @@ ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 # -----------------------------
 # ANALYSIS PARAMETERS
 # -----------------------------
-F0_FRAME=36
-STIM_FRAMES="77,112,148,183,218,322,357,390,424,458"
+F0_FRAME=2400
+STIM_FRAMES="77,112,148,183,218,322,357,390,424,458" # C2C12 DMSO
 
 echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
