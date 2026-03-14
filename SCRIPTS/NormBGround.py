@@ -12,7 +12,7 @@ def extract_number(filename):
     return int(match.group(1)) if match else -1
 
 def load_image(path):
-    return np.array(Image.open(path)) / 4095.0
+    return np.array(Image.open(path))
 
 def compute_bground(images, image_dir, mask_dir):
     bg_trace = []

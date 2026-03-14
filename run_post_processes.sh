@@ -28,33 +28,6 @@ python SCRIPTS/NormBGround.py \
     --analysis_dir "$ANALYSIS_DIR"
 
 # -----------------------------
-# Run stimulus delta
-# -----------------------------
-echo ">>> Running stimulus delta computation for ${GLOBAL_DIR} (stim_frame=${STIM_FRAME})"
-python SCRIPTS/StimDelta.py \
-    --exp "$GLOBAL_DIR" \
-    --analysis_dir "$ANALYSIS_DIR" \
-    --stim_frame "$STIM_FRAME"
-
-# -----------------------------
-# Correlation analysis
-# -----------------------------
-echo ">>> Running pairwise correlation analysis for ${GLOBAL_DIR}"
-python SCRIPTS/Correlations.py \
-    --exp "$GLOBAL_DIR" \
-    --analysis_dir "$ANALYSIS_DIR"
-
-# -----------------------------
-# Correlation window analysis
-# -----------------------------
-echo ">>> Running sliding window correlation analysis for ${GLOBAL_DIR}"
-python SCRIPTS/CorrelationWindows.py \
-    --exp "$GLOBAL_DIR" \
-    --analysis_dir "$ANALYSIS_DIR" \
-    --window_size "$WINDOW_SIZE" \
-    --step_size "$STEP_SIZE"
-
-# -----------------------------
 # Derivative and std measurements
 # -----------------------------
 echo ">>> Running derivative and std measurements for ${GLOBAL_DIR}"
