@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/NRK_doug"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_acidpulse_3:17:26_edited"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -15,20 +15,20 @@ SCRIPT2="SCRIPTS/trajectories.py"
 # -----------------------------
 # CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.9975
-CELLPROB_THRESHOLD=-5
-NITER=40000
-DIAMETER=24
+FLOW_THRESHOLD=0.95
+CELLPROB_THRESHOLD=-3
+NITER=10000
+DIAMETER=14
 
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=20
+MAX_DISTANCE=92
 GRACE_PERIOD=3
-RADIUS=340
-RADIUS_Y=53
-RADIUS_X=-5
-SHIFT_FRAME=45
+RADIUS=530
+RADIUS_Y=-108
+RADIUS_X=156
+SHIFT_FRAME=240
 SHIFT_XY="0 0"
 SAVE_INTERVAL=1000
 

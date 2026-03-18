@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/NRK_doug"
+GLOBAL_DIR="EXPERIMENTS/other/NRK_acidpulse_3:17:26_edited"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 
