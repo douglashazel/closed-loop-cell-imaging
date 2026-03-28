@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/perfusion_test_c2c12_acidpulses_edited_3:20:26"
+GLOBAL_DIR="EXPERIMENTS/other/DOUG_nrk"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -15,22 +15,22 @@ SCRIPT2="SCRIPTS/trajectories.py"
 # -----------------------------
 # CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.95
-CELLPROB_THRESHOLD=-6
-NITER=25000
-DIAMETER=13
+FLOW_THRESHOLD=0.975
+CELLPROB_THRESHOLD=-4
+NITER=3000
+DIAMETER=26
 
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=67
+MAX_DISTANCE=5
 GRACE_PERIOD=3
-RADIUS=1500
-RADIUS_Y=-1500
-RADIUS_X=1500
-SHIFT_FRAME=0
+RADIUS=0
+RADIUS_Y=0
+RADIUS_X=0
+SHIFT_FRAME=5
 SHIFT_XY="0 0"
-SAVE_INTERVAL=10
+SAVE_INTERVAL=500
 
 # -----------------------------
 # Ensure scripts exist
