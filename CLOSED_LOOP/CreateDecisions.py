@@ -155,6 +155,11 @@ def process_frame(frame, initial_masks, default_setpoint):
             log(f"Failed frame {frame} channel {ch} after {cfg['num_tries']} retries. Skipping.")
 
 def finalize_decisions(frame):
+    """Read per-channel decisions and write a crossing signal for SendDecisions.
+
+    The file contains per-channel threshold state (acid / neutral) so that
+    SendDecisions can manage independent 30-second pulse timers.
+    """
     # Wait until all channel decisions are written
     while True:
         decs = [f for f in os.listdir(decision_dir)
@@ -163,25 +168,22 @@ def finalize_decisions(frame):
             break
         time.sleep(cfg["sleep_time"])
 
-    decisions = []
+    channel_states = {}
     for ch in range(1, num_channels + 1):
         with open(os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt"), 'r') as f:
-            decisions.append(int(f.read().strip()))
-
-    # Map per-channel decision tuple to experiment name via config
-    experiment_map = cfg.get("experiment_map", {})
-    experiment_name = experiment_map.get(str(tuple(decisions)), "unknown_experiment")
+            dec = int(f.read().strip())
+        channel_states[str(ch)] = decision_rev[dec]
 
     # Write atomically via lock file then rename
     lock_path    = os.path.join(final_dir, f"{frame:05d}.lock")
     actions_path = os.path.join(final_dir, "actions.toml")
     with open(lock_path, "w") as f:
-        tomlkit.dump({"experiment": experiment_name}, f)
+        tomlkit.dump({"frame": frame, "channels": channel_states}, f)
     os.rename(lock_path, actions_path)
 
-    log(f"Frame {frame}: wrote actions.toml -> {experiment_name}")
+    log(f"Frame {frame}: wrote actions.toml -> {channel_states}")
 
-    # Clean up per-channel decision files (already logged above)
+    # Clean up per-channel decision files
     for ch in range(1, num_channels + 1):
         dec_path = os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt")
         try:

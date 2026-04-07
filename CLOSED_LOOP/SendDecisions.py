@@ -287,14 +287,16 @@ class OnixController:
         self.current_experiment = None  # NEW: clear after completion
         return True
 
-NEUTRAL_EXPERIMENT = cfg.get("neutral_experiment", "experiment1")
+NEUTRAL_EXPERIMENT = cfg.get("neutral_experiment", "NN")
 ACIDIC_PULSE_SEC   = cfg.get("acidic_pulse_sec", 30)
+num_channels       = cfg.get("num_channels", 2)
 
 # Live media-status file read by the Napari GUI
 _STATUS_FILE = os.path.join(final_dir, "media_status.json")
 
 
-def _write_media_status(media, experiment=None, start_time=None, duration=None):
+def _write_media_status(media, experiment=None, start_time=None, duration=None,
+                        pulse_channels=None):
     """Atomically write the current media state for the Napari indicator."""
     tmp = _STATUS_FILE + ".tmp"
     with open(tmp, "w") as f:
@@ -303,108 +305,185 @@ def _write_media_status(media, experiment=None, start_time=None, duration=None):
             "experiment": experiment,
             "start_time": start_time,
             "duration": duration,
+            "pulse_channels": pulse_channels,
         }, f)
     os.rename(tmp, _STATUS_FILE)
 
-def process_actions_toml_direct(experiment_name, onix_controller):
-    """Execute an experiment directly by name.
-    - Neutral experiments run for run_duration (effectively indefinitely until interrupted).
-    - Acidic experiments run for acidic_pulse_sec, then auto-resume neutral.
-    """
+
+class PulseManager:
+    """Track independent per-channel acid pulse timers and compute the
+    combined ONIX experiment state (NN / AN / NA / AA)."""
+
+    def __init__(self, num_channels, pulse_duration):
+        self.num_channels = num_channels
+        self.pulse_duration = pulse_duration
+        # None = neutral (idle), float = pulse start time
+        self.pulse_start = {ch: None for ch in range(1, num_channels + 1)}
+
+    def handle_crossing(self, ch, label):
+        """Process a threshold crossing for a single channel.
+        Returns True if a NEW pulse was started (state changed)."""
+        if label == "add acidic media":
+            if self.pulse_start[ch] is None:
+                self.pulse_start[ch] = time.time()
+                log(f"Channel {ch}: acid pulse STARTED ({self.pulse_duration}s)")
+                return True
+            # Already pulsing — ignore
+            return False
+        # Neutral / basic — no action (pulses expire on timer, not on signal)
+        return False
+
+    def check_expirations(self):
+        """Expire any pulses that have exceeded their duration.
+        Returns True if any pulse expired (state changed)."""
+        changed = False
+        now = time.time()
+        for ch in range(1, self.num_channels + 1):
+            if self.pulse_start[ch] is not None:
+                elapsed = now - self.pulse_start[ch]
+                if elapsed >= self.pulse_duration:
+                    log(f"Channel {ch}: acid pulse EXPIRED after {elapsed:.1f}s")
+                    self.pulse_start[ch] = None
+                    changed = True
+        return changed
+
+    def get_experiment_name(self):
+        """Map per-channel pulse state to experiment name.
+        A = acid (pulsing), N = neutral (idle).
+        Ordering: channel1 letter first, channel2 letter second."""
+        letters = []
+        for ch in range(1, self.num_channels + 1):
+            letters.append("A" if self.pulse_start[ch] is not None else "N")
+        return "".join(letters)
+
+    def any_pulsing(self):
+        return any(v is not None for v in self.pulse_start.values())
+
+    def pulsing_channels(self):
+        return [ch for ch, v in self.pulse_start.items() if v is not None]
+
+
+def run_experiment_blocking(experiment_name, onix_controller):
+    """Run an ONIX experiment until aborted (by state change) or completion."""
     template_path = EXPERIMENT_TEMPLATES[experiment_name]
+    is_neutral = experiment_name == NEUTRAL_EXPERIMENT
+    duration = run_duration if is_neutral else run_duration  # always long; abort controls transitions
 
-    if experiment_name == NEUTRAL_EXPERIMENT:
-        duration = run_duration
-        log(f"Starting NEUTRAL experiment: {experiment_name} (runs until interrupted)")
-        _write_media_status("neutral", experiment_name, time.time(), duration)
-    else:
-        duration = ACIDIC_PULSE_SEC
-        log(f"Starting ACIDIC pulse: {experiment_name} ({duration}s)")
-        _write_media_status("acidic", experiment_name, time.time(), duration)
+    kind = "NEUTRAL" if is_neutral else "ACIDIC"
+    log(f"Starting {kind} experiment: {experiment_name} (runs until state change)")
+    _write_media_status(
+        "neutral" if is_neutral else "acidic",
+        experiment_name, time.time(), duration,
+    )
 
-    log(f"Template path: {template_path}")
-    success = onix_controller.run_experiment(template_path, experiment_name, run_duration=duration)
-
+    success = onix_controller.run_experiment(template_path, experiment_name,
+                                             run_duration=duration)
     if success:
         log(f"Completed experiment: {experiment_name}")
     else:
         log(f"Failed experiment: {experiment_name}")
-
-    # After acidic pulse completes, auto-resume neutral
-    if experiment_name != NEUTRAL_EXPERIMENT:
-        log(f"Acidic pulse done — auto-resuming neutral ({NEUTRAL_EXPERIMENT})")
-        actions_path = os.path.join(final_dir, "actions.toml")
-        lock_path = os.path.join(final_dir, "auto_neutral.lock")
-        with open(lock_path, "w") as f:
-            tomlkit.dump({"experiment": NEUTRAL_EXPERIMENT}, f)
-        os.rename(lock_path, actions_path)
-
     return success
 
+
 def watch_for_actions():
+    """Main loop: watch for per-channel threshold crossings from
+    CreateDecisions and manage independent acid pulse timers.
+
+    The combined pulse state (NN/AN/NA/AA) determines which ONIX
+    experiment is active. When the state changes — either because a new
+    channel crosses the threshold or because a pulse timer expires — the
+    current experiment is aborted and the new one is started.
     """
-    Continuously watch for actions.toml in final_dir.
-    Experiments run in a background thread so this loop stays responsive.
-    - Same experiment already running → delete actions.toml and ignore.
-    - Different experiment requested  → set abort_current flag; the running
-      thread picks it up, stops early, then this loop starts the new one.
-    - No experiment running           → start a new daemon thread.
-    """
-    log(f"Starting TOML watcher on directory: {final_dir}")
+    log(f"Starting pulse-state watcher on directory: {final_dir}")
 
     onix = OnixController(host_ip=ONIX_SERVER_IP, port=ONIX_SERVER_PORT)
     actions_path = os.path.join(final_dir, "actions.toml")
+    pulses = PulseManager(num_channels, ACIDIC_PULSE_SEC)
     experiment_thread = None
+    current_experiment = NEUTRAL_EXPERIMENT
+
+    # Start with neutral experiment
+    experiment_thread = threading.Thread(
+        target=run_experiment_blocking,
+        args=(NEUTRAL_EXPERIMENT, onix),
+        daemon=True,
+    )
+    experiment_thread.start()
 
     while True:
         try:
+            state_changed = False
+
+            # 1. Check for new threshold crossings from CreateDecisions
             if os.path.exists(actions_path):
                 try:
                     with open(actions_path, 'r') as f:
                         data = tomlkit.load(f)
-                    requested_experiment = data.get("experiment", "unknown")
+                    os.remove(actions_path)
+
+                    channels = data.get("channels", {})
+                    frame = data.get("frame", "?")
+                    for ch_str, label in channels.items():
+                        ch = int(ch_str)
+                        if pulses.handle_crossing(ch, label):
+                            state_changed = True
+                    log(f"Frame {frame}: processed crossings {dict(channels)}")
+
                 except Exception as e:
                     log(f"Error reading {actions_path}: {e}")
-                    time.sleep(sleep_time)
-                    continue
 
-                thread_running = experiment_thread is not None and experiment_thread.is_alive()
+            # 2. Check for pulse expirations
+            if pulses.check_expirations():
+                state_changed = True
 
-                if thread_running:
-                    if requested_experiment == onix.current_experiment:
-                        log(f"Experiment '{requested_experiment}' is already running. Ignoring request.")
-                        os.remove(actions_path)
-                    else:
-                        log(f"New experiment '{requested_experiment}' requested "
-                            f"(current: '{onix.current_experiment}'). Aborting current...")
+            # 3. If state changed, switch experiment
+            new_experiment = pulses.get_experiment_name()
+            if new_experiment != current_experiment:
+                state_changed = True
+
+            if state_changed:
+                target = pulses.get_experiment_name()
+                if target not in EXPERIMENT_TEMPLATES:
+                    log(f"Error: Unknown experiment '{target}' — "
+                        f"available: {list(EXPERIMENT_TEMPLATES.keys())}")
+                elif target != current_experiment:
+                    log(f"State change: {current_experiment} -> {target}")
+                    current_experiment = target
+
+                    # Abort current experiment thread
+                    thread_running = (experiment_thread is not None
+                                      and experiment_thread.is_alive())
+                    if thread_running:
                         onix.abort_current = True
-                        # Leave actions.toml in place; next iteration will start the new experiment
-                        # once the thread finishes.
-                else:
-                    if requested_experiment not in EXPERIMENT_TEMPLATES:
-                        log(f"Error: Unknown experiment '{requested_experiment}'")
-                        log(f"Available experiments: {list(EXPERIMENT_TEMPLATES.keys())}")
-                        os.remove(actions_path)
-                    else:
-                        os.remove(actions_path)
-                        experiment_thread = threading.Thread(
-                            target=process_actions_toml_direct,
-                            args=(requested_experiment, onix),
-                            daemon=True,
-                        )
-                        experiment_thread.start()
+                        experiment_thread.join(timeout=15)
 
-            else:
-                # No actions.toml and no running thread → idle
-                thread_running = experiment_thread is not None and experiment_thread.is_alive()
-                if not thread_running:
-                    try:
-                        with open(_STATUS_FILE) as _sf:
-                            _cur = _json.load(_sf).get("media")
-                    except Exception:
-                        _cur = None
-                    if _cur != "idle":
-                        _write_media_status("idle")
+                    # Update status for Napari
+                    pulsing = pulses.pulsing_channels()
+                    _write_media_status(
+                        "acidic" if pulsing else "neutral",
+                        current_experiment, time.time(), None,
+                        pulse_channels=pulsing or None,
+                    )
+
+                    # Start new experiment
+                    experiment_thread = threading.Thread(
+                        target=run_experiment_blocking,
+                        args=(current_experiment, onix),
+                        daemon=True,
+                    )
+                    experiment_thread.start()
+
+            # 4. If no experiment running (thread died), restart current state
+            thread_running = (experiment_thread is not None
+                              and experiment_thread.is_alive())
+            if not thread_running and not state_changed:
+                current_experiment = pulses.get_experiment_name()
+                experiment_thread = threading.Thread(
+                    target=run_experiment_blocking,
+                    args=(current_experiment, onix),
+                    daemon=True,
+                )
+                experiment_thread.start()
 
             time.sleep(sleep_time)
 

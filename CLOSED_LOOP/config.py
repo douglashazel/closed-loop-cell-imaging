@@ -29,7 +29,7 @@ def build_config(global_path=None, **overrides):
         "setpoint_file": f"{global_path}/setpoints.txt",
         "luminosity_file": f"{global_path}/luminosity_log.json",
         "threshold_ratio": 0.05,
-        "num_channels": 1,
+        "num_channels": 2,
         "num_tries": 30,
         "sleep_time": 0.2,
         "decision_key": {'add neutral media': 1,
@@ -38,16 +38,10 @@ def build_config(global_path=None, **overrides):
         "onix_server_ip": "192.0.2.10",
         "onix_server_port": 8881,
         "experiment_templates": {
-            "experiment1": "C:\\ONIX2\\Experiments\\neutral_27MAR26.OnixExp",
-            "experiment2": "C:\\ONIX2\\Experiments\\acid_27MAR26.OnixExp",
-        },
-        "experiment_map": {
-            "(3, 3)": "experiment1",
-            "(3, 2)": "experiment2",
-            "(2, 3)": "experiment3",
-            "(2, 2)": "experiment4",
-            "(1,)": "experiment1",
-            "(2,)": "experiment2"
+            "NN": "C:\\ONIX2\\Experiments\\NN.OnixExp",
+            "AN": "C:\\ONIX2\\Experiments\\AN.OnixExp",
+            "NA": "C:\\ONIX2\\Experiments\\NA.OnixExp",
+            "AA": "C:\\ONIX2\\Experiments\\AA.OnixExp",
         },
         "retention_time_hours": 3,
         "cleanup_interval_sec": 1800,
@@ -57,7 +51,7 @@ def build_config(global_path=None, **overrides):
         ],
         "run_duration_sec": 86400,
         "acidic_pulse_sec": 30,
-        "neutral_experiment": "experiment1",
+        "neutral_experiment": "NN",
         "continuous_segmentation": False,
     }
     config.update(overrides)
