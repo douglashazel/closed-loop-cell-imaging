@@ -240,7 +240,7 @@ class CellposeTab(QWidget):
         self.state.masks_dir = masks_dir
         self.state.save_path = os.path.join(path, "analysis")
         self.state.all_frames = sorted(
-            [f for f in os.listdir(frames_dir) if f.endswith(('.png', '.jpg'))],
+            [f for f in os.listdir(frames_dir) if f.endswith(('.png', '.jpg', '.tif', '.tiff'))],
             key=timepoint_sort_key,
         )
         self.state.all_masks = sorted(
@@ -259,7 +259,8 @@ class CellposeTab(QWidget):
         self.btn_run.setEnabled(n_frames > 0)
 
         # Load first frame into viewer
-        self._load_frame_preview()
+        if self.state.all_frames:
+            self._load_frame_preview()
 
         if self.on_experiment_loaded:
             self.on_experiment_loaded()
@@ -307,7 +308,7 @@ class CellposeTab(QWidget):
                 model = cached_model
             masks, _, _ = model.eval(
                 [img], flow_threshold=ft, cellprob_threshold=cp,
-                niter=ni, diameter=di,
+                niter=ni, diameter=di if di > 0 else None,
             )
             return model, masks[0]
 
