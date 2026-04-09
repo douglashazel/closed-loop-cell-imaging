@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Run from wherever — always works from the V4/ directory
+# Run from wherever — always works from the V5/ directory
 cd "$(dirname "$0")" || exit 1
 
 # -----------------------------

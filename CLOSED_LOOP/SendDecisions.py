@@ -295,17 +295,21 @@ num_channels       = cfg.get("num_channels", 2)
 _STATUS_FILE = os.path.join(final_dir, "media_status.json")
 
 
-def _write_media_status(media, experiment=None, start_time=None, duration=None,
-                        pulse_channels=None):
-    """Atomically write the current media state for the Napari indicator."""
+def _write_media_status(experiment, pulse_manager):
+    """Atomically write per-channel pulse state for the Napari indicator."""
+    channels_data = {}
+    for ch in range(1, pulse_manager.num_channels + 1):
+        ps = pulse_manager.pulse_start[ch]
+        channels_data[str(ch)] = {
+            "state": "acidic" if ps is not None else "neutral",
+            "pulse_start": ps,
+        }
     tmp = _STATUS_FILE + ".tmp"
     with open(tmp, "w") as f:
         _json.dump({
-            "media": media,
             "experiment": experiment,
-            "start_time": start_time,
-            "duration": duration,
-            "pulse_channels": pulse_channels,
+            "channels": channels_data,
+            "pulse_duration": pulse_manager.pulse_duration,
         }, f)
     os.rename(tmp, _STATUS_FILE)
 
@@ -371,10 +375,6 @@ def run_experiment_blocking(experiment_name, onix_controller):
 
     kind = "NEUTRAL" if is_neutral else "ACIDIC"
     log(f"Starting {kind} experiment: {experiment_name} (runs until state change)")
-    _write_media_status(
-        "neutral" if is_neutral else "acidic",
-        experiment_name, time.time(), duration,
-    )
 
     success = onix_controller.run_experiment(template_path, experiment_name,
                                              run_duration=duration)
@@ -403,6 +403,7 @@ def watch_for_actions():
     current_experiment = NEUTRAL_EXPERIMENT
 
     # Start with neutral experiment
+    _write_media_status(NEUTRAL_EXPERIMENT, pulses)
     experiment_thread = threading.Thread(
         target=run_experiment_blocking,
         args=(NEUTRAL_EXPERIMENT, onix),
@@ -458,12 +459,7 @@ def watch_for_actions():
                         experiment_thread.join(timeout=15)
 
                     # Update status for Napari
-                    pulsing = pulses.pulsing_channels()
-                    _write_media_status(
-                        "acidic" if pulsing else "neutral",
-                        current_experiment, time.time(), None,
-                        pulse_channels=pulsing or None,
-                    )
+                    _write_media_status(current_experiment, pulses)
 
                     # Start new experiment
                     experiment_thread = threading.Thread(

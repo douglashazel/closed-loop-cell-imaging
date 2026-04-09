@@ -552,16 +552,29 @@ class ClosedLoopHub:
         layout.setSpacing(8)
         layout.setContentsMargins(10, 10, 10, 10)
 
-        # --- Live media indicator ---
-        layout.addWidget(_section_label("Current Media"))
-        self._media_label = QLabel("IDLE — no experiment running")
-        self._media_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; color: #aaaaaa;"
+        # --- Live media indicator (one bar per channel) ---
+        layout.addWidget(_section_label("Channel Media Status"))
+
+        num_ch = self.cfg.get("num_channels", 2)
+        self._ch_media_labels = {}
+        _idle_style = (
+            "font-size: 13px; font-weight: bold; color: #aaaaaa;"
             "padding: 8px 10px; background-color: #2a2a2a;"
             "border: 1px solid #555; border-radius: 4px;"
         )
-        self._media_label.setWordWrap(True)
-        layout.addWidget(self._media_label)
+        for ch in range(1, num_ch + 1):
+            lbl = QLabel(f"CH{ch}: IDLE")
+            lbl.setStyleSheet(_idle_style)
+            lbl.setWordWrap(True)
+            layout.addWidget(lbl)
+            self._ch_media_labels[ch] = lbl
+
+        # Summary label showing combined ONIX experiment name (NN/AN/NA/AA)
+        self._experiment_label = QLabel("")
+        self._experiment_label.setStyleSheet(
+            "font-size: 11px; color: #777777; padding: 2px 6px;"
+        )
+        layout.addWidget(self._experiment_label)
 
         layout.addWidget(_separator())
 
@@ -671,49 +684,58 @@ class ClosedLoopHub:
             )
 
     def _update_media_status(self):
-        """Read media_status.json and update the live indicator in the Log tab."""
+        """Read media_status.json and update the per-channel indicators."""
         import json
         status_path = os.path.join(self.cfg["final_dir"], "media_status.json")
         try:
             with open(status_path, "r") as f:
                 data = json.load(f)
         except Exception:
-            return  # file missing or unreadable — leave label as-is
+            return  # file missing or unreadable — leave labels as-is
 
-        media = data.get("media", "idle")
-        start_time = data.get("start_time")
-        duration = data.get("duration")
+        channels = data.get("channels", {})
+        pulse_duration = data.get("pulse_duration", 30)
+        experiment = data.get("experiment", "")
 
-        if media == "acidic" and start_time and duration:
-            elapsed = time.time() - start_time
-            remaining = max(0, duration - elapsed)
-            mins, secs = divmod(int(remaining), 60)
-            if remaining <= 0:
-                text = "ACIDIC — pulse complete, switching back..."
-            elif mins > 0:
-                text = f"ACIDIC PULSE — {mins}m {secs}s remaining"
+        _neutral_style = (
+            "font-size: 13px; font-weight: bold; color: #a5d6a7;"
+            "padding: 8px 10px; background-color: #1b3a1b;"
+            "border: 1px solid #2e7d32; border-radius: 4px;"
+        )
+        _acidic_style = (
+            "font-size: 13px; font-weight: bold; color: #ffcdd2;"
+            "padding: 8px 10px; background-color: #4a1a1a;"
+            "border: 1px solid #c62828; border-radius: 4px;"
+        )
+        _idle_style = (
+            "font-size: 13px; font-weight: bold; color: #aaaaaa;"
+            "padding: 8px 10px; background-color: #2a2a2a;"
+            "border: 1px solid #555; border-radius: 4px;"
+        )
+
+        for ch_str, ch_data in channels.items():
+            ch = int(ch_str)
+            if ch not in self._ch_media_labels:
+                continue
+            lbl = self._ch_media_labels[ch]
+            state = ch_data.get("state", "neutral")
+            pulse_start = ch_data.get("pulse_start")
+
+            if state == "acidic" and pulse_start is not None:
+                remaining = max(0, pulse_duration - (time.time() - pulse_start))
+                secs = int(remaining)
+                if remaining <= 0:
+                    text = f"CH{ch}: ACIDIC — pulse complete, switching..."
+                else:
+                    text = f"CH{ch}: ACIDIC PULSE — {secs}s remaining"
+                lbl.setText(text)
+                lbl.setStyleSheet(_acidic_style)
             else:
-                text = f"ACIDIC PULSE — {secs}s remaining"
-            self._media_label.setText(text)
-            self._media_label.setStyleSheet(
-                "font-size: 14px; font-weight: bold; color: #ffcdd2;"
-                "padding: 8px 10px; background-color: #4a1a1a;"
-                "border: 1px solid #c62828; border-radius: 4px;"
-            )
-        elif media == "neutral":
-            self._media_label.setText("NEUTRAL — delivering neutral media")
-            self._media_label.setStyleSheet(
-                "font-size: 14px; font-weight: bold; color: #a5d6a7;"
-                "padding: 8px 10px; background-color: #1b3a1b;"
-                "border: 1px solid #2e7d32; border-radius: 4px;"
-            )
-        else:
-            self._media_label.setText("IDLE — no experiment running")
-            self._media_label.setStyleSheet(
-                "font-size: 14px; font-weight: bold; color: #aaaaaa;"
-                "padding: 8px 10px; background-color: #2a2a2a;"
-                "border: 1px solid #555; border-radius: 4px;"
-            )
+                lbl.setText(f"CH{ch}: NEUTRAL")
+                lbl.setStyleSheet(_neutral_style)
+
+        if experiment:
+            self._experiment_label.setText(f"ONIX experiment: {experiment}")
 
     # -----------------------------------------------------------------------
     # Configuration actions
