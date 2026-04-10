@@ -43,9 +43,18 @@ trap cleanup EXIT INT TERM
 # -----------------------------
 echo ">>> Launching pipeline... <<<" | tee -a "$LOGFILE"
 
-# Segmentation
-python3 -u HandleSegmentations.py 2>&1 | tee -a "$LOGFILE" &
-PID1=$!
+# Read continuous_segmentation flag from config.json
+CONTINUOUS_SEG=$(python3 -c "import json; print(json.load(open('config.json')).get('continuous_segmentation', True))")
+
+# Segmentation — skipped entirely when continuous_segmentation=False
+# (preprocess.ipynb owns frame-0 masks in that mode, so there is nothing to do)
+PID1=""
+if [[ "$CONTINUOUS_SEG" == "True" ]]; then
+    python3 -u HandleSegmentations.py 2>&1 | tee -a "$LOGFILE" &
+    PID1=$!
+else
+    echo "continuous_segmentation=False — not launching HandleSegmentations/Cellpose" | tee -a "$LOGFILE"
+fi
 
 # Decision creation
 python3 -u CreateDecisions.py 2>&1 | tee -a "$LOGFILE" &
@@ -60,4 +69,4 @@ python3 -u MonitorPerformance.py 2>&1 | tee -a "$LOGFILE" &
 PID4=$!
 
 # Wait for all monitors (runs until killed)
-wait $PID1 $PID2 $PID3 $PID4
+wait $PID1 $PID2 $PID3 $PID4 2>/dev/null

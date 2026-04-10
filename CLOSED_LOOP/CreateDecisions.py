@@ -23,8 +23,15 @@ continuous_seg  = cfg.get("continuous_segmentation", True)
 # Tracks the active mask filename per channel so we can log hot-swaps exactly once
 _active_mask_name = {}
 
+def _luminosity_path(channel):
+    """Per-channel luminosity log path.
+    luminosity_log.json -> luminosity_log_channel1.json, luminosity_log_channel2.json, ...
+    """
+    base, ext = os.path.splitext(luminosity_file)
+    return f"{base}_channel{channel}{ext}"
+
 def append_luminosity(frame, channel, mean_val, setpoint, decision_label):
-    """Append a luminosity record to the JSON log file."""
+    """Append a luminosity record to the per-channel JSON log file."""
     record = {
         "frame": frame,
         "channel": channel,
@@ -32,14 +39,14 @@ def append_luminosity(frame, channel, mean_val, setpoint, decision_label):
         "setpoint": round(float(setpoint), 4),
         "decision": decision_label,
     }
-    # Load existing data or start fresh
-    if os.path.exists(luminosity_file):
-        with open(luminosity_file, 'r') as f:
+    path = _luminosity_path(channel)
+    if os.path.exists(path):
+        with open(path, 'r') as f:
             data = json.load(f)
     else:
         data = []
     data.append(record)
-    with open(luminosity_file, 'w') as f:
+    with open(path, 'w') as f:
         json.dump(data, f)
 
 def get_latest_complete_frame():
@@ -213,27 +220,21 @@ save_setpoints(setpoint)
 log(f"Setpoint computed: {setpoint:.3f} (95% of initial brightness) — saved to {setpoint_file}")
 
 # ---- MAIN LOOP ----
-# Process every frame sequentially (log luminosity for each), but only
-# finalize a decision when this is the latest available frame.  This way
-# intermediate images captured during a pulse are observed but don't
-# trigger new actions.
-frame = 0
+# Always jump to the newest complete frame and make a decision on it.
+# Older frames are dropped — we don't need to process a backlog, only the
+# current state of the dish matters. Per-channel pulses are managed
+# independently downstream by SendDecisions' PulseManager.
+last_processed = -1
 while True:
     try:
-        process_frame(frame, initial_masks, setpoint)
         latest = get_latest_complete_frame()
-        if frame >= latest:
-            finalize_decisions(frame)
-        else:
-            log(f"Frame {frame}: skipping decision (latest frame is {latest})")
-            # Clean up decision files for this skipped frame
-            for ch in range(1, num_channels + 1):
-                dec_path = os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt")
-                try:
-                    os.remove(dec_path)
-                except FileNotFoundError:
-                    pass
-        frame += 1
+        if latest < 0 or latest == last_processed:
+            time.sleep(cfg["sleep_time"])
+            continue
+
+        process_frame(latest, initial_masks, setpoint)
+        finalize_decisions(latest)
+        last_processed = latest
     except (OSError, ValueError, EOFError, AttributeError, SyntaxError) as e:
-        log(f"Error on frame {frame}: {e}")
+        log(f"Error on frame {last_processed + 1}: {e}")
         time.sleep(cfg["sleep_time"])

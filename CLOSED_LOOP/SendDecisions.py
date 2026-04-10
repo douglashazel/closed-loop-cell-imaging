@@ -133,11 +133,27 @@ class OnixController:
         self.current_experiment = experiment_name  # NEW: set current experiment
         
         # 1. ENSURE CLEAN SLATE
+        #    The server refuses CloseExperiment while RunState == 1 (running),
+        #    so we must Abort first. A crashed prior run can leave the server
+        #    wedged in this state, and without the Abort every subsequent
+        #    CreateExperiment fails.
         try:
+            status = self._send_request("Status")
+            run_state = int(status.get("RunState", 0))
+            if run_state == 1:
+                log(f"Prior run active (RunState={run_state}). Aborting...")
+                self._send_request("Abort")
+                self._poll_for_state([-2, 30, 0], timeout=10)
+
             check_resp = self._send_request("IsExperimentOpen")
             if check_resp.get("experimentOpen", False):
                 log("Found open experiment. Closing...")
-                self._send_request("CloseExperiment", {"save": "false"})
+                close_resp = self._send_request("CloseExperiment", {"save": "false"})
+                if not close_resp.get("success"):
+                    log(f"Close refused ({close_resp}). Forcing Abort + retry...")
+                    self._send_request("Abort")
+                    self._poll_for_state([-2, 30, 0], timeout=10)
+                    self._send_request("CloseExperiment", {"save": "false"})
                 time.sleep(sleep_time)
         except Exception as e:
             log(f"Warning: Cleanup check failed: {e}")
@@ -401,6 +417,9 @@ def watch_for_actions():
     pulses = PulseManager(num_channels, ACIDIC_PULSE_SEC)
     experiment_thread = None
     current_experiment = NEUTRAL_EXPERIMENT
+    # Backoff so a failing ONIX CreateExperiment doesn't hot-loop the server
+    restart_backoff_sec = 5.0
+    next_restart_allowed = 0.0
 
     # Start with neutral experiment
     _write_media_status(NEUTRAL_EXPERIMENT, pulses)
@@ -470,16 +489,20 @@ def watch_for_actions():
                     experiment_thread.start()
 
             # 4. If no experiment running (thread died), restart current state
+            #    but back off so a persistent ONIX failure doesn't hot-loop.
             thread_running = (experiment_thread is not None
                               and experiment_thread.is_alive())
             if not thread_running and not state_changed:
-                current_experiment = pulses.get_experiment_name()
-                experiment_thread = threading.Thread(
-                    target=run_experiment_blocking,
-                    args=(current_experiment, onix),
-                    daemon=True,
-                )
-                experiment_thread.start()
+                now = time.time()
+                if now >= next_restart_allowed:
+                    current_experiment = pulses.get_experiment_name()
+                    next_restart_allowed = now + restart_backoff_sec
+                    experiment_thread = threading.Thread(
+                        target=run_experiment_blocking,
+                        args=(current_experiment, onix),
+                        daemon=True,
+                    )
+                    experiment_thread.start()
 
             time.sleep(sleep_time)
 
