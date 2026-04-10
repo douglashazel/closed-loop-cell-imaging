@@ -73,7 +73,8 @@ def wait_for_frame(frame):
         time.sleep(cfg["sleep_time"])
 
 def compute_setpoint(initial_masks):
-    setpoint_vals = []
+    """Return a per-channel dict of setpoints at 200% of initial brightness."""
+    setpoints = {}
     for ch in range(1, num_channels + 1):
         img_file = next(
             (f for f in os.listdir(watch_dir)
@@ -82,30 +83,31 @@ def compute_setpoint(initial_masks):
         if img_file is None:
             continue
         img = np.array(Image.open(os.path.join(watch_dir, img_file)), dtype=np.float32)
-        setpoint_vals.append(img[initial_masks[ch]].mean())
-    # # Scale 5% below the mean initial fluorescence as the working setpoint
-    # return np.mean(setpoint_vals) * 0.95
+        setpoints[ch] = float(img[initial_masks[ch]].mean()) * 2.0
+    return setpoints
 
-    # NEW APRIL10 EXP2
-    return np.mean(setpoint_vals) * 2.0
-
-def save_setpoints(setpoint):
+def save_setpoints(setpoints):
     with open(setpoint_file, 'w') as f:
-        f.write(f"setpoint={setpoint:.6f}\n")
+        for ch, val in setpoints.items():
+            f.write(f"setpoint_channel{ch}={val:.6f}\n")
 
-def load_setpoints(default_setpoint):
+def load_setpoints(default_setpoints):
     if not os.path.exists(setpoint_file):
-        return default_setpoint
+        return dict(default_setpoints)
+    result = dict(default_setpoints)
     try:
         with open(setpoint_file, 'r') as f:
             for line in f:
-                if line.startswith('setpoint='):
-                    return float(line.strip().split('=', 1)[1])
+                line = line.strip()
+                if line.startswith('setpoint_channel'):
+                    key, val = line.split('=', 1)
+                    ch = int(key[len('setpoint_channel'):])
+                    result[ch] = float(val)
     except Exception as e:
         log(f"Warning: failed to parse {setpoint_file}: {e}")
-    return default_setpoint
+    return result
 
-def process_frame(frame, initial_masks, default_setpoint):
+def process_frame(frame, initial_masks, default_setpoints):
     """
     Evaluate a single frame.
     - continuous_segmentation=False: uses fixed in-memory frame-0 masks (no disk reads).
@@ -113,9 +115,10 @@ def process_frame(frame, initial_masks, default_setpoint):
       pushes from preprocess.ipynb mid-experiment is picked up automatically (hot-swap).
     """
     wait_for_frame(frame)
-    setpoint = load_setpoints(default_setpoint)
+    setpoints = load_setpoints(default_setpoints)
 
     for ch in range(1, num_channels + 1):
+        setpoint = setpoints[ch]
         img_file = next(
             (f for f in os.listdir(watch_dir)
              if f.endswith('.png') and parse_filename(f) == (ch, frame)), None
@@ -217,11 +220,11 @@ initial_masks = {
     for ch in range(1, num_channels + 1)
 }
 
-setpoint = compute_setpoint(initial_masks)
+setpoints = compute_setpoint(initial_masks)
 
-save_setpoints(setpoint)
-# log(f"Setpoint computed: {setpoint:.3f} (95% of initial brightness) — saved to {setpoint_file}")
-log(f"Setpoint computed: {setpoint:.3f} (200% of initial brightness) — saved to {setpoint_file}")
+save_setpoints(setpoints)
+for ch, val in setpoints.items():
+    log(f"Setpoint channel{ch}: {val:.3f} (200% of initial brightness) — saved to {setpoint_file}")
 
 # ---- MAIN LOOP ----
 # Always jump to the newest complete frame and make a decision on it.
@@ -236,7 +239,7 @@ while True:
             time.sleep(cfg["sleep_time"])
             continue
 
-        process_frame(latest, initial_masks, setpoint)
+        process_frame(latest, initial_masks, setpoints)
         finalize_decisions(latest)
         last_processed = latest
     except (OSError, ValueError, EOFError, AttributeError, SyntaxError) as e:
