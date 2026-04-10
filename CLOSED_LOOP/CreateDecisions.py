@@ -82,8 +82,18 @@ def compute_setpoint(initial_masks):
         )
         if img_file is None:
             continue
-        img = np.array(Image.open(os.path.join(watch_dir, img_file)), dtype=np.float32)
-        setpoints[ch] = float(img[initial_masks[ch]].mean()) * 2.0
+        img_path = os.path.join(watch_dir, img_file)
+        for attempt in range(cfg["num_tries"]):
+            try:
+                img = np.array(Image.open(img_path), dtype=np.float32)
+                setpoints[ch] = float(img[initial_masks[ch]].mean()) * 2.0
+                break
+            except (OSError, ValueError, EOFError, AttributeError, SyntaxError) as e:
+                log(f"compute_setpoint retry {attempt + 1}/{cfg['num_tries']} "
+                    f"for channel {ch}: {e}")
+                time.sleep(1)
+        else:
+            log(f"compute_setpoint: failed channel {ch} after {cfg['num_tries']} retries")
     return setpoints
 
 def save_setpoints(setpoints):
