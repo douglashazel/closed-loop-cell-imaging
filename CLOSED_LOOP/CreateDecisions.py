@@ -83,8 +83,11 @@ def compute_setpoint(initial_masks):
             continue
         img = np.array(Image.open(os.path.join(watch_dir, img_file)), dtype=np.float32)
         setpoint_vals.append(img[initial_masks[ch]].mean())
-    # Scale 5% below the mean initial fluorescence as the working setpoint
-    return np.mean(setpoint_vals) * 0.95
+    # # Scale 5% below the mean initial fluorescence as the working setpoint
+    # return np.mean(setpoint_vals) * 0.95
+
+    # NEW APRIL10 EXP2
+    return np.mean(setpoint_vals) * 2.0
 
 def save_setpoints(setpoint):
     with open(setpoint_file, 'w') as f:
@@ -217,7 +220,8 @@ initial_masks = {
 setpoint = compute_setpoint(initial_masks)
 
 save_setpoints(setpoint)
-log(f"Setpoint computed: {setpoint:.3f} (95% of initial brightness) — saved to {setpoint_file}")
+# log(f"Setpoint computed: {setpoint:.3f} (95% of initial brightness) — saved to {setpoint_file}")
+log(f"Setpoint computed: {setpoint:.3f} (200% of initial brightness) — saved to {setpoint_file}")
 
 # ---- MAIN LOOP ----
 # Always jump to the newest complete frame and make a decision on it.
