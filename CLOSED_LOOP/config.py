@@ -19,7 +19,7 @@ def build_config(global_path=None, **overrides):
 
     config = {
         "global_path": global_path,
-        "watch_dir": f"{global_path}/images/nrk_acid_feedback_experiment_chCD_10APR26_take3",
+        "watch_dir": f"{global_path}/images/nrk_acid_feedback_experiment_chAB_13APR26_take5",
         "mask_dir": f"{global_path}/processed_masks",
         "temp_overlays": f"{global_path}/temp_overlays",
         "curr_mask_dir": f"{global_path}/current_masks",
