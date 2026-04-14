@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Closed-Loop Bio-Control Hub</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <h1>Closed-Loop Bio-Control Hub</h1>
+    <div id="header-status">
+      <span id="pipeline-pill" class="pill pill-idle">Pipeline: not running</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="pipeline">Pipeline</button>
+    <button class="tab-btn" data-tab="segmentation">Segmentation</button>
+    <button class="tab-btn" data-tab="log">Log</button>
+  </nav>
+
+  <main>
+    <!-- ===================== PIPELINE TAB ===================== -->
+    <section class="tab-panel active" id="tab-pipeline">
+      <h2>Pipeline Controls</h2>
+      <div id="pipeline-status" class="status-box">Pipeline: not running</div>
+
+      <div class="button-row">
+        <button id="btn-start" class="btn btn-green">START PIPELINE</button>
+        <button id="btn-stop" class="btn btn-red">STOP PIPELINE</button>
+      </div>
+
+      <hr />
+
+      <h2>Data Path</h2>
+      <div class="field">
+        <label for="cfg-global-path">Global Data Path</label>
+        <input type="text" id="cfg-global-path" />
+        <p class="hint">Root directory for the experiment. All derived paths
+          (watch_dir, mask_dir, etc.) are rebuilt from this when you save.</p>
+      </div>
+
+      <hr />
+
+      <h2>Run Configuration</h2>
+      <p class="hint">
+        These settings are written to <code>config.json</code> when you click
+        Save or Start. Restart the pipeline for changes to take effect.
+      </p>
+
+      <div class="field">
+        <label for="cfg-num-channels">Number of Channels</label>
+        <input type="number" id="cfg-num-channels" min="1" max="10" step="1" />
+        <p class="hint">How many imaging channels to process. Each channel gets
+          its own segmentation mask and independent decision.</p>
+      </div>
+
+      <div class="field checkbox">
+        <label>
+          <input type="checkbox" id="cfg-continuous-seg" />
+          Enable continuous segmentation
+        </label>
+        <p class="hint">If checked, every incoming frame is segmented (archived
+          to mask_dir). If unchecked, only frame 0 is segmented. Decisions
+          always use the initial frame-0 mask from curr_mask_dir.</p>
+      </div>
+
+      <div class="field">
+        <label for="cfg-threshold-ratio">Threshold Ratio</label>
+        <input type="number" id="cfg-threshold-ratio" min="0" max="1" step="0.001" />
+        <p class="hint">Intensity threshold for media-switching decisions.</p>
+      </div>
+
+      <div class="field">
+        <label for="cfg-num-tries">Num Tries</label>
+        <input type="number" id="cfg-num-tries" min="1" max="200" step="1" />
+        <p class="hint">Max attempts to read a newly arrived image file before
+          skipping it (handles partially-written files).</p>
+      </div>
+
+      <div class="field">
+        <label for="cfg-sleep-time">Sleep Time (sec)</label>
+        <input type="number" id="cfg-sleep-time" min="0.01" max="30" step="0.01" />
+        <p class="hint">Delay between each file-polling attempt.</p>
+      </div>
+
+      <div class="field">
+        <label for="cfg-run-duration">Run Duration (sec)</label>
+        <input type="number" id="cfg-run-duration" min="1" max="604800" step="1" />
+        <p class="hint">Duration of the neutral media run. 86400 = 24 hours.</p>
+      </div>
+
+      <div class="field">
+        <label for="cfg-acidic-pulse">Acidic Pulse Duration (sec)</label>
+        <input type="number" id="cfg-acidic-pulse" min="1" max="7200" step="1" />
+        <p class="hint">How long each acidic media pulse lasts before
+          automatically switching back to neutral.</p>
+      </div>
+
+      <h3>ONIX Connection</h3>
+      <div class="field">
+        <label for="cfg-onix-ip">ONIX Server IP</label>
+        <input type="text" id="cfg-onix-ip" />
+      </div>
+      <div class="field">
+        <label for="cfg-onix-port">ONIX Server Port</label>
+        <input type="number" id="cfg-onix-port" min="1" max="65535" step="1" />
+      </div>
+
+      <h3>File Cleanup</h3>
+      <div class="field">
+        <label for="cfg-retention-hours">Retention Time (hours)</label>
+        <input type="number" id="cfg-retention-hours" min="0" max="720" step="1" />
+      </div>
+      <div class="field">
+        <label for="cfg-cleanup-interval">Cleanup Interval (sec)</label>
+        <input type="number" id="cfg-cleanup-interval" min="60" max="86400" step="1" />
+      </div>
+
+      <div class="button-row">
+        <button id="btn-save" class="btn btn-blue">Save Configuration</button>
+      </div>
+      <div id="config-status" class="status-box"></div>
+    </section>
+
+    <!-- ===================== SEGMENTATION TAB ===================== -->
+    <section class="tab-panel" id="tab-segmentation">
+      <h2>Cellpose Segmentation</h2>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="seg-frame">Frame</label>
+          <select id="seg-frame"></select>
+        </div>
+        <div class="field">
+          <label for="seg-channel">Channel</label>
+          <input type="number" id="seg-channel" min="1" max="10" value="1" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="seg-diameter">Diameter</label>
+          <input type="number" id="seg-diameter" min="1" max="500" value="50" />
+        </div>
+        <div class="field">
+          <label for="seg-flow">Flow threshold</label>
+          <input type="number" id="seg-flow" min="0" max="100" step="0.5" value="10" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="seg-cellprob">Cellprob threshold</label>
+          <input type="number" id="seg-cellprob" min="-10" max="10" step="0.1" value="0.1" />
+        </div>
+        <div class="field">
+          <label for="seg-niter">Niter (0 = default)</label>
+          <input type="number" id="seg-niter" min="0" max="5000" value="600" />
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="btn-run-seg" class="btn btn-blue">Run Cellpose Segmentation</button>
+        <button id="btn-load-frame" class="btn btn-gray">Load Frame (Raw + Mask)</button>
+      </div>
+      <div id="seg-status" class="status-box">Ready</div>
+
+      <hr />
+
+      <h2>Mask Management</h2>
+      <p class="hint">Pushes the current mask to <code>curr_mask_dir</code>,
+        which is the signal that unblocks <code>CreateDecisions.py</code>.</p>
+      <div class="button-row">
+        <button id="btn-update-masks" class="btn btn-green">Update Masks (Start Decisions)</button>
+      </div>
+
+      <hr />
+
+      <h2>Preview</h2>
+      <div class="preview-wrap">
+        <img id="preview-raw" alt="Raw frame" />
+        <img id="preview-mask" alt="Mask overlay" />
+      </div>
+    </section>
+
+    <!-- ===================== LOG TAB ===================== -->
+    <section class="tab-panel" id="tab-log">
+      <h2>Channel Media Status</h2>
+      <div id="media-labels"></div>
+      <div id="experiment-label" class="hint"></div>
+
+      <hr />
+
+      <h2>Live Log&nbsp;&nbsp;<span class="hint">(monitoring.log)</span></h2>
+      <pre id="live-log"></pre>
+      <div class="button-row">
+        <button id="btn-clear-log" class="btn btn-gray">Clear Log Display</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
