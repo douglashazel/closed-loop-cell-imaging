@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/DOUG_nrk"
+GLOBAL_DIR="EXPERIMENTS/pc3/pc3_zolmitriptan_1"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 
@@ -13,7 +13,7 @@ ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 # -----------------------------
 F0_FRAME=1
 # STIM_FRAMES="77,112,148,183,218,322,357,390,424,458" # C2C12 DMSO
-STIM_FRAMES="0,9,18,26,35,45,56,65,74,83,141,152,164,176,189,200,215" # NRK closed-loop March27 w/ initial setpoint
+STIM_FRAMES="2" # "0,9,18,26,35,45,56,65,74,83,141,152,164,176,189,200,215" # NRK closed-loop March27 w/ initial setpoint
 
 echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------

@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/ht29/ht29_zolmitriptan_2"
+GLOBAL_DIR="EXPERIMENTS/other/pc3_dmso_pulses_perfusion_21MAR26_take3"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -15,22 +15,22 @@ SCRIPT2="SCRIPTS/trajectories.py"
 # -----------------------------
 # CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.9875
+FLOW_THRESHOLD=0.97
 CELLPROB_THRESHOLD=-6
-NITER=900
-DIAMETER=13
+NITER=4000
+DIAMETER=19
 
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=78
+MAX_DISTANCE=90
 GRACE_PERIOD=3
-RADIUS=2100
+RADIUS=2230
 RADIUS_Y=0
 RADIUS_X=0
 SHIFT_FRAME=2
-SHIFT_XY="-9 12"
-SAVE_INTERVAL=10
+SHIFT_XY="0 0"
+SAVE_INTERVAL=100
 
 # -----------------------------
 # Ensure scripts exist
