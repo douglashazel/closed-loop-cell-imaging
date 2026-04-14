@@ -280,12 +280,90 @@ function refreshPreview(frame, channel) {
   mask.src = `/api/mask/${frame}/${channel}.png?t=${t}`;
 }
 
+// ---------- Luminosity plot ----------
+$('btn-show-plot').addEventListener('click', () => {
+  const img = $('luminosity-plot');
+  img.src = `/api/luminosity-plot.png?t=${Date.now()}`;
+  img.style.display = 'block';
+});
+
+$('btn-hide-plot').addEventListener('click', () => {
+  $('luminosity-plot').style.display = 'none';
+});
+
 // ---------- Log tab clear button ----------
 $('btn-clear-log').addEventListener('click', () => {
   $('live-log').textContent = '';
 });
 
+// ---------- Setpoints editor ----------
+async function loadSetpoints() {
+  try {
+    const r = await fetch('/api/setpoints');
+    const data = await r.json();
+    if (!data.ok) {
+      $('setpoint-status').textContent = `Load failed: ${data.error || 'unknown'}`;
+      return;
+    }
+    const rows = $('setpoint-rows');
+    rows.innerHTML = '';
+    for (const c of data.channels) {
+      const row = document.createElement('div');
+      row.className = 'field';
+      const label = document.createElement('label');
+      label.setAttribute('for', `setpoint-ch-${c.channel}`);
+      label.textContent = `Channel ${c.channel}`;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.step = 'any';
+      input.id = `setpoint-ch-${c.channel}`;
+      input.dataset.channel = c.channel;
+      if (c.value != null) input.value = Number(c.value).toFixed(6);
+      else input.placeholder = 'not yet computed';
+      row.appendChild(label);
+      row.appendChild(input);
+      rows.appendChild(row);
+    }
+    $('setpoint-status').textContent = data.exists
+      ? `Loaded from ${data.path}`
+      : `No file yet at ${data.path}`;
+  } catch (e) {
+    $('setpoint-status').textContent = `Load error: ${e}`;
+  }
+}
+
+$('btn-refresh-setpoints').addEventListener('click', loadSetpoints);
+
+$('btn-save-setpoints').addEventListener('click', async () => {
+  const channels = {};
+  document.querySelectorAll('#setpoint-rows input').forEach((el) => {
+    const v = el.value.trim();
+    if (v !== '') channels[el.dataset.channel] = parseFloat(v);
+  });
+  if (Object.keys(channels).length === 0) {
+    $('setpoint-status').textContent = 'Nothing to save';
+    return;
+  }
+  try {
+    const r = await fetch('/api/setpoints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channels }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      $('setpoint-status').textContent =
+        `Saved at ${new Date().toLocaleTimeString()}`;
+    } else {
+      $('setpoint-status').textContent = `Save failed: ${data.error || 'unknown'}`;
+    }
+  } catch (e) {
+    $('setpoint-status').textContent = `Save error: ${e}`;
+  }
+});
+
 // ---------- Init ----------
 loadConfig();
+loadSetpoints();
 pollPipelineStatus();
 pollFrames();

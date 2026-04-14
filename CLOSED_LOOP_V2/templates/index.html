@@ -193,6 +193,25 @@
 
       <hr />
 
+      <h2>Setpoints&nbsp;&nbsp;<span class="hint">(setpoints.txt)</span></h2>
+      <div id="setpoint-rows"></div>
+      <div class="button-row">
+        <button id="btn-refresh-setpoints" class="btn btn-gray">Refresh</button>
+        <button id="btn-save-setpoints" class="btn btn-blue">Save Setpoints</button>
+        <span id="setpoint-status" class="hint"></span>
+      </div>
+
+      <hr />
+
+      <h2>Luminosity Plot&nbsp;&nbsp;<span class="hint">(luminosity_log_channel*.json)</span></h2>
+      <div class="button-row">
+        <button id="btn-show-plot" class="btn btn-blue">Show / Refresh Plot</button>
+        <button id="btn-hide-plot" class="btn btn-gray">Hide</button>
+      </div>
+      <img id="luminosity-plot" alt="Luminosity plot" style="display:none; max-width:100%; margin-top:8px;" />
+
+      <hr />
+
       <h2>Live Log&nbsp;&nbsp;<span class="hint">(monitoring.log)</span></h2>
       <pre id="live-log"></pre>
       <div class="button-row">

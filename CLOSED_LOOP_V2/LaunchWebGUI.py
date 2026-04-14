@@ -269,6 +269,170 @@ def api_log_tail():
         return jsonify({"text": "", "pos": pos, "exists": True, "error": str(e)})
 
 
+# ---- Setpoints ------------------------------------------------------------
+@app.route("/api/setpoints", methods=["GET"])
+def api_get_setpoints():
+    """Read setpoints.txt and return {channel: value} for each num_channels.
+
+    Missing file or missing channels return empty string so the UI can show
+    a placeholder until CreateDecisions has computed the initial values."""
+    cfg = _load_cfg()
+    setpoint_file = cfg["setpoint_file"]
+    num_channels = int(cfg.get("num_channels", 2))
+    values = {}
+    if os.path.isfile(setpoint_file):
+        try:
+            with open(setpoint_file, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("setpoint_channel") and "=" in line:
+                        key, val = line.split("=", 1)
+                        ch = int(key[len("setpoint_channel"):])
+                        values[ch] = float(val)
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+    channels = [{"channel": ch, "value": values.get(ch)}
+                for ch in range(1, num_channels + 1)]
+    return jsonify({"ok": True, "channels": channels,
+                    "path": setpoint_file, "exists": os.path.isfile(setpoint_file)})
+
+
+@app.route("/api/setpoints", methods=["POST"])
+def api_set_setpoints():
+    """Update setpoints.txt from posted {channel: value} map.
+
+    Merges with any existing values so partial updates don't wipe channels
+    the user didn't touch. CreateDecisions.load_setpoints() re-reads the file
+    on every frame, so changes take effect on the next decision."""
+    body = request.get_json(force=True) or {}
+    updates_in = body.get("channels") or {}
+    try:
+        updates = {int(k): float(v) for k, v in updates_in.items()
+                   if v is not None and str(v).strip() != ""}
+    except (TypeError, ValueError) as e:
+        return jsonify({"ok": False, "error": f"invalid value: {e}"}), 400
+
+    cfg = _load_cfg()
+    setpoint_file = cfg["setpoint_file"]
+
+    current = {}
+    if os.path.isfile(setpoint_file):
+        try:
+            with open(setpoint_file, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("setpoint_channel") and "=" in line:
+                        key, val = line.split("=", 1)
+                        current[int(key[len("setpoint_channel"):])] = float(val)
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"read failed: {e}"}), 500
+
+    current.update(updates)
+    os.makedirs(os.path.dirname(setpoint_file), exist_ok=True)
+    try:
+        with open(setpoint_file, "w") as f:
+            for ch in sorted(current):
+                f.write(f"setpoint_channel{ch}={current[ch]:.6f}\n")
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"write failed: {e}"}), 500
+
+    log("Setpoints updated via web GUI: "
+        + ", ".join(f"ch{ch}={current[ch]:.3f}" for ch in sorted(updates)))
+    return jsonify({"ok": True, "channels": current})
+
+
+# ---- Luminosity plot ------------------------------------------------------
+_CHANNEL_COLORS = {1: "steelblue", 2: "seagreen"}
+_PLOT_PARAMS = {
+    "dpi": 150,
+    "title_fontsize": 14,
+    "title_fontweight": "bold",
+    "setpoint_color": "gray",
+    "acid_color": "tomato",
+}
+
+
+@app.route("/api/luminosity-plot.png", methods=["GET"])
+def api_luminosity_plot():
+    """Render mean-luminosity-vs-frame plot across all per-channel JSON logs.
+
+    Mirrors the notebook snippet: one subplot per channel, dashed setpoint
+    line, dotted vertical lines marking 'add acidic media' frames."""
+    cfg = _load_cfg()
+    base, ext = os.path.splitext(cfg["luminosity_file"])
+    pattern = re.compile(r"^" + re.escape(os.path.basename(base))
+                         + r"_channel(\d+)" + re.escape(ext) + r"$")
+    log_dir = os.path.dirname(base)
+
+    by_channel = {}
+    if os.path.isdir(log_dir):
+        for fname in sorted(os.listdir(log_dir)):
+            m = pattern.match(fname)
+            if not m:
+                continue
+            try:
+                with open(os.path.join(log_dir, fname)) as f:
+                    by_channel[int(m.group(1))] = json.load(f)
+            except Exception as e:
+                log(f"luminosity plot: failed to read {fname}: {e}")
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    channels = sorted(by_channel.keys())
+    if not channels:
+        fig, ax = plt.subplots(figsize=(8, 3), dpi=_PLOT_PARAMS["dpi"])
+        ax.text(0.5, 0.5, "No luminosity logs found yet",
+                ha="center", va="center", transform=ax.transAxes)
+        ax.set_axis_off()
+    else:
+        fig, axes = plt.subplots(len(channels), 1, dpi=_PLOT_PARAMS["dpi"],
+                                 figsize=(8, 3 * len(channels)), sharex=True)
+        if len(channels) == 1:
+            axes = [axes]
+        for ax, ch in zip(axes, channels):
+            records = by_channel[ch]
+            if not records:
+                ax.text(0.5, 0.5, f"Channel {ch}: empty log",
+                        ha="center", va="center", transform=ax.transAxes)
+                ax.set_axis_off()
+                continue
+            frames = [d["frame"] for d in records]
+            luminosity = [d["mean_luminosity"] for d in records]
+            setpoint = records[-1]["setpoint"]
+            acid_frames = [d["frame"] for d in records
+                           if d.get("decision") == "add acidic media"]
+
+            ax.plot(frames, luminosity,
+                    color=_CHANNEL_COLORS.get(ch, "black"),
+                    linewidth=1.5, label=f"Channel {ch} Mean Luminosity")
+            ax.axhline(setpoint, color=_PLOT_PARAMS["setpoint_color"],
+                       linewidth=1, linestyle="--",
+                       label=f"Setpoint ({setpoint})")
+            for i, f in enumerate(acid_frames):
+                ax.axvline(f, color=_PLOT_PARAMS["acid_color"],
+                           linewidth=0.8, linestyle=":",
+                           label="Acidic Pulse" if i == 0 else None)
+            ax.set_title(f"Channel {ch}",
+                         fontsize=_PLOT_PARAMS["title_fontsize"] - 4,
+                         fontweight=_PLOT_PARAMS["title_fontweight"])
+            ax.set_ylabel("Mean Luminosity")
+            ax.spines[["top", "right"]].set_visible(False)
+            ax.legend(loc="lower left", fontsize=8)
+        axes[-1].set_xlabel("Frame")
+        fig.suptitle("Mean Luminosity Over Frames",
+                     fontsize=_PLOT_PARAMS["title_fontsize"],
+                     fontweight=_PLOT_PARAMS["title_fontweight"])
+        fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
+
+
 # ---- Media status ---------------------------------------------------------
 @app.route("/api/media-status", methods=["GET"])
 def api_media_status():
