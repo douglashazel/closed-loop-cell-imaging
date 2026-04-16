@@ -25,7 +25,11 @@ def parse_filename(fname):
         return None, None
     return int(m.group(1)), int(m.group(2))
 
-def wait_for_file(path, sleep_time=2):
-    """Block until path exists on disk."""
+def wait_for_file(path, sleep_time=2, reminder_interval=60):
+    """Block until path exists on disk, logging a reminder periodically."""
+    waited = 0
     while not os.path.exists(path):
         time.sleep(sleep_time)
+        waited += sleep_time
+        if waited % reminder_interval < sleep_time:
+            log(f"Still waiting for {os.path.basename(path)} ({waited:.0f}s elapsed)")

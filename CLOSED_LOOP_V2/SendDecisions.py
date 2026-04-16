@@ -30,10 +30,19 @@ class OnixController:
     def __init__(self, host_ip, port):
         self.base_url = f"http://{host_ip}:{port}/onixserver"
         self.session = requests.Session()
-        self.abort_current = False  # NEW: flag to abort current experiment
-        self.current_experiment = None  # NEW: track current experiment name
+        self._abort_event = threading.Event()
+        self.current_experiment = None  # track current experiment name
         log(f"Connecting to ONIX2 Server at: {self.base_url}")
+        self._check_connectivity()
         self.init_logging()
+
+    def _check_connectivity(self):
+        """Quick health check — log a clear warning if the ONIX server is unreachable."""
+        try:
+            status = self.session.get(f"{self.base_url}/Status", timeout=5).json()
+            log(f"ONIX server reachable (RunState={status.get('RunState', '?')})")
+        except Exception as e:
+            log(f"WARNING: ONIX server unreachable at {self.base_url} — {e}")
 
     def init_logging(self):
         """Creates a CSV file to track hardware flags over time."""
@@ -129,8 +138,8 @@ class OnixController:
         """
         log(f"Starting experiment: {template_path}")
         self.log_telemetry(f"Start_{os.path.basename(template_path)}")
-        self.abort_current = False        # clear any stale abort flag from previous experiment
-        self.current_experiment = experiment_name  # NEW: set current experiment
+        self._abort_event.clear()
+        self.current_experiment = experiment_name
         
         # 1. ENSURE CLEAN SLATE
         #    The server refuses CloseExperiment while RunState == 1 (running),
@@ -275,10 +284,9 @@ class OnixController:
                 log("Alert: Run stopped unexpectedly!")
                 break
             
-            # NEW: Check if we should abort for new experiment
-            if self.abort_current:
+            if self._abort_event.is_set():
                 log("Aborting current experiment due to new experiment request...")
-                self.abort_current = False
+                self._abort_event.clear()
                 break
 
         # 7. ABORT
@@ -474,7 +482,7 @@ def watch_for_actions():
                     thread_running = (experiment_thread is not None
                                       and experiment_thread.is_alive())
                     if thread_running:
-                        onix.abort_current = True
+                        onix._abort_event.set()
                         experiment_thread.join(timeout=15)
 
                     # Update status for Napari

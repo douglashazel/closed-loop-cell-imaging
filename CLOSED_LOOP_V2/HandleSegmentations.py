@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -70,7 +71,6 @@ while True:
                 np.save(os.path.join(mask_dir, save_base + ".npy"), masks)
                 
                 # Write ROI metadata for MonitorPerformance.py
-                import json
                 num_cells = len(np.unique(masks)) - 1
                 with open(os.path.join(mask_dir, save_base + "_meta.json"), "w") as f:
                     json.dump({"roi_count": int(num_cells)}, f)

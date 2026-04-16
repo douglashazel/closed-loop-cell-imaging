@@ -98,31 +98,34 @@ while True:
             if frame is None or channel is None or channel < 1 or channel > num_channels:
                 continue
 
-            if last_frame[channel] is None or frame > last_frame[channel]:
-                filepath = os.path.join(mask_dir, f)
-                current_count = count_rois(filepath)
+            # Skip files for frames we've already processed
+            if last_frame[channel] is not None and frame <= last_frame[channel]:
+                continue
 
-                if last_count[channel] is not None:
-                    prev_count = last_count[channel]
-                    diff = current_count - prev_count
-                    if diff != 0:
-                        sign = '+' if diff > 0 else ''
-                        msg = f"channel {channel} {'gained' if diff > 0 else 'lost'} {sign}{diff} ROI's on frame {frame}"
-                        log(msg)
+            filepath = os.path.join(mask_dir, f)
+            current_count = count_rois(filepath)
 
-                        # Check for significant change (5% of previous count)
-                        if prev_count > 0 and abs(diff) / prev_count >= threshold_ratio:
-                            flag_msg = (
-                                f"Frame: {frame}\n"
-                                f"Channel: {channel}\n"
-                                f"Previous: {prev_count} cells\n"
-                                f"Current: {current_count} cells\n"
-                                f"Change: {sign}{diff} cells\n"
-                            )
-                            create_flag_file(frame, channel, flag_msg)
+            if last_count[channel] is not None:
+                prev_count = last_count[channel]
+                diff = current_count - prev_count
+                if diff != 0:
+                    sign = '+' if diff > 0 else ''
+                    msg = f"channel {channel} {'gained' if diff > 0 else 'lost'} {sign}{diff} ROI's on frame {frame}"
+                    log(msg)
 
-                last_frame[channel] = frame
-                last_count[channel] = current_count
+                    # Check for significant change (5% of previous count)
+                    if prev_count > 0 and abs(diff) / prev_count >= threshold_ratio:
+                        flag_msg = (
+                            f"Frame: {frame}\n"
+                            f"Channel: {channel}\n"
+                            f"Previous: {prev_count} cells\n"
+                            f"Current: {current_count} cells\n"
+                            f"Change: {sign}{diff} cells\n"
+                        )
+                        create_flag_file(frame, channel, flag_msg)
+
+            last_frame[channel] = frame
+            last_count[channel] = current_count
 
         retries = 0  # reset retries if successful
         time.sleep(cfg["sleep_time"])

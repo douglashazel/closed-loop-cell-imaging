@@ -330,9 +330,11 @@ def api_set_setpoints():
     current.update(updates)
     os.makedirs(os.path.dirname(setpoint_file), exist_ok=True)
     try:
-        with open(setpoint_file, "w") as f:
+        tmp = setpoint_file + ".tmp"
+        with open(tmp, "w") as f:
             for ch in sorted(current):
                 f.write(f"setpoint_channel{ch}={current[ch]:.6f}\n")
+        os.rename(tmp, setpoint_file)
     except Exception as e:
         return jsonify({"ok": False, "error": f"write failed: {e}"}), 500
 
@@ -486,16 +488,32 @@ def api_segmentation_run():
     return jsonify({"ok": True, "started": True})
 
 
+_cached_cellpose_model = None
+_cellpose_model_lock = threading.Lock()
+
+
+def _get_cellpose_model():
+    """Return a cached Cellpose model, loading it once on first use."""
+    global _cached_cellpose_model
+    with _cellpose_model_lock:
+        if _cached_cellpose_model is None:
+            os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+            from cellpose import models
+            log("Loading Cellpose model (first use)...")
+            _cached_cellpose_model = models.CellposeModel(gpu=True)
+            log("Cellpose model ready.")
+        return _cached_cellpose_model
+
+
 def _segmentation_worker(img_path, channel, frame, mask_dir, temp_overlays,
                          diameter, flow_threshold, cellprob_threshold, niter):
     """Cellpose worker — lifted from LaunchNapari._segmentation_worker."""
     global seg_status
     try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        from cellpose import models, io as cpio, utils
+        from cellpose import io as cpio, utils
         from scipy.ndimage import binary_dilation
 
-        model = models.CellposeModel(gpu=True)
+        model = _get_cellpose_model()
         img = cpio.imread(img_path)
 
         eval_kwargs = {"diameter": diameter}

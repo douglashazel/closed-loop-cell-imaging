@@ -46,8 +46,10 @@ def append_luminosity(frame, channel, mean_val, setpoint, decision_label):
     else:
         data = []
     data.append(record)
-    with open(path, 'w') as f:
+    tmp = path + ".tmp"
+    with open(tmp, 'w') as f:
         json.dump(data, f)
+    os.rename(tmp, path)
 
 def get_latest_complete_frame():
     """Return the highest frame number that has all channels present, or -1."""
@@ -97,9 +99,11 @@ def compute_setpoint(initial_masks):
     return setpoints
 
 def save_setpoints(setpoints):
-    with open(setpoint_file, 'w') as f:
+    tmp = setpoint_file + ".tmp"
+    with open(tmp, 'w') as f:
         for ch, val in setpoints.items():
             f.write(f"setpoint_channel{ch}={val:.6f}\n")
+    os.rename(tmp, setpoint_file)
 
 def load_setpoints(default_setpoints):
     if not os.path.exists(setpoint_file):
@@ -222,8 +226,12 @@ log("Waiting for user to push approved frame-0 masks via preprocess.ipynb...")
 
 for ch in range(1, num_channels + 1):
     mask_path = os.path.join(curr_mask_dir, f"00000_channel{ch}.npy")
+    waited = 0
     while not os.path.exists(mask_path):
         time.sleep(cfg["sleep_time"])
+        waited += cfg["sleep_time"]
+        if waited % 60 < cfg["sleep_time"]:
+            log(f"Still waiting for channel {ch} mask at {mask_path} ({waited:.0f}s elapsed)")
 
 initial_masks = {
     ch: np.load(os.path.join(curr_mask_dir, f"00000_channel{ch}.npy")) > 0

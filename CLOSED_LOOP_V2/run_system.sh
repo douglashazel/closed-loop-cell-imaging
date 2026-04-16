@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Run from wherever — always works from the V5/ directory
+# Run from wherever — always works from the V6/ directory
 cd "$(dirname "$0")" || exit 1
 
 # -----------------------------
@@ -49,7 +49,7 @@ CONTINUOUS_SEG=$(python3 -c "import json; print(json.load(open('config.json')).g
 # Segmentation — skipped entirely when continuous_segmentation=False
 # (preprocess.ipynb owns frame-0 masks in that mode, so there is nothing to do)
 PID1=""
-if [[ "$CONTINUOUS_SEG" == "True" ]]; then
+if [[ "${CONTINUOUS_SEG,,}" == "true" ]]; then
     python3 -u HandleSegmentations.py 2>&1 | tee -a "$LOGFILE" &
     PID1=$!
 else
