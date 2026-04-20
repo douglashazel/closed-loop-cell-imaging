@@ -73,7 +73,10 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     )
 
     if os.path.exists(center_file):
-        return np.load(center_file, allow_pickle=True)
+        try:
+            return np.load(center_file, allow_pickle=True)
+        except (EOFError, ValueError, OSError):
+            os.remove(center_file)
 
     seg = load_segmentation(seg_path)
     num_masks = np.max(seg)
@@ -86,11 +89,22 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
 
     frame_centers = [c for partial in results for c in partial if c is not None]
     os.makedirs(center_save_path, exist_ok=True)
+    try:
+        arr = np.asarray(frame_centers, dtype=np.int64).reshape(-1, 2)
+    except Exception as e:
+        weird = [(i, type(c).__name__, c) for i, c in enumerate(frame_centers)
+                if not (isinstance(c, tuple) and len(c) == 2
+                        and all(isinstance(v, (int, np.integer)) for v in c))]
+        print(f"\n[centers FAIL] {seg_path}")
+        print(f"  error: {e}")
+        print(f"  n={len(frame_centers)}  weird entries (first 5): {weird[:5]}")
+        raise
     np.save(
         os.path.join(center_save_path, os.path.basename(seg_path).replace('.npy', '_centers.npy')),
-        frame_centers
+        arr
     )
     return frame_centers
+
 
 # ---------------- in-memory trajectory tracking ---------------- #
 def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_period=3, max_distance=40.0):

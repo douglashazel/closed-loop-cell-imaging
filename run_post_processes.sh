@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/pc3/pc3_zolmitriptan_1"
+GLOBAL_DIR="EXPERIMENTS/u87/u87_zolmitriptan_2"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 ANALYSIS_DIR="${GLOBAL_DIR}/analysis"
 
