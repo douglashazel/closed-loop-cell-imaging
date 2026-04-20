@@ -281,7 +281,8 @@ lum_json_path  = os.path.join(save_path, "luminosity.json")
 traj_dict = load_json(traj_json_path)
 lum_dict  = load_json(lum_json_path)
 
-processed_frames = set()
+processed_frames = {int(k[1:]) for coords in traj_dict.values()
+                    for k in coords if k.startswith('x') and k[1:].isdigit()}
 exit_loop = False
 start_time = time.time()
 frames_since_save = 0
