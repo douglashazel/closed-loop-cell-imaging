@@ -10,7 +10,7 @@ const $ = (id) => document.getElementById(id);
 // falls back to localStorage when running under Flask.
 // -----------------------------------------------------------------------------
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "theme": "light",
+  "theme": "dark",
   "layout": "split",
   "accent": "teal"
 }/*EDITMODE-END*/;
@@ -188,6 +188,9 @@ const CONFIG_FIELDS = [
 
 let numChannels = 2;      // updated from config
 let pulseDuration = 30;   // updated from config
+let thresholdRatio = null; // updated from config
+let runStartMs = null;    // when we first saw pipeline running (client clock)
+let lastRunningPid = null;
 
 async function loadConfig() {
   try {
@@ -200,9 +203,26 @@ async function loadConfig() {
     }
     numChannels = Number(cfg.num_channels) || 2;
     pulseDuration = Number(cfg.acidic_pulse_sec) || 30;
+    thresholdRatio = cfg.threshold_ratio != null ? Number(cfg.threshold_ratio) : null;
     ensureChannelsState();
+    updateLumiMeta();
   } catch (e) {
     flashStatus($('save-status'), `Config load failed: ${e}`);
+  }
+}
+
+function updateLumiMeta() {
+  for (const ch of [1, 2]) {
+    const spIn = document.getElementById(`sp-ch-${ch}`);
+    const spEl = document.getElementById(`lumi-sp-${ch}`);
+    const thrEl = document.getElementById(`lumi-thr-${ch}`);
+    if (spEl) {
+      const v = spIn ? parseFloat(spIn.value) : NaN;
+      spEl.textContent = Number.isFinite(v) ? v.toFixed(6) : '—';
+    }
+    if (thrEl) {
+      thrEl.textContent = thresholdRatio != null ? thresholdRatio : '—';
+    }
   }
 }
 
@@ -255,17 +275,51 @@ async function pollPipelineStatus() {
     const r = await fetch('/api/pipeline/status');
     const s = await r.json();
     if (s.running) {
+      if (lastRunningPid !== s.pid) {
+        runStartMs = Date.now();
+        lastRunningPid = s.pid;
+      }
       setPipelineUi('running');
       topPillText.textContent = `Running · pid ${s.pid}`;
-    } else if (s.exit_code != null) {
-      setPipelineUi('stopped');
-      topPillText.textContent = `Exited · code ${s.exit_code}`;
     } else {
-      setPipelineUi('stopped');
-      topPillText.textContent = 'Not running';
+      runStartMs = null;
+      lastRunningPid = null;
+      if (s.exit_code != null) {
+        setPipelineUi('stopped');
+        topPillText.textContent = `Exited · code ${s.exit_code}`;
+      } else {
+        setPipelineUi('stopped');
+        topPillText.textContent = 'Not running';
+      }
     }
+    updateUptime();
   } catch (e) { /* network blip */ }
 }
+
+function fmtDurationHMS(totalSec) {
+  totalSec = Math.max(0, Math.floor(totalSec));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function updateUptime() {
+  const statEl = $('stat-uptime');
+  const railEl = $('rail-uptime');
+  if (runStartMs == null) {
+    if (statEl) statEl.textContent = '—';
+    if (railEl) railEl.textContent = '—';
+    return;
+  }
+  const sec = (Date.now() - runStartMs) / 1000;
+  if (statEl) statEl.textContent = fmtDurationHMS(sec);
+  if (railEl) {
+    const m = Math.floor(sec / 60);
+    railEl.textContent = `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+  }
+}
+setInterval(updateUptime, 1000);
 
 // -----------------------------------------------------------------------------
 // Live log tail (incremental)
@@ -351,7 +405,7 @@ function ensureChannelsState() {
   const existing = new Map(channelsState.map(c => [c.id, c]));
   channelsState = [];
   for (let i = 1; i <= numChannels; i++) {
-    channelsState.push(existing.get(i) || { id: i, state: 'neutral', pulseStart: null });
+    channelsState.push(existing.get(i) || { id: i, state: 'unknown', pulseStart: null });
   }
   renderChannels();
 }
@@ -361,27 +415,59 @@ async function pollMediaStatus() {
     const r = await fetch('/api/media-status');
     const data = await r.json();
     const channels = data.channels || {};
+    const hasAny = Object.keys(channels).length > 0;
     pulseDuration = data.pulse_duration || pulseDuration;
     const serverTime = data._server_time || (Date.now() / 1000);
     const skew = serverTime - (Date.now() / 1000);
     for (const ch of channelsState) {
       const chData = channels[String(ch.id)];
       if (!chData) {
-        ch.state = 'neutral'; ch.pulseStart = null;
+        ch.state = 'unknown'; ch.pulseStart = null;
         continue;
       }
       ch.state = chData.state || 'neutral';
-      // Convert pulse_start (server wall-clock) to local wall-clock
       ch.pulseStart = chData.pulse_start != null
         ? chData.pulse_start - skew
         : null;
     }
-    if (data.experiment) {
-      const el = $('rail-exp');
-      if (el) el.textContent = `exp ${data.experiment}`;
-    }
+    const exp = (hasAny && data.experiment) ? data.experiment : '';
+    updateExperimentUi(exp);
+    updateMediaStageMeta();
     renderChannels();
   } catch (e) { /* silent */ }
+}
+
+function updateExperimentUi(exp) {
+  const railExp = $('rail-exp');
+  if (railExp) railExp.textContent = exp ? `exp ${exp}` : '—';
+  const expLabel = $('exp-label');
+  if (expLabel) expLabel.innerHTML = exp
+    ? `experiment · <b style="color:var(--text-dim)">${exp}</b>` : '—';
+  const mOnix = $('m-onix');
+  if (mOnix) mOnix.textContent = exp || '—';
+  const list = $('exp-list');
+  if (list) list.querySelectorAll('.exp-row').forEach(row => {
+    row.classList.toggle('active', !!exp && row.dataset.exp === exp);
+  });
+}
+
+function updateMediaStageMeta() {
+  const el = $('m-media');
+  if (!el) return;
+  const acidic = channelsState.filter(c => c.state === 'acidic');
+  if (acidic.length === 0) {
+    const anyReal = channelsState.some(c => c.state === 'neutral' || c.state === 'acidic');
+    el.textContent = anyReal ? 'all neutral' : '—';
+    return;
+  }
+  const parts = acidic.map(c => {
+    if (c.pulseStart != null) {
+      const remaining = Math.max(0, pulseDuration - ((Date.now()/1000) - c.pulseStart));
+      return `CH${c.id} · acidic ${Math.ceil(remaining)}s`;
+    }
+    return `CH${c.id} · acidic`;
+  });
+  el.textContent = parts.join(' · ');
 }
 
 function renderChannels() {
@@ -398,16 +484,18 @@ function renderChannels() {
 function renderChannelCard(ch) {
   const card = document.createElement('div');
   card.className = `channel-card ${ch.state}`;
-  let ringPct = 1, primary = 'Neutral', secondary = 'flowing';
-  if (ch.state === 'acidic' && ch.pulseStart != null) {
+  let ringPct = 0, primary = '—', secondary = 'no data', footLabel = '—';
+  if (ch.state === 'neutral') {
+    ringPct = 1; primary = 'Neutral'; secondary = 'flowing'; footLabel = 'Neutral';
+  } else if (ch.state === 'acidic' && ch.pulseStart != null) {
     const elapsed = (Date.now() / 1000) - ch.pulseStart;
     const remaining = Math.max(0, pulseDuration - elapsed);
     ringPct = Math.min(1, elapsed / pulseDuration);
     primary = Math.ceil(remaining) + 's';
     secondary = `pulse · ${Math.ceil(elapsed)}/${pulseDuration}s`;
+    footLabel = 'Acidic';
   } else if (ch.state === 'acidic') {
-    primary = 'Acidic';
-    secondary = 'pulse · (unknown start)';
+    ringPct = 0; primary = 'Acidic'; secondary = 'pulse · (unknown start)'; footLabel = 'Acidic';
   }
   const r = 28, c = 2 * Math.PI * r;
   const dashoffset = c * (1 - ringPct);
@@ -427,7 +515,7 @@ function renderChannelCard(ch) {
     </div>
     <div class="channel-foot">
       <div class="channel-name">CH${ch.id}</div>
-      <div class="channel-state">${ch.state === 'acidic' ? 'Acidic' : 'Neutral'}</div>
+      <div class="channel-state">${footLabel}</div>
     </div>
   `;
   return card;
@@ -574,6 +662,7 @@ async function loadSetpoints() {
     }
     flashStatus($('setpoint-status'),
       data.exists ? `Loaded · ${new Date().toLocaleTimeString()}` : `No file yet`);
+    updateLumiMeta();
   } catch (e) {
     flashStatus($('setpoint-status'), `Load error: ${e}`);
   }
@@ -609,26 +698,49 @@ $('btn-save-setpoints').addEventListener('click', async () => {
 // Segmentation tab
 // -----------------------------------------------------------------------------
 async function pollFrames() {
-  // Only when the tab is visible
-  if (!$('panel-segmentation').classList.contains('active')) return;
   try {
     const r = await fetch('/api/frames');
     const data = await r.json();
-    const sel = $('seg-frame');
-    const prev = sel.value;
-    const frames = (data.frames || []).map(f => f.frame);
-    const desired = frames.join(',');
-    if (sel.dataset.last === desired) return;
-    sel.dataset.last = desired;
-    sel.innerHTML = '';
-    for (const fr of frames) {
-      const opt = document.createElement('option');
-      opt.value = fr;
-      opt.textContent = String(fr).padStart(4, '0');
-      sel.appendChild(opt);
+    const entries = data.frames || [];
+    const frames = entries.map(f => f.frame);
+    updateFrameStats(entries);
+    if ($('panel-segmentation').classList.contains('active')) {
+      const sel = $('seg-frame');
+      const prev = sel.value;
+      const desired = frames.join(',');
+      if (sel.dataset.last !== desired) {
+        sel.dataset.last = desired;
+        sel.innerHTML = '';
+        for (const fr of frames) {
+          const opt = document.createElement('option');
+          opt.value = fr;
+          opt.textContent = String(fr).padStart(4, '0');
+          sel.appendChild(opt);
+        }
+        if (prev && frames.includes(parseInt(prev, 10))) sel.value = prev;
+      }
     }
-    if (prev && frames.includes(parseInt(prev, 10))) sel.value = prev;
   } catch (e) { /* silent */ }
+}
+
+function updateFrameStats(entries) {
+  const statFrames = $('stat-frames');
+  const railFrames = $('rail-frames');
+  const mWatch = $('m-watch');
+  if (!entries || entries.length === 0) {
+    if (statFrames) statFrames.textContent = '—';
+    if (railFrames) railFrames.textContent = '—';
+    if (mWatch) mWatch.textContent = '—';
+    return;
+  }
+  const count = entries.length;
+  const last = entries[entries.length - 1];
+  if (statFrames) statFrames.innerHTML = `${count}<small>/ run</small>`;
+  if (railFrames) railFrames.textContent = String(count);
+  if (mWatch) {
+    const chs = (last.channels || []).map(c => `CH${c}`).join('·');
+    mWatch.textContent = `${chs || 'CH?'} · frame ${String(last.frame).padStart(4, '0')}`;
+  }
 }
 
 function setSegStatus(text, kind) {
@@ -636,6 +748,23 @@ function setSegStatus(text, kind) {
   if (!el) return;
   el.textContent = text;
   el.className = 'seg-status-line' + (kind ? ' ' + kind : '');
+}
+
+function updateSegInfo(s) {
+  if (s == null) return;
+  const frame = s.frame, channel = s.channel, cells = s.num_cells;
+  const subtitle = $('seg-subtitle');
+  if (subtitle && frame != null) {
+    subtitle.textContent = cells != null
+      ? `Frame ${frame} · Channel ${channel} · ${cells} cells`
+      : `Frame ${frame} · Channel ${channel}`;
+  }
+  const mSeg = $('m-segment');
+  const railCells = $('rail-cells');
+  if (cells != null) {
+    if (mSeg) mSeg.textContent = `${cells} cells`;
+    if (railCells) railCells.textContent = String(cells);
+  }
 }
 
 $('btn-run-seg').addEventListener('click', async () => {
@@ -667,6 +796,7 @@ $('btn-run-seg').addEventListener('click', async () => {
         if (s.state === 'done') {
           clearInterval(poll);
           refreshPreview(body.frame, body.channel);
+          updateSegInfo(s);
         } else if (s.state === 'error') {
           clearInterval(poll);
         }
@@ -682,6 +812,8 @@ $('btn-load-frame').addEventListener('click', () => {
   const channel = parseInt($('seg-channel').value, 10);
   refreshPreview(frame, channel);
   setSegStatus(`Loaded ch${channel} frame ${frame}`, 'done');
+  const subtitle = $('seg-subtitle');
+  if (subtitle) subtitle.textContent = `Frame ${frame} · Channel ${channel}`;
 });
 
 $('btn-update-masks').addEventListener('click', async () => {

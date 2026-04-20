@@ -571,6 +571,10 @@
   }
   .channel-card.neutral { border-color: color-mix(in oklab, var(--green) 30%, var(--border)); }
   .channel-card.acidic { border-color: color-mix(in oklab, var(--red) 30%, var(--border)); }
+  .channel-card.unknown { border-color: var(--border); border-style: dashed; opacity: 0.75; }
+  .channel-card.unknown .ring-fg { color: var(--text-faint); }
+  .channel-card.unknown .channel-state { background: var(--bg-subtle); color: var(--text-faint); }
+  .channel-card.unknown .channel-primary { color: var(--text-faint); }
 
   .channel-body {
     display: flex; align-items: center; justify-content: center; gap: 16px;

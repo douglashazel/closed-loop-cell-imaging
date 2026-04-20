@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body data-theme="light" data-accent="teal" data-layout="split">
+<body data-theme="dark" data-accent="teal" data-layout="split">
 
 <div class="app">
   <!-- ============================== TOPBAR ============================== -->
@@ -29,9 +29,9 @@
 
     <div class="topbar-spacer"></div>
 
-    <span class="pill running" id="top-pill">
+    <span class="pill stopped" id="top-pill">
       <span class="dot"></span>
-      <span id="top-pill-text">Running · pid 48271</span>
+      <span id="top-pill-text">—</span>
     </span>
 
     <button class="icon-btn" id="btn-theme" title="Toggle theme">
@@ -79,7 +79,7 @@
               <div class="stage-label">01 · Ingest</div>
               <div class="stage-title">Watch</div>
               <div class="stage-desc">Poll <code>watch_dir</code> for new TIFFs</div>
-              <div class="stage-meta"><b id="m-watch">CH1 · frame 0487</b> · 0.2s poll</div>
+              <div class="stage-meta"><b id="m-watch">—</b></div>
             </div>
             <div class="stage" data-stage="segment">
               <div class="stage-icon">
@@ -88,7 +88,7 @@
               <div class="stage-label">02 · Segment</div>
               <div class="stage-title">Cellpose</div>
               <div class="stage-desc">Instance masks per channel</div>
-              <div class="stage-meta"><b>147 cells</b> · diam 50</div>
+              <div class="stage-meta"><b id="m-segment">—</b></div>
             </div>
             <div class="stage" data-stage="decide">
               <div class="stage-icon">
@@ -97,7 +97,7 @@
               <div class="stage-label">03 · Decide</div>
               <div class="stage-title">Luminosity Δ</div>
               <div class="stage-desc">Compare against reference mask</div>
-              <div class="stage-meta">ratio <b>0.073</b> / thr 0.05</div>
+              <div class="stage-meta"><b id="m-decide">—</b></div>
             </div>
             <div class="stage" data-stage="onix">
               <div class="stage-icon">
@@ -106,7 +106,7 @@
               <div class="stage-label">04 · Actuate</div>
               <div class="stage-title">ONIX</div>
               <div class="stage-desc">Switch experiment template</div>
-              <div class="stage-meta">exp <b>NA</b> · 192.0.2.10</div>
+              <div class="stage-meta">exp <b id="m-onix">—</b></div>
             </div>
             <div class="stage" data-stage="media">
               <div class="stage-icon">
@@ -115,7 +115,7 @@
               <div class="stage-label">05 · Effect</div>
               <div class="stage-title">Media</div>
               <div class="stage-desc">Neutral · Acidic · Basic</div>
-              <div class="stage-meta">CH2 · <b>acidic 18s</b></div>
+              <div class="stage-meta"><b id="m-media">—</b></div>
             </div>
 
             <!-- Flowing particles (purely decorative) -->
@@ -129,19 +129,19 @@
           <div class="hero-stats">
             <div class="stat">
               <div class="stat-label">Frames processed</div>
-              <div class="stat-value">487<small>/ run</small></div>
+              <div class="stat-value" id="stat-frames">—</div>
             </div>
             <div class="stat">
               <div class="stat-label">Uptime</div>
-              <div class="stat-value">02:41:07</div>
+              <div class="stat-value" id="stat-uptime">—</div>
             </div>
             <div class="stat">
               <div class="stat-label">Decisions / hr</div>
-              <div class="stat-value">181<small class="stat-trend">▲ 4%</small></div>
+              <div class="stat-value" id="stat-decisions">—</div>
             </div>
             <div class="stat">
               <div class="stat-label">Avg latency</div>
-              <div class="stat-value">284<small>ms</small></div>
+              <div class="stat-value" id="stat-latency">—</div>
             </div>
           </div>
         </div>
@@ -154,7 +154,7 @@
               <span class="chip">config.json</span>
             </h2>
             <div style="display:flex;gap:8px;align-items:center">
-              <span class="sub" id="save-status">All changes saved · 12:41</span>
+              <span class="sub" id="save-status"></span>
               <button class="btn btn-primary" id="btn-save">Save</button>
             </div>
           </div>
@@ -287,7 +287,7 @@
         <div class="card">
           <div class="card-head">
             <h2>Cellpose Segmentation <span class="chip">reference mask</span></h2>
-            <div class="sub">Frame 0 · Channel 1 · 147 cells</div>
+            <div class="sub" id="seg-subtitle">No frame loaded</div>
           </div>
 
           <div class="seg-layout" style="padding: 18px;">
@@ -298,9 +298,7 @@
                     Frame
                     <span class="help" data-tip="Which frame to load from watch_dir for reference segmentation. Decisions always use the mask pushed from frame 0.">?</span>
                   </label>
-                  <select id="seg-frame">
-                    <option>0000</option><option>0001</option><option>0002</option>
-                  </select>
+                  <select id="seg-frame"></select>
                 </div>
                 <div class="two-col">
                   <div class="field">
@@ -363,7 +361,7 @@
         <div class="card">
           <div class="card-head">
             <h2>Channel Media Status</h2>
-            <div class="sub" id="exp-label">experiment · <b style="color:var(--text-dim)">NA</b></div>
+            <div class="sub" id="exp-label">—</div>
           </div>
           <div class="card-body">
             <div class="channels" id="channels-large"></div>
@@ -416,7 +414,7 @@
             <div class="lumi-panel">
               <div class="lumi-head">
                 <span class="lumi-title"><span class="lumi-dot" style="background: var(--accent)"></span> CH1</span>
-                <span class="lumi-meta">setpoint <b>0.184726</b> · thr ±0.05</span>
+                <span class="lumi-meta">setpoint <b id="lumi-sp-1">—</b> · thr ±<span id="lumi-thr-1">—</span></span>
               </div>
               <svg viewBox="0 0 600 120" style="width:100%; height:auto; border:1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle);">
                 <g stroke="var(--border)" stroke-width="0.5">
@@ -443,7 +441,7 @@
             <div class="lumi-panel">
               <div class="lumi-head">
                 <span class="lumi-title"><span class="lumi-dot" style="background: var(--amber)"></span> CH2</span>
-                <span class="lumi-meta">setpoint <b>0.212381</b> · thr ±0.05</span>
+                <span class="lumi-meta">setpoint <b id="lumi-sp-2">—</b> · thr ±<span id="lumi-thr-2">—</span></span>
               </div>
               <svg viewBox="0 0 600 120" style="width:100%; height:auto; border:1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle);">
                 <g stroke="var(--border)" stroke-width="0.5">
@@ -522,11 +520,11 @@
             <div class="sub">ONIX · 192.0.2.10:8881</div>
           </div>
           <div class="card-body">
-            <div class="exp-list">
-              <div class="exp-row"><span class="k">NN</span><span class="v">CH1 neutral · CH2 neutral</span></div>
-              <div class="exp-row active"><span class="k">NA</span><span class="v">CH1 neutral · CH2 acidic (active)</span></div>
-              <div class="exp-row"><span class="k">AN</span><span class="v">CH1 acidic · CH2 neutral</span></div>
-              <div class="exp-row"><span class="k">AA</span><span class="v">CH1 acidic · CH2 acidic</span></div>
+            <div class="exp-list" id="exp-list">
+              <div class="exp-row" data-exp="NN"><span class="k">NN</span><span class="v">CH1 neutral · CH2 neutral</span></div>
+              <div class="exp-row" data-exp="NA"><span class="k">NA</span><span class="v">CH1 neutral · CH2 acidic</span></div>
+              <div class="exp-row" data-exp="AN"><span class="k">AN</span><span class="v">CH1 acidic · CH2 neutral</span></div>
+              <div class="exp-row" data-exp="AA"><span class="k">AA</span><span class="v">CH1 acidic · CH2 acidic</span></div>
             </div>
           </div>
         </div>
@@ -538,7 +536,7 @@
       <div class="card">
         <div class="card-head">
           <h2>Channels</h2>
-          <div class="sub"><span id="rail-exp">exp NA</span></div>
+          <div class="sub"><span id="rail-exp">—</span></div>
         </div>
         <div class="card-body">
           <div class="channels channels-stack" id="channels-small"></div>
@@ -553,19 +551,19 @@
           <div class="mini-stats">
             <div class="mini-stat">
               <div class="k">Frames</div>
-              <div class="v" id="rail-frames">487</div>
+              <div class="v" id="rail-frames">—</div>
             </div>
             <div class="mini-stat">
               <div class="k">Uptime</div>
-              <div class="v" id="rail-uptime">02:41</div>
+              <div class="v" id="rail-uptime">—</div>
             </div>
             <div class="mini-stat">
               <div class="k">Queue</div>
-              <div class="v">2</div>
+              <div class="v" id="rail-queue">—</div>
             </div>
             <div class="mini-stat">
               <div class="k">Cells</div>
-              <div class="v">147</div>
+              <div class="v" id="rail-cells">—</div>
             </div>
           </div>
           <div class="divider-label">Luminosity</div>
