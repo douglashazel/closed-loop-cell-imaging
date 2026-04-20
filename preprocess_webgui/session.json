@@ -1,0 +1,38 @@
+{
+  "global_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1",
+  "frames_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1/frames",
+  "masks_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1/masks",
+  "save_path": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1/analysis",
+  "all_frames": [
+    "channel_1_image_0_a_timepoint_00000.png",
+    "channel_1_image_0_a_timepoint_00001.png",
+    "channel_1_image_0_a_timepoint_00002.png",
+    "channel_1_image_0_a_timepoint_00003.png",
+    "channel_1_image_0_a_timepoint_00004.png"
+  ],
+  "all_masks": [
+    "channel_1_image_0_a_timepoint_00000.npy",
+    "channel_1_image_0_a_timepoint_00001.npy",
+    "channel_1_image_0_a_timepoint_00002.npy",
+    "channel_1_image_0_a_timepoint_00003.npy",
+    "channel_1_image_0_a_timepoint_00004.npy"
+  ],
+  "flow_threshold": 0.95,
+  "cellprob_threshold": -6.0,
+  "niter": 900,
+  "diameter": 18,
+  "frame_idx": 1,
+  "save_interval": 10,
+  "shift_frame_idx": 2,
+  "shift_xy": [
+    10,
+    0
+  ],
+  "max_distance": 102.0615027897465,
+  "radius": 799,
+  "y_shift": -795,
+  "x_shift": 288,
+  "grace_period": 3,
+  "f0_frame": 1,
+  "stim_frames": ""
+}

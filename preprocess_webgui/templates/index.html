@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cell Analysis — Preprocessing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="dark">
+
+<div class="app">
+  <!-- ============================== TOPBAR ============================== -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <span>Preprocess</span>
+      <small>Patrick · Cell Analysis</small>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="experiment">0 · Experiment</button>
+      <button class="tab-btn" data-tab="cellpose">1 · Cellpose</button>
+      <button class="tab-btn" data-tab="interval">2 · Save Interval</button>
+      <button class="tab-btn" data-tab="shift">3 · Frame Shift</button>
+      <button class="tab-btn" data-tab="maxdist">4 · Max Distance</button>
+      <button class="tab-btn" data-tab="roi">5 · ROI</button>
+      <button class="tab-btn" data-tab="duplicate">6 · Duplicate</button>
+      <button class="tab-btn" data-tab="run">7 · Run &amp; Monitor</button>
+    </nav>
+
+    <div class="topbar-spacer"></div>
+
+    <span class="pill stopped" id="top-pill">
+      <span class="dot"></span>
+      <span id="top-pill-text">idle</span>
+    </span>
+
+    <button class="icon-btn" id="btn-theme" title="Toggle theme">☾</button>
+  </header>
+
+  <!-- ============================== MAIN SHELL ============================== -->
+  <div class="shell">
+    <div class="main">
+
+      <!-- ============================== 0 · EXPERIMENT ============================== -->
+      <section class="panel active" id="panel-experiment">
+        <div class="card">
+          <div class="card-head">
+            <h2>Experiment</h2>
+            <div class="sub" id="exp-summary">No experiment loaded</div>
+          </div>
+          <div class="card-body">
+            <div class="field">
+              <label class="lbl">Experiment path</label>
+              <div class="row-inline">
+                <input type="text" id="exp-path" placeholder="EXPERIMENTS/hela/hela_..." />
+                <button class="btn btn-primary" id="btn-exp-load">Load</button>
+              </div>
+            </div>
+
+            <div id="exp-banner" class="banner" style="display:none"></div>
+
+            <div class="divider-label">Quick pick</div>
+            <div class="exp-grid" id="exp-list">Loading…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== 1 · CELLPOSE ============================== -->
+      <section class="panel" id="panel-cellpose">
+        <div class="card">
+          <div class="card-head">
+            <h2>Cellpose Preview</h2>
+            <div class="sub" id="cellpose-subtitle">Select a frame &amp; run</div>
+          </div>
+          <div class="card-body">
+            <div class="seg-layout">
+              <div class="seg-controls">
+                <div class="field-grid">
+                  <div class="field">
+                    <label class="lbl">Frame index
+                      <span class="help" data-tip="Which frame to segment. Use the scrubber/thumbnails below the preview.">?</span>
+                    </label>
+                    <input type="number" id="cp-frame" min="0" value="0">
+                  </div>
+                  <div class="field">
+                    <label class="lbl">flow_threshold
+                      <span class="help" data-tip="Lower = stricter. Typical 0.4–1.0.">?</span>
+                    </label>
+                    <input type="number" id="cp-flow" step="0.025" value="0.975">
+                  </div>
+                  <div class="field">
+                    <label class="lbl">cellprob_threshold
+                      <span class="help" data-tip="Lower = include lower-confidence cells.">?</span>
+                    </label>
+                    <input type="number" id="cp-cellprob" step="0.5" value="-4.0">
+                  </div>
+                  <div class="field">
+                    <label class="lbl">niter
+                      <span class="help" data-tip="More iterations = more accurate, slower.">?</span>
+                    </label>
+                    <input type="number" id="cp-niter" step="100" value="3000">
+                  </div>
+                  <div class="field">
+                    <label class="lbl">diameter
+                      <span class="help" data-tip="Approximate cell diameter in pixels. 0 = auto.">?</span>
+                    </label>
+                    <input type="number" id="cp-diam" value="26">
+                  </div>
+                </div>
+                <button class="btn btn-primary" id="btn-run-cellpose" style="width:100%;margin-top:12px">Run Cellpose</button>
+                <div id="cp-status" class="status-line"></div>
+
+                <div class="divider-label">Stats</div>
+                <div class="stats-row">
+                  <div class="mini-stat"><div class="k">Cells</div><div class="v" id="cp-cells">—</div></div>
+                  <div class="mini-stat"><div class="k">Runtime</div><div class="v" id="cp-runtime">—</div></div>
+                </div>
+                <img id="cp-histogram" class="seg-histogram" alt="" style="display:none" />
+              </div>
+
+              <div class="seg-preview-col">
+                <div class="frame-canvas" id="cp-canvas">
+                  <img id="cp-img-raw" alt="" />
+                  <img id="cp-img-mask" alt="" style="display:none" />
+                  <div class="placeholder" id="cp-placeholder">No frame loaded</div>
+                </div>
+
+                <div class="scrubber-row">
+                  <input type="range" id="cp-scrub" min="0" max="0" value="0" />
+                  <span class="scrubber-label" id="cp-scrub-label">0 / 0</span>
+                </div>
+                <div class="thumb-strip" id="cp-thumbs"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== 2 · SAVE INTERVAL ============================== -->
+      <section class="panel" id="panel-interval">
+        <div class="card">
+          <div class="card-head">
+            <h2>Save Interval</h2>
+            <div class="sub">How often trajectories.py checkpoints to disk</div>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field">
+                <label class="lbl">Auto-recommended</label>
+                <input type="text" id="si-auto" readonly />
+              </div>
+              <div class="field">
+                <label class="lbl">save_interval
+                  <span class="help" data-tip="Smaller = more checkpoints (safer if interrupted), larger = less I/O.">?</span>
+                </label>
+                <input type="number" id="si-value" min="1" step="1" value="10" />
+              </div>
+            </div>
+            <div class="hint-box" style="margin-top:14px">
+              <span id="si-hint">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== 3 · FRAME SHIFT ============================== -->
+      <section class="panel" id="panel-shift">
+        <div class="card">
+          <div class="card-head">
+            <h2>Frame Shift</h2>
+            <div class="sub">Click two landmarks, or auto-detect via phase correlation</div>
+          </div>
+          <div class="card-body">
+            <div class="shift-layout">
+              <div>
+                <div class="field">
+                  <label class="lbl">shift_frame
+                    <span class="help" data-tip="Frame index where the shift occurred. The view shows frame N-1 on the left and frame N on the right.">?</span>
+                  </label>
+                  <input type="number" id="sh-frame" min="1" value="1" />
+                </div>
+                <div class="row-inline" style="margin-top:12px">
+                  <button class="btn" id="btn-sh-load">Load frames</button>
+                  <button class="btn btn-primary" id="btn-sh-auto">Auto-detect</button>
+                  <button class="btn btn-ghost" id="btn-sh-clear">Clear points</button>
+                </div>
+                <div class="divider-label">Result</div>
+                <div class="status-line" id="sh-result">shift_xy = (0, 0)</div>
+                <p class="sub">
+                  1. Click a landmark on the LEFT frame<br>
+                  2. Click the SAME landmark on the RIGHT frame<br>
+                  3. shift_xy computed automatically
+                </p>
+              </div>
+
+              <div class="shift-canvas-wrap" id="sh-canvas-wrap">
+                <canvas id="sh-canvas" width="800" height="400"></canvas>
+                <div class="placeholder" id="sh-placeholder">No frames loaded</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== 4 · MAX DISTANCE ============================== -->
+      <section class="panel" id="panel-maxdist">
+        <div class="card">
+          <div class="card-head">
+            <h2>Max Distance (Delaunay)</h2>
+            <div class="sub">Needs segmentation from Tab 1</div>
+          </div>
+          <div class="card-body">
+            <div class="row-inline">
+              <button class="btn btn-primary" id="btn-md-compute">Sample random cell</button>
+              <button class="btn" id="btn-md-resample">Re-sample</button>
+            </div>
+            <div id="md-info" class="status-line" style="margin-top:12px"></div>
+            <div class="divider-label">Override</div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="lbl">max_distance</label>
+                <input type="number" id="md-value" step="0.1" value="30" />
+              </div>
+              <div class="field">
+                <label class="lbl">Population stats</label>
+                <input type="text" id="md-stats" readonly />
+              </div>
+            </div>
+            <canvas id="md-histogram" width="800" height="180" style="margin-top:14px;width:100%"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== 5 · CIRCLE ROI ============================== -->
+      <section class="panel" id="panel-roi">
+        <div class="card">
+          <div class="card-head">
+            <h2>Circle ROI</h2>
+            <div class="sub">Drag the circle · spinboxes stay in sync</div>
+          </div>
+          <div class="card-body">
+            <div class="seg-layout">
+              <div class="seg-controls">
+                <div class="field-grid">
+                  <div class="field">
+                    <label class="lbl">radius</label>
+                    <input type="number" id="roi-radius" min="10" value="2000" />
+                  </div>
+                  <div class="field">
+                    <label class="lbl">y_shift</label>
+                    <input type="number" id="roi-y" value="0" />
+                  </div>
+                  <div class="field">
+                    <label class="lbl">x_shift</label>
+                    <input type="number" id="roi-x" value="0" />
+                  </div>
+                </div>
+                <button class="btn btn-primary" id="btn-roi-show" style="width:100%;margin-top:12px">Refresh</button>
+                <div class="divider-label">Result</div>
+                <div class="mini-stat"><div class="k">Cells inside</div><div class="v" id="roi-count">—</div></div>
+              </div>
+
+              <div class="roi-canvas-wrap" id="roi-canvas-wrap">
+                <img id="roi-img-raw" alt="" />
+                <img id="roi-img-mask" alt="" style="display:none" />
+                <svg id="roi-svg" xmlns="http://www.w3.org/2000/svg">
+                  <circle id="roi-circle" cx="0" cy="0" r="0"
+                          fill="none" stroke="red" stroke-width="3"></circle>
+                  <circle id="roi-handle" cx="0" cy="0" r="8"
+                          fill="red" stroke="white" stroke-width="2"></circle>
+                </svg>
+                <div class="placeholder" id="roi-placeholder">No segmentation</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== 6 · DUPLICATE ============================== -->
+      <section class="panel" id="panel-duplicate">
+        <div class="card">
+          <div class="card-head">
+            <h2>Duplicate Mask / Centers</h2>
+            <div class="sub">Skips segmenting every frame — uses frame 0 for all</div>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field">
+                <label class="lbl">Mode</label>
+                <select id="dup-mode">
+                  <option value="both">both</option>
+                  <option value="masks">masks</option>
+                  <option value="centers">centers</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="lbl">Source</label>
+                <select id="dup-source">
+                  <option value="temp">Cellpose preview (Tab 1)</option>
+                  <option value="masks_dir">First file in masks_dir</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="btn-dup-run" style="width:100%;margin-top:14px">Duplicate</button>
+            <div class="progress-row" style="margin-top:12px">
+              <div class="progress-bar"><div class="progress-fill" id="dup-fill"></div></div>
+              <span id="dup-label">idle</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== 7 · RUN & MONITOR ============================== -->
+      <section class="panel" id="panel-run">
+        <div class="card">
+          <div class="card-head">
+            <h2>Summary</h2>
+            <div class="row-inline">
+              <button class="btn btn-ghost" id="btn-preview-script">Preview script</button>
+              <button class="btn" id="btn-copy-summary">Copy</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <pre class="summary" id="run-summary"></pre>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Launch Pipeline</h2>
+            <div class="sub">Runs segmentation + trajectories in parallel, then pre-analysis</div>
+          </div>
+          <div class="card-body">
+            <div class="row-inline">
+              <button class="btn btn-success btn-lg" id="btn-run-pipeline">Run run_processes.sh</button>
+              <button class="btn" id="btn-run-post">Run run_post_processes.sh</button>
+              <button class="btn btn-danger" id="btn-stop-pipeline" disabled>Stop</button>
+            </div>
+
+            <div class="field-grid" style="margin-top:14px">
+              <div class="field">
+                <label class="lbl">f0_frame (post-analysis)
+                  <span class="help" data-tip="Baseline frame for dF/F0 normalization.">?</span>
+                </label>
+                <input type="number" id="pa-f0" value="1" min="0" />
+              </div>
+              <div class="field">
+                <label class="lbl">stim_frames (comma-sep)
+                  <span class="help" data-tip="Frames where stimuli were delivered. Example: 77,112,148.">?</span>
+                </label>
+                <input type="text" id="pa-stim" placeholder="e.g. 77,112,148" />
+              </div>
+            </div>
+
+            <div class="divider-label">Progress</div>
+            <div class="stage-strip">
+              <div class="stage" data-stage="segmentation">
+                <div class="stage-title">Segmentation</div>
+                <div class="stage-bar"><div class="stage-fill" id="stage-seg"></div></div>
+                <div class="stage-meta" id="stage-seg-meta">—</div>
+              </div>
+              <div class="stage" data-stage="trajectories">
+                <div class="stage-title">Trajectories</div>
+                <div class="stage-bar"><div class="stage-fill" id="stage-traj"></div></div>
+                <div class="stage-meta" id="stage-traj-meta">—</div>
+              </div>
+              <div class="stage" data-stage="pre_analysis">
+                <div class="stage-title">Pre-Analysis</div>
+                <div class="stage-bar"><div class="stage-fill" id="stage-pre"></div></div>
+                <div class="stage-meta" id="stage-pre-meta">—</div>
+              </div>
+              <div class="stage" data-stage="post_analysis">
+                <div class="stage-title">Post-Analysis</div>
+                <div class="stage-bar"><div class="stage-fill" id="stage-post"></div></div>
+                <div class="stage-meta" id="stage-post-meta">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Live Luminosity</h2>
+            <div class="sub">Refreshes every 5s while running</div>
+          </div>
+          <div class="card-body">
+            <img id="lumi-img" style="width:100%;border-radius:6px" alt="" />
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Live Log <span class="chip">pipeline.log</span></h2>
+            <button class="btn btn-ghost" id="btn-clear-log">Clear</button>
+          </div>
+          <div class="card-body flush">
+            <pre class="log" id="live-log"></pre>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ============================== RIGHT RAIL ============================== -->
+    <aside class="rail">
+      <div class="card">
+        <div class="card-head"><h2>Session</h2></div>
+        <div class="card-body">
+          <div class="mini-stats">
+            <div class="mini-stat"><div class="k">Experiment</div><div class="v" id="rail-exp">—</div></div>
+            <div class="mini-stat"><div class="k">Frames</div><div class="v" id="rail-frames">—</div></div>
+            <div class="mini-stat"><div class="k">Masks</div><div class="v" id="rail-masks">—</div></div>
+            <div class="mini-stat"><div class="k">Cells</div><div class="v" id="rail-cells">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Parameters</h2></div>
+        <div class="card-body">
+          <pre class="rail-params" id="rail-params">—</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Pipeline</h2></div>
+        <div class="card-body">
+          <div class="mini-stats">
+            <div class="mini-stat"><div class="k">Status</div><div class="v" id="rail-status">idle</div></div>
+            <div class="mini-stat"><div class="k">Stage</div><div class="v" id="rail-stage">—</div></div>
+            <div class="mini-stat"><div class="k">Uptime</div><div class="v" id="rail-uptime">—</div></div>
+            <div class="mini-stat"><div class="k">PID</div><div class="v" id="rail-pid">—</div></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='shift_canvas.js') }}"></script>
+<script src="{{ url_for('static', filename='roi_canvas.js') }}"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
