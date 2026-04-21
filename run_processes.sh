@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26/channel 2"
+GLOBAL_DIR="EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26/channel 3"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -23,12 +23,12 @@ DIAMETER=21
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=144
+MAX_DISTANCE=190
 GRACE_PERIOD=3
-RADIUS=2000
-RADIUS_Y=0
-RADIUS_X=0
-SHIFT_FRAME=414
+RADIUS=1670
+RADIUS_Y=84
+RADIUS_X=228
+SHIFT_FRAME=527
 SHIFT_XY="0 0"
 SAVE_INTERVAL=100
 
