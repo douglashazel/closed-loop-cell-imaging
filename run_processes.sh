@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26/channel 3"
+GLOBAL_DIR="EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 2 D"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -77,37 +77,37 @@ echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
 # Run segmentation
 # -----------------------------
-echo "Starting cellpose segmentation..."
-python3 "$SCRIPT1" \
-    --image_dir "$IMAGE_DIR" \
-    --mask_dir "$MASK_DIR" \
-    --flow_threshold "$FLOW_THRESHOLD" \
-    --cellprob_threshold "$CELLPROB_THRESHOLD" \
-    --niter "$NITER" \
-    --diameter "$DIAMETER" &
-PID1=$!
+# echo "Starting cellpose segmentation..."
+# python3 "$SCRIPT1" \
+#     --image_dir "$IMAGE_DIR" \
+#     --mask_dir "$MASK_DIR" \
+#     --flow_threshold "$FLOW_THRESHOLD" \
+#     --cellprob_threshold "$CELLPROB_THRESHOLD" \
+#     --niter "$NITER" \
+#     --diameter "$DIAMETER" &
+# PID1=$!
 
-sleep 5 # small buffer
+# sleep 5 # small buffer
 
-# -----------------------------
-# Run trajectory processing
-# -----------------------------
-echo "Starting trajectory processing..."
-python3 "$SCRIPT2" \
-    --mask_dir "$MASK_DIR" \
-    --image_dir "$IMAGE_DIR" \
-    --save_path "$SAVE_PATH" \
-    --max_distance "$MAX_DISTANCE" \
-    --grace_period "$GRACE_PERIOD" \
-    --radius "$RADIUS" \
-    --radius_y "$RADIUS_Y" \
-    --radius_x "$RADIUS_X" \
-    --shift_frame "$SHIFT_FRAME" \
-    --shift_xy $SHIFT_XY \
-    --save_interval "$SAVE_INTERVAL" &
-PID2=$!
+# # -----------------------------
+# # Run trajectory processing
+# # -----------------------------
+# echo "Starting trajectory processing..."
+# python3 "$SCRIPT2" \
+#     --mask_dir "$MASK_DIR" \
+#     --image_dir "$IMAGE_DIR" \
+#     --save_path "$SAVE_PATH" \
+#     --max_distance "$MAX_DISTANCE" \
+#     --grace_period "$GRACE_PERIOD" \
+#     --radius "$RADIUS" \
+#     --radius_y "$RADIUS_Y" \
+#     --radius_x "$RADIUS_X" \
+#     --shift_frame "$SHIFT_FRAME" \
+#     --shift_xy $SHIFT_XY \
+#     --save_interval "$SAVE_INTERVAL" &
+# PID2=$!
 
-wait $PID1 $PID2
+# wait $PID1 $PID2
 
 # -----------------------------
 # Pre-analysis plots
