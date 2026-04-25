@@ -29,9 +29,9 @@ const ShiftCanvas = (() => {
     });
   }
 
-  async function loadFrames(idx) {
+  async function loadFrames(idx, expVersion = "") {
     points = [];
-    const url = `/api/frames/split?idx=${idx}&_t=${Date.now()}`;
+    const url = `/api/frames/split?idx=${idx}&e=${expVersion}`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`failed: ${resp.status}`);
     leftWidth = parseInt(resp.headers.get("X-Left-Width") || "0", 10);

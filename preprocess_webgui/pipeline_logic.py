@@ -59,18 +59,14 @@ def colorize_labels(mask: np.ndarray, alpha: int = 140) -> np.ndarray:
         return None
     mask = mask.astype(np.int32)
     h, w = mask.shape[:2]
-    out = np.zeros((h, w, 4), dtype=np.uint8)
-    ids = np.unique(mask)
-    ids = ids[ids != 0]
-    if len(ids) == 0:
-        return out
+    max_id = int(mask.max()) if mask.size else 0
+    if max_id <= 0:
+        return np.zeros((h, w, 4), dtype=np.uint8)
     rng = np.random.default_rng(42)
-    lut = rng.integers(64, 255, size=(int(ids.max()) + 1, 3), dtype=np.uint8)
-    for cid in ids:
-        sel = mask == cid
-        out[sel, 0:3] = lut[cid]
-        out[sel, 3] = alpha
-    return out
+    lut = np.zeros((max_id + 1, 4), dtype=np.uint8)
+    lut[1:, :3] = rng.integers(64, 255, size=(max_id, 3), dtype=np.uint8)
+    lut[1:, 3] = alpha
+    return lut[mask]
 
 
 def downsample_to_width(img: np.ndarray, target_w: int) -> np.ndarray:

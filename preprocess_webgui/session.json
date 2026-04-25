@@ -1,8 +1,8 @@
 {
-  "global_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1",
-  "frames_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1/frames",
-  "masks_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1/masks",
-  "save_path": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/c2c12/c2c12_zolmitriptan_1/analysis",
+  "global_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/nrk/nrk_tropisetron_1",
+  "frames_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/nrk/nrk_tropisetron_1/frames",
+  "masks_dir": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/nrk/nrk_tropisetron_1/masks",
+  "save_path": "/mnt/exDisk1/douglashazel/DHcode/Patrick_Cell_Analysis/EXPERIMENTS/nrk/nrk_tropisetron_1/analysis",
   "all_frames": [
     "channel_1_image_0_a_timepoint_00000.png",
     "channel_1_image_0_a_timepoint_00001.png",
@@ -17,22 +17,30 @@
     "channel_1_image_0_a_timepoint_00003.npy",
     "channel_1_image_0_a_timepoint_00004.npy"
   ],
-  "flow_threshold": 0.95,
-  "cellprob_threshold": -6.0,
-  "niter": 900,
-  "diameter": 18,
-  "frame_idx": 1,
-  "save_interval": 10,
+  "flow_threshold": 0.965,
+  "cellprob_threshold": -4.0,
+  "niter": 5000,
+  "diameter": 27,
+  "frame_idx": 4,
+  "save_interval": 500,
   "shift_frame_idx": 2,
   "shift_xy": [
-    10,
-    0
+    0,
+    -11
   ],
-  "max_distance": 102.0615027897465,
-  "radius": 799,
-  "y_shift": -795,
-  "x_shift": 288,
+  "max_distance": 35,
+  "roi_enabled": false,
+  "radius": 590,
+  "y_shift": -533,
+  "x_shift": 309,
   "grace_period": 3,
   "f0_frame": 1,
-  "stim_frames": ""
+  "stim_frames": "",
+  "last_preview_frame": 4,
+  "preview_mask_source": "cellpose_preview",
+  "segmentation_reviewed": true,
+  "last_roi_count": 83,
+  "last_run_mode": "full",
+  "completed_stages": [],
+  "validation_warnings": []
 }

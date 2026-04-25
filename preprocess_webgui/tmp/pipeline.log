@@ -1,0 +1,34 @@
+=== run_processes started at Sat Apr 25 12:33:14 2026 ===
+Config saved to EXPERIMENTS/nrk/nrk_tropisetron_1/analysis/config.txt
+--- Accessing EXPERIMENTS/nrk/nrk_tropisetron_1 ---
+Run mode: full
+>>> STAGE: SEGMENTATION <<<
+
+
+Welcome to CellposeSAM, cellpose v
+cellpose version: 	4.0.6 
+platform:       	linux 
+python version: 	3.12.5 
+torch version:  	2.5.1+cu124! The neural network component of
+CPSAM is much larger than in previous versions and CPU excution is slow. 
+We encourage users to use GPU/MPS if available. 
+
+
+>>> STAGE: TRAJECTORIES <<<
+Processing images...:   0%|[32m          [0m| 0/5 [00:00<?, ?image/s]Processing images...: 100%|[32m██████████[0m| 5/5 [00:00<00:00, 84562.58image/s]
+Waiting for new masks... 0 sec elapsedSegmenting Images...:   0%|          | 0/5 [00:00<?, ?it/s]Segmenting Images...:   0%|          | 0/5 [00:00<?, ?it/s]
+
+All frames processed.
+Saved: EXPERIMENTS/nrk/nrk_tropisetron_1/analysis/trajectories_firstframe.json
+Saved: EXPERIMENTS/nrk/nrk_tropisetron_1/analysis/trajectories_complete.json
+Saved: EXPERIMENTS/nrk/nrk_tropisetron_1/analysis/luminosity_complete.json
+Saved: EXPERIMENTS/nrk/nrk_tropisetron_1/analysis/trajectories_complete.csv
+Saved: EXPERIMENTS/nrk/nrk_tropisetron_1/analysis/luminosity_complete.csv
+Done.
+>>> STAGE: PRE-ANALYSIS <<<
+>>> Plotting luminosity (210 cells)
+  Saved average_luminosity.png
+>>> Plotting luminosity_complete (8 cells)
+  Saved average_luminosity_complete.png
+>>> Pre-analysis plots finished for EXPERIMENTS/nrk/nrk_tropisetron_1
+>>> DONE <<<

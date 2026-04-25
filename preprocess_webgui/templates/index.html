@@ -21,14 +21,11 @@
     </div>
 
     <nav class="tabs">
-      <button class="tab-btn active" data-tab="experiment">0 · Experiment</button>
-      <button class="tab-btn" data-tab="cellpose">1 · Cellpose</button>
-      <button class="tab-btn" data-tab="interval">2 · Save Interval</button>
-      <button class="tab-btn" data-tab="shift">3 · Frame Shift</button>
-      <button class="tab-btn" data-tab="maxdist">4 · Max Distance</button>
-      <button class="tab-btn" data-tab="roi">5 · ROI</button>
-      <button class="tab-btn" data-tab="duplicate">6 · Duplicate</button>
-      <button class="tab-btn" data-tab="run">7 · Run &amp; Monitor</button>
+      <button class="tab-btn active" data-tab="experiment">Choose Experiment</button>
+      <button class="tab-btn" data-tab="cellpose">Tune Segmentation</button>
+      <button class="tab-btn" data-tab="tracking">Set Tracking</button>
+      <button class="tab-btn" data-tab="run">Review &amp; Run</button>
+      <button class="tab-btn" data-tab="results">Results</button>
     </nav>
 
     <div class="topbar-spacer"></div>
@@ -47,6 +44,20 @@
 
       <!-- ============================== 0 · EXPERIMENT ============================== -->
       <section class="panel active" id="panel-experiment">
+        <div class="help-panel">
+          <div>
+            <div class="eyebrow">First run guide</div>
+            <h1>Load an experiment, tune one representative frame, then run the analysis.</h1>
+            <p>Expected layout: an experiment folder with <code>frames/</code>, optional <code>masks/</code>, and an <code>analysis/</code> folder that will hold outputs. Prior <code>analysis/config.txt</code> files are reused automatically.</p>
+          </div>
+          <div class="help-steps">
+            <span>1. Choose data</span>
+            <span>2. Check segmentation</span>
+            <span>3. Set tracking</span>
+            <span>4. Run pipeline</span>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-head">
             <h2>Experiment</h2>
@@ -81,31 +92,31 @@
               <div class="seg-controls">
                 <div class="field-grid">
                   <div class="field">
-                    <label class="lbl">Frame index
+                    <label class="lbl">Representative frame
                       <span class="help" data-tip="Which frame to segment. Use the scrubber/thumbnails below the preview.">?</span>
                     </label>
                     <input type="number" id="cp-frame" min="0" value="0">
                   </div>
                   <div class="field">
-                    <label class="lbl">flow_threshold
+                    <label class="lbl">Detection strictness (flow_threshold)
                       <span class="help" data-tip="Lower = stricter. Typical 0.4–1.0.">?</span>
                     </label>
                     <input type="number" id="cp-flow" step="0.025" value="0.975">
                   </div>
                   <div class="field">
-                    <label class="lbl">cellprob_threshold
+                    <label class="lbl">Cell confidence (cellprob_threshold)
                       <span class="help" data-tip="Lower = include lower-confidence cells.">?</span>
                     </label>
                     <input type="number" id="cp-cellprob" step="0.5" value="-4.0">
                   </div>
                   <div class="field">
-                    <label class="lbl">niter
+                    <label class="lbl">Refinement passes (niter)
                       <span class="help" data-tip="More iterations = more accurate, slower.">?</span>
                     </label>
                     <input type="number" id="cp-niter" step="100" value="3000">
                   </div>
                   <div class="field">
-                    <label class="lbl">diameter
+                    <label class="lbl">Cell size (diameter)
                       <span class="help" data-tip="Approximate cell diameter in pixels. 0 = auto.">?</span>
                     </label>
                     <input type="number" id="cp-diam" value="26">
@@ -114,12 +125,21 @@
                 <button class="btn btn-primary" id="btn-run-cellpose" style="width:100%;margin-top:12px">Run Cellpose</button>
                 <div id="cp-status" class="status-line"></div>
 
+                <div class="review-box" id="cp-review-box">
+                  <div class="review-title">Segmentation review</div>
+                  <div class="sub">Confirm that most cells are detected and obvious background is not selected.</div>
+                  <div class="row-inline" style="margin-top:10px">
+                    <button class="btn btn-success" id="btn-cp-approve">Looks good</button>
+                    <button class="btn" id="btn-cp-rerun">Needs tuning</button>
+                  </div>
+                  <div class="status-line" id="cp-review-status">Not reviewed yet</div>
+                </div>
+
                 <div class="divider-label">Stats</div>
                 <div class="stats-row">
                   <div class="mini-stat"><div class="k">Cells</div><div class="v" id="cp-cells">—</div></div>
                   <div class="mini-stat"><div class="k">Runtime</div><div class="v" id="cp-runtime">—</div></div>
                 </div>
-                <img id="cp-histogram" class="seg-histogram" alt="" style="display:none" />
               </div>
 
               <div class="seg-preview-col">
@@ -127,6 +147,18 @@
                   <img id="cp-img-raw" alt="" />
                   <img id="cp-img-mask" alt="" style="display:none" />
                   <div class="placeholder" id="cp-placeholder">No frame loaded</div>
+                </div>
+
+                <div class="preview-tools">
+                  <label class="lbl">Overlay opacity
+                    <input type="range" id="cp-overlay-opacity" min="0" max="100" value="55" />
+                  </label>
+                  <label class="check-label"><input type="checkbox" id="cp-outline-mode" /> Outline mode</label>
+                  <div class="row-inline">
+                    <button class="btn" id="btn-cp-zoom-out">Zoom out</button>
+                    <button class="btn" id="btn-cp-zoom-in">Zoom in</button>
+                    <button class="btn btn-ghost" id="btn-cp-zoom-reset">Reset</button>
+                  </div>
                 </div>
 
                 <div class="scrubber-row">
@@ -141,7 +173,7 @@
       </section>
 
       <!-- ============================== 2 · SAVE INTERVAL ============================== -->
-      <section class="panel" id="panel-interval">
+      <section class="panel" id="panel-interval" data-workflow="tracking">
         <div class="card">
           <div class="card-head">
             <h2>Save Interval</h2>
@@ -154,7 +186,7 @@
                 <input type="text" id="si-auto" readonly />
               </div>
               <div class="field">
-                <label class="lbl">save_interval
+                <label class="lbl">Checkpoint frequency (save_interval)
                   <span class="help" data-tip="Smaller = more checkpoints (safer if interrupted), larger = less I/O.">?</span>
                 </label>
                 <input type="number" id="si-value" min="1" step="1" value="10" />
@@ -168,24 +200,23 @@
       </section>
 
       <!-- ============================== 3 · FRAME SHIFT ============================== -->
-      <section class="panel" id="panel-shift">
+      <section class="panel" id="panel-shift" data-workflow="tracking">
         <div class="card">
           <div class="card-head">
             <h2>Frame Shift</h2>
-            <div class="sub">Click two landmarks, or auto-detect via phase correlation</div>
+            <div class="sub">Click two landmarks to compute the shift</div>
           </div>
           <div class="card-body">
             <div class="shift-layout">
               <div>
                 <div class="field">
-                  <label class="lbl">shift_frame
+                  <label class="lbl">Shift frame (shift_frame)
                     <span class="help" data-tip="Frame index where the shift occurred. The view shows frame N-1 on the left and frame N on the right.">?</span>
                   </label>
                   <input type="number" id="sh-frame" min="1" value="1" />
                 </div>
-                <div class="row-inline" style="margin-top:12px">
-                  <button class="btn" id="btn-sh-load">Load frames</button>
-                  <button class="btn btn-primary" id="btn-sh-auto">Auto-detect</button>
+                <div class="row-inline shift-actions" style="margin-top:12px">
+                  <button class="btn btn-primary" id="btn-sh-load">Load frames</button>
                   <button class="btn btn-ghost" id="btn-sh-clear">Clear points</button>
                 </div>
                 <div class="divider-label">Result</div>
@@ -207,7 +238,7 @@
       </section>
 
       <!-- ============================== 4 · MAX DISTANCE ============================== -->
-      <section class="panel" id="panel-maxdist">
+      <section class="panel" id="panel-maxdist" data-workflow="tracking">
         <div class="card">
           <div class="card-head">
             <h2>Max Distance (Delaunay)</h2>
@@ -222,44 +253,51 @@
             <div class="divider-label">Override</div>
             <div class="field-grid">
               <div class="field">
-                <label class="lbl">max_distance</label>
+                <label class="lbl">Track linking distance (max_distance)</label>
                 <input type="number" id="md-value" step="0.1" value="30" />
               </div>
               <div class="field">
-                <label class="lbl">Population stats</label>
+                <label class="lbl">Sample result</label>
                 <input type="text" id="md-stats" readonly />
               </div>
             </div>
-            <canvas id="md-histogram" width="800" height="180" style="margin-top:14px;width:100%"></canvas>
+            <div class="viz-frame">
+              <img id="md-visual" alt="Sampled cell and Delaunay neighbours" style="display:none" />
+              <div class="placeholder" id="md-placeholder">Sample a cell to see its neighbours</div>
+            </div>
           </div>
         </div>
       </section>
 
       <!-- ============================== 5 · CIRCLE ROI ============================== -->
-      <section class="panel" id="panel-roi">
+      <section class="panel" id="panel-roi" data-workflow="tracking">
         <div class="card">
           <div class="card-head">
             <h2>Circle ROI</h2>
-            <div class="sub">Drag the circle · spinboxes stay in sync</div>
+            <div class="sub">Optional — restrict tracking to a circular region</div>
           </div>
           <div class="card-body">
-            <div class="seg-layout">
+            <label class="check-label" style="margin-bottom:10px">
+              <input type="checkbox" id="roi-enable" checked />
+              <strong>Use a circular ROI</strong>
+              <span class="sub" style="margin-left:8px">Uncheck to include every cell in the pipeline.</span>
+            </label>
+            <div class="seg-layout" id="roi-controls-wrap">
               <div class="seg-controls">
                 <div class="field-grid">
                   <div class="field">
-                    <label class="lbl">radius</label>
+                    <label class="lbl">ROI size (radius)</label>
                     <input type="number" id="roi-radius" min="10" value="2000" />
                   </div>
                   <div class="field">
-                    <label class="lbl">y_shift</label>
+                    <label class="lbl">Move ROI down/up (y_shift)</label>
                     <input type="number" id="roi-y" value="0" />
                   </div>
                   <div class="field">
-                    <label class="lbl">x_shift</label>
+                    <label class="lbl">Move ROI right/left (x_shift)</label>
                     <input type="number" id="roi-x" value="0" />
                   </div>
                 </div>
-                <button class="btn btn-primary" id="btn-roi-show" style="width:100%;margin-top:12px">Refresh</button>
                 <div class="divider-label">Result</div>
                 <div class="mini-stat"><div class="k">Cells inside</div><div class="v" id="roi-count">—</div></div>
               </div>
@@ -281,7 +319,7 @@
       </section>
 
       <!-- ============================== 6 · DUPLICATE ============================== -->
-      <section class="panel" id="panel-duplicate">
+      <section class="panel" id="panel-duplicate" data-workflow="tracking">
         <div class="card">
           <div class="card-head">
             <h2>Duplicate Mask / Centers</h2>
@@ -318,6 +356,17 @@
       <section class="panel" id="panel-run">
         <div class="card">
           <div class="card-head">
+            <h2>Ready Check</h2>
+            <button class="btn" id="btn-refresh-validation">Refresh checks</button>
+          </div>
+          <div class="card-body">
+            <div class="validation-list" id="validation-list"></div>
+            <div class="hint-box" id="validation-hint" style="margin-top:12px">Load an experiment to begin.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
             <h2>Summary</h2>
             <div class="row-inline">
               <button class="btn btn-ghost" id="btn-preview-script">Preview script</button>
@@ -335,9 +384,20 @@
             <div class="sub">Runs segmentation + trajectories in parallel, then pre-analysis</div>
           </div>
           <div class="card-body">
-            <div class="row-inline">
-              <button class="btn btn-success btn-lg" id="btn-run-pipeline">Run run_processes.sh</button>
-              <button class="btn" id="btn-run-post">Run run_post_processes.sh</button>
+            <div class="field-grid">
+              <div class="field">
+                <label class="lbl">Run mode</label>
+                <select id="run-mode">
+                  <option value="full">Full analysis</option>
+                  <option value="existing_masks">Use existing masks</option>
+                  <option value="post">Post-analysis only</option>
+                  <option value="preview_only">Preview only</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row-inline" style="margin-top:14px">
+              <button class="btn btn-success btn-lg" id="btn-run-pipeline">Run selected mode</button>
               <button class="btn btn-danger" id="btn-stop-pipeline" disabled>Stop</button>
             </div>
 
@@ -355,8 +415,17 @@
                 <input type="text" id="pa-stim" placeholder="e.g. 77,112,148" />
               </div>
             </div>
+          </div>
+        </div>
+      </section>
 
-            <div class="divider-label">Progress</div>
+      <section class="panel" id="panel-results">
+        <div class="card">
+          <div class="card-head">
+            <h2>Pipeline Progress</h2>
+            <div class="sub">Updated gently while the pipeline runs</div>
+          </div>
+          <div class="card-body">
             <div class="stage-strip">
               <div class="stage" data-stage="segmentation">
                 <div class="stage-title">Segmentation</div>

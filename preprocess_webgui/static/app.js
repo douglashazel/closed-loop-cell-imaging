@@ -10,6 +10,27 @@ let session = null;
 let logPos = 0;
 let pipelineRunning = false;
 let currentExperimentPath = "";
+let currentExperimentVersion = "";
+let currentMaskVersion = 0;
+let cpZoom = 1;
+
+// Per-experiment cache-buster for frame/thumbnail URLs. Identical experiments
+// reuse the browser cache; switching experiments forces a refetch so the user
+// never sees the previous experiment's frames.
+function frameUrl(idx) {
+  return `/api/frame/${idx}.png?e=${currentExperimentVersion}`;
+}
+function thumbUrl(idx, w = 120) {
+  return `/api/thumbnail/${idx}.png?w=${w}&e=${currentExperimentVersion}`;
+}
+
+function debounce(fn, wait) {
+  let timer = null;
+  return (...args) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), wait);
+  };
+}
 
 // ── Tabs ────────────────────────────────────────────────────────────────
 qsa(".tab-btn").forEach((btn) => {
@@ -17,7 +38,9 @@ qsa(".tab-btn").forEach((btn) => {
     qsa(".tab-btn").forEach(b => b.classList.remove("active"));
     qsa(".panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
-    $(`panel-${btn.dataset.tab}`).classList.add("active");
+    qsa(`.panel[data-workflow="${btn.dataset.tab}"]`).forEach(p => p.classList.add("active"));
+    const panel = $(`panel-${btn.dataset.tab}`);
+    if (panel) panel.classList.add("active");
     onTabChange(btn.dataset.tab);
   });
 });
@@ -32,11 +55,15 @@ if (savedTheme) document.body.dataset.theme = savedTheme;
 
 function onTabChange(tab) {
   if (tab === "cellpose")  setupCellposeTab();
-  if (tab === "shift")     setupShiftTab();
-  if (tab === "maxdist")   renderMdHistogram();
-  if (tab === "roi")       setupRoiTab();
-  if (tab === "run")       refreshSummary();
-  if (tab === "interval")  refreshInterval();
+  if (tab === "tracking")  {
+    refreshInterval();
+    setupShiftTab();
+    setupRoiTab();
+  }
+  if (tab === "run") {
+    refreshSummary();
+    refreshValidation();
+  }
 }
 
 // ── Fetch helpers ───────────────────────────────────────────────────────
@@ -77,7 +104,10 @@ function syncFormsFromSession() {
   $("roi-x").value       = session.x_shift;
   $("pa-f0").value       = session.f0_frame;
   $("pa-stim").value     = session.stim_frames || "";
+  $("run-mode").value    = session.last_run_mode || "full";
+  updateReviewStatus();
   currentExperimentPath  = session.global_dir || "";
+  currentExperimentVersion = encodeURIComponent(currentExperimentPath);
   if (currentExperimentPath) $("exp-path").value = currentExperimentPath;
 }
 
@@ -94,6 +124,7 @@ function refreshRail() {
   $("rail-exp").textContent    = expName;
   $("rail-frames").textContent = session.all_frames?.length ?? 0;
   $("rail-masks").textContent  = session.all_masks?.length ?? 0;
+  $("rail-cells").textContent  = session.last_roi_count || "—";
   $("rail-params").textContent = [
     `flow        = ${session.flow_threshold}`,
     `cellprob    = ${session.cellprob_threshold}`,
@@ -107,6 +138,8 @@ function refreshRail() {
     `y_shift     = ${session.y_shift}`,
     `x_shift     = ${session.x_shift}`,
     `grace_per   = ${session.grace_period}`,
+    `roi_cells   = ${session.last_roi_count || 0}`,
+    `reviewed    = ${session.segmentation_reviewed ? "yes" : "no"}`,
   ].join("\n");
 }
 
@@ -144,6 +177,7 @@ async function loadExperiment(path) {
   }
   session = res;
   currentExperimentPath = session.global_dir;
+  currentExperimentVersion = encodeURIComponent(session.global_dir || "");
   $("exp-path").value = session.global_dir;
   $("exp-summary").textContent =
     `${session.all_frames.length} frames · ${session.all_masks.length} masks`;
@@ -158,6 +192,8 @@ async function loadExperiment(path) {
   refreshRail();
   // Reset thumb + scrubber caches
   thumbsLoadedFor = null;
+  cpHasMask = false;
+  refreshValidation();
 }
 
 $("btn-exp-load").addEventListener("click", () => {
@@ -169,6 +205,7 @@ $("btn-exp-load").addEventListener("click", () => {
 // Tab 1 · Cellpose (frame scrubber + thumbs + preview)
 // ═══════════════════════════════════════════════════════════════════════════
 let thumbsLoadedFor = null;
+const patchFrameSession = debounce((idx) => patchSession({ frame_idx: idx }), 250);
 
 function setupCellposeTab() {
   if (!session?.all_frames?.length) return;
@@ -193,7 +230,7 @@ $("cp-scrub").addEventListener("input", (e) => {
   $("cp-frame").value = idx;
   updateScrubLabel();
   loadCellposeFrame(idx);
-  patchSession({ frame_idx: idx });
+  patchFrameSession(idx);
   highlightThumb(idx);
 });
 $("cp-frame").addEventListener("change", (e) => {
@@ -201,17 +238,27 @@ $("cp-frame").addEventListener("change", (e) => {
   $("cp-scrub").value = idx;
   updateScrubLabel();
   loadCellposeFrame(idx);
-  patchSession({ frame_idx: idx });
+  patchFrameSession(idx);
   highlightThumb(idx);
 });
 
 function loadCellposeFrame(idx) {
   const img = $("cp-img-raw");
-  img.src = `/api/frame/${idx}.png?_t=${Date.now()}`;
+  img.src = frameUrl(idx);
   img.style.display = "block";
   $("cp-placeholder").style.display = "none";
   // Clear mask overlay (it was for a different frame)
   $("cp-img-mask").style.display = "none";
+  preloadFrames(idx);
+}
+
+function preloadFrames(idx) {
+  if (!session?.all_frames?.length) return;
+  [idx - 2, idx - 1, idx + 1, idx + 2].forEach((i) => {
+    if (i < 0 || i >= session.all_frames.length) return;
+    const im = new Image();
+    im.src = frameUrl(i);
+  });
 }
 
 function loadThumbs() {
@@ -225,7 +272,7 @@ function loadThumbs() {
   for (let i = 0; i < n; i += stride) {
     const im = document.createElement("img");
     im.loading = "lazy";
-    im.src = `/api/thumbnail/${i}.png?w=120`;
+    im.src = thumbUrl(i, 120);
     im.dataset.idx = i;
     im.title = `frame ${i}`;
     im.addEventListener("click", () => {
@@ -233,7 +280,7 @@ function loadThumbs() {
       $("cp-frame").value = i;
       updateScrubLabel();
       loadCellposeFrame(i);
-      patchSession({ frame_idx: i });
+      patchFrameSession(i);
       highlightThumb(i);
     });
     strip.appendChild(im);
@@ -264,22 +311,39 @@ $("btn-run-cellpose").addEventListener("click", async () => {
   }
   $("btn-run-cellpose").disabled = true;
   $("cp-status").textContent = "Running Cellpose…";
+  cpMaskWaitAttempts = 0;
   pollCellposeStatus();
 });
+
+let cpMaskWaitAttempts = 0;
+const CP_MASK_WAIT_MAX = 20;  // 20 × 250ms ≈ 5s
 
 async function pollCellposeStatus() {
   const st = await jget("/api/cellpose/status");
   $("cp-status").textContent = st.message || "";
   if (st.state === "done") {
+    if (!st.has_mask) {
+      cpMaskWaitAttempts += 1;
+      if (cpMaskWaitAttempts >= CP_MASK_WAIT_MAX) {
+        cpMaskWaitAttempts = 0;
+        $("btn-run-cellpose").disabled = false;
+        $("cp-status").textContent =
+          "Segmentation finished, but the overlay never became available. Try Run Cellpose again.";
+        return;
+      }
+      setTimeout(pollCellposeStatus, 250);
+      return;
+    }
+    cpMaskWaitAttempts = 0;
     $("btn-run-cellpose").disabled = false;
     $("cp-cells").textContent = st.n_cells;
+    $("rail-cells").textContent = st.n_cells;
     const rt = (st.finished_at && st.started_at)
       ? `${(st.finished_at - st.started_at).toFixed(1)}s` : "—";
     $("cp-runtime").textContent = rt;
     cpHasMask = true;
+    currentMaskVersion = st.mask_version || Date.now();
     reloadMaskOverlay();
-    $("cp-histogram").src = `/api/cellpose/stats.png?_t=${Date.now()}`;
-    $("cp-histogram").style.display = "block";
     await loadSession();
     return;
   }
@@ -292,9 +356,50 @@ async function pollCellposeStatus() {
 
 function reloadMaskOverlay() {
   const m = $("cp-img-mask");
-  m.src = `/api/mask/preview.png?_t=${Date.now()}`;
-  m.style.display = "block";
+  m.onerror = () => {
+    m.style.display = "none";
+    $("cp-status").textContent = "Segmentation finished, but the overlay image was not ready. Try Run Cellpose again or refresh.";
+  };
+  m.onload = () => {
+    m.style.display = "block";
+    applyOverlayControls();
+  };
+  m.src = `/api/mask/preview.png?v=${currentMaskVersion}`;
 }
+
+function updateReviewStatus() {
+  if (!$("cp-review-status") || !session) return;
+  $("cp-review-status").textContent = session.segmentation_reviewed
+    ? "Confirmed. These parameters are ready for the run check."
+    : "Not reviewed yet";
+  $("cp-review-box")?.classList.toggle("approved", !!session.segmentation_reviewed);
+}
+
+async function setSegmentationReviewed(reviewed) {
+  session = await jpost("/api/cellpose/review", { reviewed });
+  updateReviewStatus();
+  refreshRail();
+  refreshValidation();
+}
+
+function applyOverlayControls() {
+  const mask = $("cp-img-mask");
+  const raw = $("cp-img-raw");
+  const canvas = $("cp-canvas");
+  mask.style.opacity = (parseInt($("cp-overlay-opacity").value, 10) / 100).toString();
+  mask.classList.toggle("outline-mode", $("cp-outline-mode").checked);
+  raw.style.transform = `scale(${cpZoom})`;
+  mask.style.transform = `scale(${cpZoom})`;
+  canvas.classList.toggle("zoomed", cpZoom > 1);
+}
+
+$("btn-cp-approve").addEventListener("click", () => setSegmentationReviewed(true));
+$("btn-cp-rerun").addEventListener("click", () => setSegmentationReviewed(false));
+$("cp-overlay-opacity").addEventListener("input", applyOverlayControls);
+$("cp-outline-mode").addEventListener("change", applyOverlayControls);
+$("btn-cp-zoom-in").addEventListener("click", () => { cpZoom = Math.min(4, cpZoom + 0.25); applyOverlayControls(); });
+$("btn-cp-zoom-out").addEventListener("click", () => { cpZoom = Math.max(1, cpZoom - 0.25); applyOverlayControls(); });
+$("btn-cp-zoom-reset").addEventListener("click", () => { cpZoom = 1; applyOverlayControls(); });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tab 2 · Save Interval
@@ -338,17 +443,8 @@ $("btn-sh-load").addEventListener("click", async () => {
   $("sh-placeholder").style.display = "none";
   await patchSession({ shift_frame_idx: idx });
   try {
-    await ShiftCanvas.loadFrames(idx);
+    await ShiftCanvas.loadFrames(idx, currentExperimentVersion);
   } catch (e) { alert(`failed: ${e}`); }
-});
-
-$("btn-sh-auto").addEventListener("click", async () => {
-  const idx = parseInt($("sh-frame").value, 10);
-  $("sh-result").textContent = "Auto-detecting…";
-  const res = await jpost("/api/shift/auto", { idx });
-  if (!res.ok) { $("sh-result").textContent = res.error; return; }
-  $("sh-result").textContent = `shift_xy = (${res.dx}, ${res.dy})  [auto]`;
-  await loadSession();
 });
 
 $("btn-sh-clear").addEventListener("click", () => {
@@ -360,9 +456,6 @@ $("btn-sh-clear").addEventListener("click", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 // Tab 4 · Max Distance
 // ═══════════════════════════════════════════════════════════════════════════
-let mdPopulation = [];
-let mdMean = 0;
-
 async function mdCompute(cellId) {
   const res = await jpost("/api/maxdistance/compute",
                           cellId != null ? { cell_id: cellId } : {});
@@ -373,47 +466,11 @@ async function mdCompute(cellId) {
     `mean ${res.mean_distance.toFixed(1)} px · ` +
     `distances ${res.neighbors.map(n => n.distance.toFixed(1)).join(", ")}`;
   $("md-stats").value =
-    `median ${res.median.toFixed(1)} · 75p ${res.percentile_75.toFixed(1)} · 95p ${res.percentile_95.toFixed(1)}`;
-  mdPopulation = res.population;
-  mdMean = res.mean_distance;
-  renderMdHistogram();
+    `cell ${res.chosen_id} · ${res.neighbors.length} neighbours · mean ${res.mean_distance.toFixed(1)} px`;
+  $("md-visual").src = res.visualization_url;
+  $("md-visual").style.display = "block";
+  $("md-placeholder").style.display = "none";
   await loadSession();
-}
-
-function renderMdHistogram() {
-  const canvas = $("md-histogram");
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height;
-  ctx.fillStyle = "#0f1419";
-  ctx.fillRect(0, 0, w, h);
-  if (!mdPopulation.length) return;
-  const maxV = Math.max(...mdPopulation);
-  const binN = 40;
-  const bins = new Array(binN).fill(0);
-  mdPopulation.forEach(v => {
-    const bi = Math.min(binN - 1, Math.floor(v / maxV * binN));
-    bins[bi]++;
-  });
-  const maxC = Math.max(...bins);
-  ctx.fillStyle = "#4f9aa8";
-  for (let i = 0; i < binN; i++) {
-    const bx = i / binN * w;
-    const bw = w / binN - 1;
-    const bh = (bins[i] / maxC) * (h - 10);
-    ctx.fillRect(bx, h - bh, bw, bh);
-  }
-  // Mean line
-  const mx = mdMean / maxV * w;
-  ctx.strokeStyle = "#d8a04a";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath();
-  ctx.moveTo(mx, 0); ctx.lineTo(mx, h);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = "#d8a04a";
-  ctx.font = "11px 'IBM Plex Mono', monospace";
-  ctx.fillText(`mean = ${mdMean.toFixed(1)}`, mx + 4, 14);
 }
 
 $("btn-md-compute").addEventListener("click", () => mdCompute());
@@ -426,14 +483,65 @@ $("md-value").addEventListener("change", () =>
 // ═══════════════════════════════════════════════════════════════════════════
 let roiInited = false;
 
+// Apply a CSS clip-path to the cached cellpose preview so only the area
+// inside the ROI circle is visible. Pure client-side, instant — no server
+// roundtrip per move/resize.
+function applyRoiClip(radius, xShift, yShift) {
+  const mask = $("roi-img-mask");
+  const raw = $("roi-img-raw");
+  if (!raw.naturalWidth || !raw.naturalHeight) return;
+  const rect = raw.getBoundingClientRect();
+  if (!rect.width) return;
+  const scale = rect.width / raw.naturalWidth;
+  const cx = (raw.naturalWidth / 2 + xShift) * scale;
+  const cy = (raw.naturalHeight / 2 + yShift) * scale;
+  const r = radius * scale;
+  mask.style.clipPath = `circle(${r}px at ${cx}px ${cy}px)`;
+}
+
+const debouncedRoiCount = debounce(async (radius, xShift, yShift) => {
+  const res = await jpost("/api/roi/count", {
+    radius, y_shift: yShift, x_shift: xShift,
+  });
+  if (!res.ok) { $("roi-count").textContent = "—"; return; }
+  $("roi-count").textContent = res.n_inside;
+  if (session) session.last_roi_count = res.n_inside;
+  refreshRail();
+}, 200);
+
+function setRoiEnabledUi(enabled) {
+  const wrap = $("roi-controls-wrap");
+  wrap.style.opacity = enabled ? "1" : "0.45";
+  wrap.style.pointerEvents = enabled ? "auto" : "none";
+  $("roi-circle").style.display = enabled ? "" : "none";
+  $("roi-handle").style.display = enabled ? "" : "none";
+  if (enabled) {
+    const r = parseInt($("roi-radius").value, 10);
+    const xs = parseInt($("roi-x").value, 10);
+    const ys = parseInt($("roi-y").value, 10);
+    applyRoiClip(r, xs, ys);
+    debouncedRoiCount(r, xs, ys);
+  } else {
+    // Show every cell — no clipping
+    $("roi-img-mask").style.clipPath = "none";
+    $("roi-count").textContent = "all";
+  }
+}
+
 async function setupRoiTab() {
   if (!session.all_frames?.length) return;
-  $("roi-img-raw").src = `/api/frame/0.png?_t=${Date.now()}`;
+  $("roi-img-raw").src = frameUrl(0);
   await new Promise((res, rej) => {
     const im = $("roi-img-raw");
     if (im.complete && im.naturalWidth) return res();
     im.onload = res; im.onerror = rej;
   });
+  // Reuse the already-rendered cellpose preview overlay rather than asking
+  // the server to recolor a filtered mask on every interaction.
+  const m = $("roi-img-mask");
+  m.onerror = () => { m.style.display = "none"; };
+  m.onload = () => { m.style.display = "block"; };
+  m.src = `/api/mask/preview.png?v=${currentMaskVersion}`;
   const w = $("roi-img-raw").naturalWidth;
   const h = $("roi-img-raw").naturalHeight;
   if (!roiInited) {
@@ -442,11 +550,12 @@ async function setupRoiTab() {
       $("roi-img-raw"),
       $("roi-circle"),
       $("roi-handle"),
-      async (s) => {
+      (s) => {
         $("roi-radius").value = s.radius;
         $("roi-y").value = s.y_shift;
         $("roi-x").value = s.x_shift;
-        await roiUpdate(s);
+        applyRoiClip(s.radius, s.x_shift, s.y_shift);
+        debouncedRoiCount(s.radius, s.x_shift, s.y_shift);
       },
     );
     roiInited = true;
@@ -454,32 +563,35 @@ async function setupRoiTab() {
   RoiCanvas.setImage(w, h);
   RoiCanvas.setState(session.radius, session.x_shift, session.y_shift);
   $("roi-placeholder").style.display = "none";
-  roiUpdate();
+  $("roi-enable").checked = session.roi_enabled !== false;
+  setRoiEnabledUi($("roi-enable").checked);
 }
 
-async function roiUpdate(override) {
-  const body = override || {
-    radius: parseInt($("roi-radius").value, 10),
-    y_shift: parseInt($("roi-y").value, 10),
-    x_shift: parseInt($("roi-x").value, 10),
-  };
-  const res = await jpost("/api/roi/count", body);
-  if (!res.ok) { $("roi-count").textContent = "—"; return; }
-  $("roi-count").textContent = res.n_inside;
-  $("roi-img-mask").src = `/api/roi/mask.png?_t=${Date.now()}`;
-  $("roi-img-mask").style.display = "block";
-}
+$("roi-enable").addEventListener("change", async () => {
+  const enabled = $("roi-enable").checked;
+  setRoiEnabledUi(enabled);
+  await patchSession({ roi_enabled: enabled });
+  refreshValidation();
+});
 
-$("btn-roi-show").addEventListener("click", () => setupRoiTab());
 ["roi-radius", "roi-y", "roi-x"].forEach(id => {
   $(id).addEventListener("change", () => {
-    RoiCanvas.setState(
-      parseInt($("roi-radius").value, 10),
-      parseInt($("roi-x").value, 10),
-      parseInt($("roi-y").value, 10),
-    );
-    roiUpdate();
+    if (!$("roi-enable").checked) return;
+    const r = parseInt($("roi-radius").value, 10);
+    const xs = parseInt($("roi-x").value, 10);
+    const ys = parseInt($("roi-y").value, 10);
+    RoiCanvas.setState(r, xs, ys);
+    applyRoiClip(r, xs, ys);
+    debouncedRoiCount(r, xs, ys);
   });
+});
+
+window.addEventListener("resize", () => {
+  if (!$("roi-enable")?.checked) return;
+  const r = parseInt($("roi-radius").value, 10);
+  const xs = parseInt($("roi-x").value, 10);
+  const ys = parseInt($("roi-y").value, 10);
+  applyRoiClip(r, xs, ys);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -507,24 +619,16 @@ async function pollDupStatus() {
 function refreshSummary() {
   if (!session) return;
   const s = session;
+  const mode = $("run-mode").value;
   const lines = [
-    "═══════════════════════════════════════════",
-    "  Pipeline Parameters",
-    "═══════════════════════════════════════════",
-    `  GLOBAL_DIR         = ${s.global_dir}`,
-    `  flow_threshold     = ${s.flow_threshold}`,
-    `  cellprob_threshold = ${s.cellprob_threshold}`,
-    `  niter              = ${s.niter}`,
-    `  diameter           = ${s.diameter}`,
-    `  save_interval      = ${s.save_interval}`,
-    `  shift_frame        = ${s.shift_frame_idx}`,
-    `  shift_xy           = ${s.shift_xy[0]} ${s.shift_xy[1]}`,
-    `  max_distance       = ${s.max_distance?.toFixed?.(1)}`,
-    `  radius             = ${s.radius}`,
-    `  y_shift            = ${s.y_shift}`,
-    `  x_shift            = ${s.x_shift}`,
-    `  grace_period       = ${s.grace_period}`,
-    "═══════════════════════════════════════════",
+    `Experiment: ${s.global_dir || "not selected"}`,
+    `Run mode: ${mode.replace("_", " ")}`,
+    "",
+    `Segmentation: flow ${s.flow_threshold}, cell confidence ${s.cellprob_threshold}, niter ${s.niter}, cell size ${s.diameter}`,
+    `Tracking: max distance ${s.max_distance?.toFixed?.(1)} px, grace period ${s.grace_period}, checkpoint every ${s.save_interval} frames`,
+    `Frame shift: frame ${s.shift_frame_idx}, shift_xy ${s.shift_xy[0]} ${s.shift_xy[1]}`,
+    `ROI: radius ${s.radius}, y_shift ${s.y_shift}, x_shift ${s.x_shift}, cells inside ${s.last_roi_count || 0}`,
+    `Review: segmentation ${s.segmentation_reviewed ? "confirmed" : "not confirmed"}`,
   ];
   $("run-summary").textContent = lines.join("\n");
 }
@@ -533,29 +637,69 @@ $("btn-copy-summary").addEventListener("click", () => {
   navigator.clipboard.writeText($("run-summary").textContent);
 });
 $("btn-preview-script").addEventListener("click", async () => {
-  const res = await jget(`/api/script/preview?kind=run_processes`);
+  const mode = $("run-mode").value;
+  const kind = mode === "post" ? "run_post_processes" : "run_processes";
+  const res = await jget(`/api/script/preview?kind=${kind}&run_mode=${mode}`);
   if (!res.ok) { alert(res.error); return; }
   const w = window.open("", "_blank");
   w.document.write(`<pre style="font-family:monospace;padding:20px">${
     res.script.replace(/</g, "&lt;")}</pre>`);
 });
 
-$("btn-run-pipeline").addEventListener("click", () => runPipeline("run_processes"));
-$("btn-run-post").addEventListener("click", () => runPipeline("run_post_processes"));
+$("btn-run-pipeline").addEventListener("click", () => runSelectedMode());
+$("run-mode").addEventListener("change", async () => {
+  await patchSession({ last_run_mode: $("run-mode").value });
+  refreshSummary();
+  refreshValidation();
+});
+$("btn-refresh-validation").addEventListener("click", refreshValidation);
 
-async function runPipeline(kind) {
-  const body = { kind };
+async function refreshValidation() {
+  if (!$("validation-list")) return;
+  const mode = $("run-mode")?.value || "full";
+  try {
+    const res = await jget(`/api/validation?mode=${mode}`);
+    const list = $("validation-list");
+    list.innerHTML = "";
+    for (const c of res.checks) {
+      const row = document.createElement("div");
+      row.className = "validation-row " + (c.ok ? "ok" : "bad");
+      row.innerHTML = `<span>${c.ok ? "✓" : "!"}</span><div><strong>${c.label}</strong><small>${c.detail}</small></div>`;
+      list.appendChild(row);
+    }
+    $("validation-hint").textContent = res.ok
+      ? "Everything important is ready. You can run the selected mode."
+      : "Resolve the highlighted checks before launching the pipeline.";
+    $("btn-run-pipeline").disabled = !res.ok || pipelineRunning;
+  } catch (e) {
+    $("validation-list").innerHTML = "";
+    $("validation-hint").textContent = "Validation is unavailable until an experiment is loaded.";
+  }
+}
+
+function runSelectedMode() {
+  const mode = $("run-mode").value;
+  if (mode === "preview_only") return runPipeline("run_processes", "preview_only");
+  if (mode === "post") return runPipeline("run_post_processes", "post");
+  return runPipeline("run_processes", mode);
+}
+
+async function runPipeline(kind, runMode) {
+  const body = { kind, run_mode: runMode };
   if (kind === "run_post_processes") {
     body.f0_frame = parseInt($("pa-f0").value, 10);
     body.stim_frames = $("pa-stim").value;
   }
   const res = await jpost("/api/pipeline/run", body);
-  if (!res.ok) { alert(res.error); return; }
+  if (!res.ok) {
+    if (res.validation) refreshValidation();
+    alert(res.error || "Could not start pipeline");
+    return;
+  }
   pipelineRunning = true;
   logPos = 0;
   $("btn-stop-pipeline").disabled = false;
   $("btn-run-pipeline").disabled = true;
-  $("btn-run-post").disabled = true;
   $("live-log").textContent = "";
 }
 
@@ -587,7 +731,7 @@ async function pollPipeline() {
         pipelineRunning = false;
         $("btn-stop-pipeline").disabled = true;
         $("btn-run-pipeline").disabled = false;
-        $("btn-run-post").disabled = false;
+        refreshValidation();
       }
     }
     $("rail-status").textContent = st.running ? "running" : "idle";
@@ -645,7 +789,7 @@ function appendLog(text) {
 // Luminosity plot refresh (slower cadence)
 async function pollLuminosity() {
   if (pipelineRunning) {
-    $("lumi-img").src = `/api/pipeline/luminosity.png?_t=${Date.now()}`;
+    $("lumi-img").src = `/api/pipeline/luminosity.png?refresh=${Math.floor(Date.now() / 5000)}`;
   }
 }
 

@@ -90,19 +90,32 @@ class CellposeJob:
             n = int(masks.max()) if masks.max() > 0 else 0
             with self.lock:
                 self.result = masks
-                self.status = {
-                    "state": "done",
-                    "message": f"Detected {n} cells",
-                    "frame_idx": frame_idx,
-                    "n_cells": n,
-                    "started_at": self.status["started_at"],
-                    "finished_at": time.time(),
-                }
+            on_done_error = None
             if on_done is not None:
                 try:
                     on_done(masks)
                 except Exception as e:
+                    on_done_error = e
                     print(f"[cellpose_worker] on_done error: {e}", flush=True)
+            with self.lock:
+                if on_done_error is not None:
+                    self.status = {
+                        "state": "error",
+                        "message": f"Segmentation finished but storing the result failed: {on_done_error}",
+                        "frame_idx": frame_idx,
+                        "n_cells": n,
+                        "started_at": self.status["started_at"],
+                        "finished_at": time.time(),
+                    }
+                else:
+                    self.status = {
+                        "state": "done",
+                        "message": f"Detected {n} cells",
+                        "frame_idx": frame_idx,
+                        "n_cells": n,
+                        "started_at": self.status["started_at"],
+                        "finished_at": time.time(),
+                    }
         except Exception as e:
             with self.lock:
                 self.status = {

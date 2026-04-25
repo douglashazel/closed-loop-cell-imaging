@@ -9,15 +9,12 @@ directly with the parameters the user tuned.
 """
 
 import atexit
-import io
+import hashlib
 import json
 import os
 import random
-import re
-import shutil
 import signal
 import subprocess
-import sys
 import threading
 import time
 
@@ -27,8 +24,6 @@ from PIL import Image
 
 from cellpose_worker import CellposeJob
 from pipeline_logic import (
-    all_mean_neighbor_distances,
-    array_to_png_bytes,
     centroids_from_seg,
     colorize_labels,
     downsample_to_width,
@@ -50,10 +45,12 @@ _PROJECT_ROOT = os.path.dirname(_HERE)
 _EXPERIMENTS_ROOT = os.path.join(_PROJECT_ROOT, "EXPERIMENTS")
 _SESSION_JSON = os.path.join(_HERE, "session.json")
 _TMP_DIR = os.path.join(_HERE, "tmp")
+_CACHE_DIR = os.path.join(_TMP_DIR, "cache")
 _PIPELINE_LOG = os.path.join(_TMP_DIR, "pipeline.log")
 _PIPELINE_SCRIPT = os.path.join(_TMP_DIR, "current_run.sh")
 
 os.makedirs(_TMP_DIR, exist_ok=True)
+os.makedirs(_CACHE_DIR, exist_ok=True)
 
 # ── Global runtime state ───────────────────────────────────────────────────
 session = SessionStore(_SESSION_JSON)
@@ -68,6 +65,9 @@ pipeline_log_fh = None
 dup_status = {"state": "idle", "message": "", "progress": 0, "total": 0}
 dup_thread: threading.Thread | None = None
 
+progress_cache = {"ts": 0.0, "data": None}
+stage_cache = {"sig": None, "stage": None}
+
 
 # ── Flask app ──────────────────────────────────────────────────────────────
 app = Flask(
@@ -75,6 +75,50 @@ app = Flask(
     template_folder=os.path.join(_HERE, "templates"),
     static_folder=os.path.join(_HERE, "static"),
 )
+
+
+def _cache_namespace() -> str:
+    s = session.snapshot()
+    root = s.get("global_dir") or "no-experiment"
+    return hashlib.sha1(root.encode("utf-8")).hexdigest()[:16]
+
+
+def _cache_path(kind: str, *parts) -> str:
+    ns_dir = os.path.join(_CACHE_DIR, _cache_namespace())
+    os.makedirs(ns_dir, exist_ok=True)
+    key = json.dumps([kind, *parts], sort_keys=True, default=str)
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()
+    return os.path.join(ns_dir, f"{kind}-{digest}.png")
+
+
+def _file_sig(path: str) -> tuple:
+    try:
+        st = os.stat(path)
+        return (path, int(st.st_mtime_ns), int(st.st_size))
+    except OSError:
+        return (path, 0, 0)
+
+
+def _png_response(path: str, max_age: int = 86400):
+    resp = send_file(path, mimetype="image/png", max_age=max_age, conditional=True)
+    resp.headers["Cache-Control"] = f"public, max-age={max_age}"
+    return resp
+
+
+def _write_png_if_missing(path: str, arr: np.ndarray, mode: str = "L") -> None:
+    if os.path.isfile(path):
+        return
+    tmp = f"{path}.tmp-{os.getpid()}-{threading.get_ident()}"
+    Image.fromarray(arr, mode=mode).save(tmp, format="PNG")
+    os.replace(tmp, path)
+
+
+def _frame_path(frame_idx: int) -> str | None:
+    s = session.snapshot()
+    frames = s.get("all_frames") or []
+    if frame_idx < 0 or frame_idx >= len(frames):
+        return None
+    return os.path.join(s["frames_dir"], frames[frame_idx])
 
 
 @app.route("/")
@@ -109,6 +153,13 @@ def api_experiment_select():
     if not path:
         return jsonify({"ok": False, "error": "path required"}), 400
 
+    if cellpose_job.is_running():
+        return jsonify({
+            "ok": False,
+            "error": "Cellpose is still running on the current experiment. "
+                     "Wait for it to finish before switching.",
+        }), 409
+
     if not os.path.isabs(path):
         path = os.path.join(_PROJECT_ROOT, path)
     path = os.path.normpath(path)
@@ -132,6 +183,11 @@ def api_experiment_select():
         "all_masks": all_masks,
         "frame_idx": 0,
         "shift_frame_idx": 1 if len(all_frames) > 1 else 0,
+        "last_preview_frame": -1,
+        "preview_mask_source": "",
+        "segmentation_reviewed": False,
+        "last_roi_count": 0,
+        "validation_warnings": [],
     }
 
     # Resume-from-config prefill
@@ -143,6 +199,8 @@ def api_experiment_select():
             patch.update(prefill)
             resumed = True
 
+    session.temp_segmentation = None
+    session.temp_segmentation_version += 1
     snapshot = session.apply_patch(patch)
     snapshot["resumed_from_config"] = resumed
     snapshot["config_txt_path"] = cfg_path if resumed else None
@@ -153,11 +211,9 @@ def api_experiment_select():
 # Frame + mask imagery
 # ═══════════════════════════════════════════════════════════════════════════
 def _read_frame(frame_idx: int) -> np.ndarray | None:
-    s = session.snapshot()
-    frames = s.get("all_frames") or []
-    if frame_idx < 0 or frame_idx >= len(frames):
+    path = _frame_path(frame_idx)
+    if path is None:
         return None
-    path = os.path.join(s["frames_dir"], frames[frame_idx])
     try:
         return np.array(Image.open(path))
     except Exception:
@@ -166,47 +222,76 @@ def _read_frame(frame_idx: int) -> np.ndarray | None:
 
 @app.route("/api/frame/<int:idx>.png", methods=["GET"])
 def api_frame_png(idx):
-    img = _read_frame(idx)
-    if img is None:
+    path = _frame_path(idx)
+    if path is None:
         abort(404)
-    gray = normalize_gray(img)
-    return send_file(array_to_png_bytes(gray, mode="L"), mimetype="image/png")
+    width = int(request.args.get("w", 0))
+    cache = _cache_path("frame", idx, width, _file_sig(path))
+    if not os.path.isfile(cache):
+        img = _read_frame(idx)
+        if img is None:
+            abort(404)
+        gray = normalize_gray(img)
+        if width > 0:
+            gray = downsample_to_width(gray, width)
+        _write_png_if_missing(cache, gray, mode="L")
+    return _png_response(cache)
 
 
 @app.route("/api/thumbnail/<int:idx>.png", methods=["GET"])
 def api_thumbnail_png(idx):
     w = int(request.args.get("w", 120))
-    img = _read_frame(idx)
-    if img is None:
+    path = _frame_path(idx)
+    if path is None:
         abort(404)
-    gray = normalize_gray(img)
-    small = downsample_to_width(gray, w)
-    return send_file(array_to_png_bytes(small, mode="L"), mimetype="image/png")
+    cache = _cache_path("thumb", idx, w, _file_sig(path))
+    if not os.path.isfile(cache):
+        img = _read_frame(idx)
+        if img is None:
+            abort(404)
+        gray = normalize_gray(img)
+        small = downsample_to_width(gray, w)
+        _write_png_if_missing(cache, small, mode="L")
+    return _png_response(cache)
 
 
 @app.route("/api/mask/preview.png", methods=["GET"])
 def api_mask_preview_png():
     if session.temp_segmentation is None:
         abort(404)
-    rgba = colorize_labels(session.temp_segmentation)
-    buf = io.BytesIO()
-    Image.fromarray(rgba, mode="RGBA").save(buf, format="PNG")
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    alpha = int(request.args.get("alpha", 140))
+    cache = _cache_path("mask", session.temp_segmentation_version, alpha)
+    if not os.path.isfile(cache):
+        rgba = colorize_labels(session.temp_segmentation, alpha=alpha)
+        _write_png_if_missing(cache, rgba, mode="RGBA")
+    return _png_response(cache, max_age=3600)
 
 
 @app.route("/api/frames/split", methods=["GET"])
 def api_frames_split():
     idx = int(request.args.get("idx", 1))
-    prev = _read_frame(idx - 1)
-    curr = _read_frame(idx)
-    if prev is None or curr is None:
+    prev_path = _frame_path(idx - 1)
+    curr_path = _frame_path(idx)
+    if prev_path is None or curr_path is None:
         abort(404)
-    combined, left_w = split_frames_png(prev, curr)
-    buf = array_to_png_bytes(combined, mode="L")
-    resp = send_file(buf, mimetype="image/png")
-    resp.headers["X-Left-Width"] = str(left_w)
-    resp.headers["X-Frame-Height"] = str(combined.shape[0])
+    cache = _cache_path("split", idx, _file_sig(prev_path), _file_sig(curr_path))
+    left_w_path = cache + ".json"
+    if not os.path.isfile(cache):
+        prev = _read_frame(idx - 1)
+        curr = _read_frame(idx)
+        if prev is None or curr is None:
+            abort(404)
+        combined, left_w = split_frames_png(prev, curr)
+        _write_png_if_missing(cache, combined, mode="L")
+        with open(left_w_path, "w") as f:
+            json.dump({"left_w": left_w, "height": int(combined.shape[0])}, f)
+    meta = {"left_w": 0, "height": 0}
+    if os.path.isfile(left_w_path):
+        with open(left_w_path) as f:
+            meta = json.load(f)
+    resp = _png_response(cache)
+    resp.headers["X-Left-Width"] = str(meta.get("left_w", 0))
+    resp.headers["X-Frame-Height"] = str(meta.get("height", 0))
     return resp
 
 
@@ -231,6 +316,22 @@ def api_cellpose_run():
 
     def _on_done(masks):
         session.temp_segmentation = masks
+        session.temp_segmentation_version += 1
+        session.apply_patch({
+            "last_preview_frame": s["frame_idx"],
+            "preview_mask_source": "cellpose_preview",
+            "segmentation_reviewed": False,
+            "last_roi_count": 0,
+        })
+        # Pre-render the default-alpha preview PNG so the first GET hits the
+        # disk cache instead of paying the colorize + encode cost inline.
+        try:
+            cache = _cache_path("mask", session.temp_segmentation_version, 140)
+            if not os.path.isfile(cache):
+                rgba = colorize_labels(masks, alpha=140)
+                _write_png_if_missing(cache, rgba, mode="RGBA")
+        except Exception as e:
+            print(f"[mask preview pre-render] {e}", flush=True)
 
     started = cellpose_job.start(
         img, s["frame_idx"],
@@ -247,6 +348,7 @@ def api_cellpose_status():
     with cellpose_job.lock:
         out = dict(cellpose_job.status)
     out["has_mask"] = session.temp_segmentation is not None
+    out["mask_version"] = session.temp_segmentation_version
     if session.temp_segmentation is not None:
         out["n_cells"] = int(session.temp_segmentation.max())
     return jsonify(out)
@@ -258,6 +360,9 @@ def api_cellpose_stats_png():
     seg = session.temp_segmentation
     if seg is None:
         abort(404)
+    cache = _cache_path("cellpose-stats", session.temp_segmentation_version)
+    if os.path.isfile(cache):
+        return _png_response(cache, max_age=3600)
     ids = np.unique(seg)
     ids = ids[ids != 0]
     if len(ids) == 0:
@@ -276,11 +381,16 @@ def api_cellpose_stats_png():
                  fontsize=10, fontweight="bold")
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
+    fig.savefig(cache, format="png", bbox_inches="tight")
     plt.close(fig)
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    return _png_response(cache, max_age=3600)
+
+
+@app.route("/api/cellpose/review", methods=["POST"])
+def api_cellpose_review():
+    body = request.get_json(force=True) or {}
+    reviewed = bool(body.get("reviewed", True))
+    return jsonify(session.apply_patch({"segmentation_reviewed": reviewed}))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -328,10 +438,6 @@ def api_maxdistance_compute():
     dists = np.linalg.norm(nbr_coords - chosen, axis=1)
     mean_dist = float(dists.mean()) if len(dists) else 0.0
 
-    # Whole-population distribution for the improved histogram UI
-    all_means = all_mean_neighbor_distances(centroids)
-    all_vals = sorted(all_means.values()) if all_means else []
-
     session.apply_patch({"max_distance": mean_dist})
     return jsonify({
         "ok": True,
@@ -343,11 +449,93 @@ def api_maxdistance_compute():
             "distance": float(d),
         } for n, d in zip(neighbour_ids, dists)],
         "mean_distance": mean_dist,
-        "percentile_95": float(np.percentile(all_vals, 95)) if all_vals else 0.0,
-        "percentile_75": float(np.percentile(all_vals, 75)) if all_vals else 0.0,
-        "median": float(np.percentile(all_vals, 50)) if all_vals else 0.0,
-        "population": all_vals[:500],  # cap payload size
+        "visualization_url": (
+            f"/api/maxdistance/visualization.png"
+            f"?cell_id={cell_id}&v={session.temp_segmentation_version}"
+        ),
     })
+
+
+@app.route("/api/maxdistance/visualization.png", methods=["GET"])
+def api_maxdistance_visualization_png():
+    seg = session.temp_segmentation
+    if seg is None:
+        abort(404)
+    cell_id = int(request.args.get("cell_id", 0))
+    centroids = centroids_from_seg(seg)
+    if cell_id not in centroids:
+        abort(404)
+
+    frame_idx = session.snapshot().get("last_preview_frame", -1)
+    if frame_idx < 0:
+        frame_idx = session.snapshot().get("frame_idx", 0)
+    frame_path = _frame_path(frame_idx)
+    if frame_path is None:
+        abort(404)
+
+    neighbor_ids = get_delaunay_neighbors(cell_id, centroids)
+    cy, cx = centroids[cell_id]
+    chosen_rc = np.array([cy, cx])
+    nbr_coords = np.array([centroids[n] for n in neighbor_ids])
+    dists = np.linalg.norm(nbr_coords - chosen_rc, axis=1) if len(neighbor_ids) else np.array([])
+    mean_dist = float(dists.mean()) if len(dists) else 0.0
+
+    cache = _cache_path(
+        "maxdistance-viz",
+        session.temp_segmentation_version,
+        cell_id,
+        _file_sig(frame_path),
+    )
+    if os.path.isfile(cache):
+        return _png_response(cache, max_age=3600)
+
+    image = _read_frame(frame_idx)
+    if image is None:
+        abort(404)
+    image = image.astype(np.float32)
+    if image.ndim == 3:
+        image = image.mean(axis=-1)
+    lo, hi = float(image.min()), float(image.max())
+    img_norm = (image - lo) / (hi - lo) if hi > lo else np.zeros_like(image)
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(5, 3), dpi=120)
+    ax.imshow(img_norm, cmap="gray", interpolation="none")
+
+    overlay = np.zeros((*seg.shape, 4), dtype=float)
+    overlay[seg == cell_id] = [0.0, 1.0, 1.0, 0.45]
+    for nid in neighbor_ids:
+        overlay[seg == nid] = [1.0, 0.55, 0.0, 0.45]
+    ax.imshow(overlay, interpolation="none")
+
+    ax.scatter(cx, cy, color="cyan", s=80, zorder=5,
+               label=f"Chosen cell (ID {cell_id})")
+    for i, nid in enumerate(neighbor_ids):
+        nr, nc = centroids[nid]
+        ax.scatter(nc, nr, color="orange", s=50, zorder=5,
+                   label="Neighbours" if i == 0 else None)
+        ax.plot([cx, nc], [cy, nr], color="white", linewidth=0.8, alpha=0.65)
+
+    all_rc = np.vstack([chosen_rc, nbr_coords]) if len(neighbor_ids) else np.array([chosen_rc])
+    pad = 150
+    rmin, cmin = (all_rc.min(axis=0) - pad).clip(min=0)
+    rmax, cmax = np.minimum(all_rc.max(axis=0) + pad, [seg.shape[0], seg.shape[1]])
+    ax.set_xlim(cmin, cmax)
+    ax.set_ylim(rmax, rmin)
+    ax.set_title(
+        f"Frame {frame_idx} | Cell ID {cell_id} | "
+        f"{len(neighbor_ids)} Delaunay neighbours | Mean dist = {mean_dist:.1f} px",
+        fontsize=11,
+    )
+    ax.legend(loc="upper right", fontsize=8)
+    ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(cache, format="png", bbox_inches="tight")
+    plt.close(fig)
+    return _png_response(cache, max_age=3600)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -364,9 +552,13 @@ def api_roi_count():
     radius = int(body.get("radius", session.snapshot()["radius"]))
     y_shift = int(body.get("y_shift", session.snapshot()["y_shift"]))
     x_shift = int(body.get("x_shift", session.snapshot()["x_shift"]))
-    session.apply_patch({"radius": radius, "y_shift": y_shift, "x_shift": x_shift})
-
     _, n_inside, (cx, cy) = roi_filter(seg, radius, y_shift, x_shift)
+    session.apply_patch({
+        "radius": radius,
+        "y_shift": y_shift,
+        "x_shift": x_shift,
+        "last_roi_count": n_inside,
+    })
     h, w = seg.shape[:2]
     return jsonify({
         "ok": True,
@@ -383,12 +575,20 @@ def api_roi_mask_png():
     if seg is None:
         abort(404)
     s = session.snapshot()
-    filtered, _, _ = roi_filter(seg, s["radius"], s["y_shift"], s["x_shift"])
-    rgba = colorize_labels(filtered)
-    buf = io.BytesIO()
-    Image.fromarray(rgba, mode="RGBA").save(buf, format="PNG")
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    alpha = int(request.args.get("alpha", 140))
+    cache = _cache_path(
+        "roi-mask",
+        session.temp_segmentation_version,
+        s["radius"],
+        s["y_shift"],
+        s["x_shift"],
+        alpha,
+    )
+    if not os.path.isfile(cache):
+        filtered, _, _ = roi_filter(seg, s["radius"], s["y_shift"], s["x_shift"])
+        rgba = colorize_labels(filtered, alpha=alpha)
+        _write_png_if_missing(cache, rgba, mode="RGBA")
+    return _png_response(cache, max_age=3600)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -477,14 +677,79 @@ def api_duplicate_status():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Pipeline runner (run_processes.sh / run_post_processes.sh)
+# Pipeline validation + runner (run_processes.sh / run_post_processes.sh)
 # ═══════════════════════════════════════════════════════════════════════════
-def _build_run_processes_script(s: dict) -> str:
+def _validation_state(run_mode: str = "full") -> dict:
+    s = session.snapshot()
+    checks = []
+    warnings = []
+
+    def add(key, ok, label, detail):
+        row = {"key": key, "ok": bool(ok), "label": label, "detail": detail}
+        checks.append(row)
+        if not ok:
+            warnings.append(row)
+
+    frames = s.get("all_frames") or []
+    masks = s.get("all_masks") or []
+    save_path = s.get("save_path") or ""
+    save_parent = os.path.dirname(save_path) if save_path else ""
+    needs_existing_masks = run_mode in ("existing_masks", "post")
+
+    add("experiment", bool(s.get("global_dir")), "Experiment selected",
+        s.get("global_dir") or "Choose an experiment folder first.")
+    add("frames", bool(frames), "Frames found",
+        f"{len(frames)} frame files found." if frames else "No images were found in frames/.")
+
+    if needs_existing_masks:
+        add("masks", bool(masks), "Existing masks available",
+            f"{len(masks)} mask files found." if masks else
+            "Run segmentation first or choose Full analysis.")
+    elif run_mode != "preview_only":
+        add("preview", session.temp_segmentation is not None, "Cellpose preview made",
+            "Preview segmentation is available." if session.temp_segmentation is not None else
+            "Run Cellpose on a representative frame before launching.")
+        add("reviewed", bool(s.get("segmentation_reviewed")), "Segmentation reviewed",
+            "Marked as looks good." if s.get("segmentation_reviewed") else
+            "Use the overlay review button to confirm the preview.")
+
+    if run_mode != "preview_only":
+        roi_on = bool(s.get("roi_enabled", True))
+        if roi_on:
+            add("roi", int(s.get("last_roi_count") or 0) > 0, "ROI has cells",
+                f"{s.get('last_roi_count')} cells inside ROI." if s.get("last_roi_count") else
+                "Open Set Tracking and refresh the ROI.")
+        else:
+            add("roi", True, "ROI disabled", "Pipeline will include every cell.")
+        add("max_distance", float(s.get("max_distance") or 0) > 0, "Track distance set",
+            f"{float(s.get('max_distance') or 0):.1f} px.")
+        add("shift", int(s.get("shift_frame_idx") or 0) >= 0, "Frame shift reviewed",
+            f"shift_frame {s.get('shift_frame_idx')}, shift_xy {s.get('shift_xy')}.")
+
+    writable = bool(save_parent and os.path.isdir(save_parent) and os.access(save_parent, os.W_OK))
+    add("writable", writable, "Output folder writable",
+        save_path if writable else "The experiment folder is not writable.")
+
+    session.apply_patch({"validation_warnings": warnings})
+    return {"ok": not warnings, "checks": checks, "warnings": warnings}
+
+
+@app.route("/api/validation", methods=["GET"])
+def api_validation():
+    mode = request.args.get("mode", session.snapshot().get("last_run_mode", "full"))
+    return jsonify(_validation_state(mode))
+
+
+def _build_run_processes_script(s: dict, run_mode: str = "full") -> str:
     """Render a shell script equivalent to run_processes.sh but with the
     session parameters baked in. Mirrors preprocess_gui.py::_generate_script."""
     global_dir = s["global_dir"]
     rel_dir = os.path.relpath(global_dir, _PROJECT_ROOT)
     shift_x, shift_y = s["shift_xy"]
+    # When the user disables the ROI, send a sentinel radius huge enough to
+    # include every cell in any plausibly-sized image so trajectories.py
+    # behaves as if no ROI filter were active.
+    effective_radius = s["radius"] if s.get("roi_enabled", True) else 999999999
     return f"""#!/bin/bash
 set -euo pipefail
 
@@ -505,12 +770,13 @@ DIAMETER={s['diameter']}
 
 MAX_DISTANCE={s['max_distance']:.1f}
 GRACE_PERIOD={s['grace_period']}
-RADIUS={s['radius']}
+RADIUS={effective_radius}
 RADIUS_Y={s['y_shift']}
 RADIUS_X={s['x_shift']}
 SHIFT_FRAME={s['shift_frame_idx']}
 SHIFT_XY="{shift_x} {shift_y}"
 SAVE_INTERVAL={s['save_interval']}
+RUN_MODE="{run_mode}"
 
 mkdir -p "$SAVE_PATH"
 CONFIG_FILE="${{SAVE_PATH}}/config.txt"
@@ -542,40 +808,53 @@ CFGEOF
 echo "Config saved to $CONFIG_FILE"
 
 echo "--- Accessing ${{GLOBAL_DIR}} ---"
+echo "Run mode: $RUN_MODE"
 
-echo ">>> STAGE: SEGMENTATION <<<"
-python3 -u "$SCRIPT1" \\
-    --image_dir "$IMAGE_DIR" \\
-    --mask_dir "$MASK_DIR" \\
-    --flow_threshold "$FLOW_THRESHOLD" \\
-    --cellprob_threshold "$CELLPROB_THRESHOLD" \\
-    --niter "$NITER" \\
-    --diameter "$DIAMETER" &
-PID1=$!
+if [[ "$RUN_MODE" == "preview_only" ]]; then
+    echo "Preview only: config was generated, but no analysis jobs were launched."
+else
+    PID1=""
+    if [[ "$RUN_MODE" == "full" ]]; then
+        echo ">>> STAGE: SEGMENTATION <<<"
+        python3 -u "$SCRIPT1" \\
+            --image_dir "$IMAGE_DIR" \\
+            --mask_dir "$MASK_DIR" \\
+            --flow_threshold "$FLOW_THRESHOLD" \\
+            --cellprob_threshold "$CELLPROB_THRESHOLD" \\
+            --niter "$NITER" \\
+            --diameter "$DIAMETER" &
+        PID1=$!
+        sleep 5
+    else
+        echo ">>> STAGE: SEGMENTATION <<<"
+        echo "Skipping segmentation; using existing mask files in $MASK_DIR"
+    fi
 
-sleep 5
+    echo ">>> STAGE: TRAJECTORIES <<<"
+    python3 -u "$SCRIPT2" \\
+        --mask_dir "$MASK_DIR" \\
+        --image_dir "$IMAGE_DIR" \\
+        --save_path "$SAVE_PATH" \\
+        --max_distance "$MAX_DISTANCE" \\
+        --grace_period "$GRACE_PERIOD" \\
+        --radius "$RADIUS" \\
+        --radius_y "$RADIUS_Y" \\
+        --radius_x "$RADIUS_X" \\
+        --shift_frame "$SHIFT_FRAME" \\
+        --shift_xy $SHIFT_XY \\
+        --save_interval "$SAVE_INTERVAL" &
+    PID2=$!
 
-echo ">>> STAGE: TRAJECTORIES <<<"
-python3 -u "$SCRIPT2" \\
-    --mask_dir "$MASK_DIR" \\
-    --image_dir "$IMAGE_DIR" \\
-    --save_path "$SAVE_PATH" \\
-    --max_distance "$MAX_DISTANCE" \\
-    --grace_period "$GRACE_PERIOD" \\
-    --radius "$RADIUS" \\
-    --radius_y "$RADIUS_Y" \\
-    --radius_x "$RADIUS_X" \\
-    --shift_frame "$SHIFT_FRAME" \\
-    --shift_xy $SHIFT_XY \\
-    --save_interval "$SAVE_INTERVAL" &
-PID2=$!
+    if [[ -n "$PID1" ]]; then
+        wait "$PID1"
+    fi
+    wait "$PID2"
 
-wait $PID1 $PID2
-
-echo ">>> STAGE: PRE-ANALYSIS <<<"
-python3 -u SCRIPTS/PreAnalysis.py \\
-    --exp "$GLOBAL_DIR" \\
-    --analysis_dir "$SAVE_PATH"
+    echo ">>> STAGE: PRE-ANALYSIS <<<"
+    python3 -u SCRIPTS/PreAnalysis.py \\
+        --exp "$GLOBAL_DIR" \\
+        --analysis_dir "$SAVE_PATH"
+fi
 
 echo ">>> DONE <<<"
 """
@@ -614,8 +893,11 @@ def api_pipeline_run():
     global pipeline_proc, pipeline_started_at, pipeline_kind, pipeline_log_fh
     body = request.get_json(force=True) or {}
     kind = body.get("kind", "run_processes")
+    run_mode = body.get("run_mode", "full")
     if kind not in ("run_processes", "run_post_processes"):
         return jsonify({"ok": False, "error": f"unknown kind: {kind}"}), 400
+    if run_mode not in ("full", "existing_masks", "preview_only", "post"):
+        return jsonify({"ok": False, "error": f"unknown run_mode: {run_mode}"}), 400
 
     with _state_lock:
         if pipeline_proc is not None and pipeline_proc.poll() is None:
@@ -625,13 +907,22 @@ def api_pipeline_run():
         s = session.snapshot()
         if not s.get("global_dir"):
             return jsonify({"ok": False, "error": "no experiment loaded"}), 400
+        session.apply_patch({"last_run_mode": run_mode})
 
         if kind == "run_processes":
-            script_text = _build_run_processes_script(s)
+            validation = _validation_state(run_mode)
+            if not validation["ok"]:
+                return jsonify({"ok": False, "error": "validation failed",
+                                "validation": validation}), 400
+            script_text = _build_run_processes_script(s, run_mode)
         else:
             f0 = int(body.get("f0_frame", s.get("f0_frame", 1)))
             stim = str(body.get("stim_frames", s.get("stim_frames", "")))
             session.apply_patch({"f0_frame": f0, "stim_frames": stim})
+            validation = _validation_state("post")
+            if not validation["ok"]:
+                return jsonify({"ok": False, "error": "validation failed",
+                                "validation": validation}), 400
             script_text = _build_run_post_processes_script(s, f0, stim)
 
         with open(_PIPELINE_SCRIPT, "w") as f:
@@ -656,9 +947,10 @@ def api_pipeline_run():
             preexec_fn=os.setsid,
         )
         pipeline_started_at = time.time()
-        pipeline_kind = kind
+        pipeline_kind = run_mode if kind == "run_processes" else "post"
         return jsonify({"ok": True, "pid": pipeline_proc.pid,
-                        "kind": kind, "script": _PIPELINE_SCRIPT})
+                        "kind": kind, "run_mode": run_mode,
+                        "script": _PIPELINE_SCRIPT})
 
 
 @app.route("/api/pipeline/stop", methods=["POST"])
@@ -718,6 +1010,9 @@ _STAGE_MARKERS = [
 def _infer_stage() -> str | None:
     if not os.path.isfile(_PIPELINE_LOG):
         return None
+    sig = _file_sig(_PIPELINE_LOG)
+    if stage_cache["sig"] == sig:
+        return stage_cache["stage"]
     try:
         with open(_PIPELINE_LOG) as f:
             text = f.read()
@@ -725,7 +1020,9 @@ def _infer_stage() -> str | None:
         return None
     for key, marker in _STAGE_MARKERS:
         if f">>> STAGE: {marker} <<<" in text:
+            stage_cache.update({"sig": sig, "stage": key})
             return key
+    stage_cache.update({"sig": sig, "stage": None})
     return None
 
 
@@ -749,6 +1046,10 @@ def api_pipeline_log():
 
 @app.route("/api/pipeline/progress", methods=["GET"])
 def api_pipeline_progress():
+    now = time.time()
+    if progress_cache["data"] is not None and now - progress_cache["ts"] < 1.5:
+        return jsonify(progress_cache["data"])
+
     s = session.snapshot()
     total = len(s.get("all_frames") or [])
     masks_dir = s.get("masks_dir") or ""
@@ -770,7 +1071,7 @@ def api_pipeline_progress():
     pre_done = os.path.isdir(os.path.join(save_path, "plots"))
     post_done = os.path.isfile(os.path.join(save_path, "post_analysis_complete.txt"))
 
-    return jsonify({
+    data = {
         "total_frames": total,
         "segmentation": {
             "done": n_masks, "total": total,
@@ -779,7 +1080,9 @@ def api_pipeline_progress():
         "trajectories": {"pct": traj_pct},
         "pre_analysis": {"pct": 100.0 if pre_done else 0.0},
         "post_analysis": {"pct": 100.0 if post_done else 0.0},
-    })
+    }
+    progress_cache.update({"ts": now, "data": data})
+    return jsonify(data)
 
 
 @app.route("/api/pipeline/luminosity.png", methods=["GET"])
@@ -795,6 +1098,9 @@ def api_pipeline_luminosity_png():
     path = next((p for p in candidates if os.path.isfile(p)), None)
     if path is None:
         abort(404)
+    cache = _cache_path("luminosity", _file_sig(path))
+    if os.path.isfile(cache):
+        return _png_response(cache, max_age=10)
 
     try:
         import msgpack
@@ -842,11 +1148,9 @@ def api_pipeline_luminosity_png():
     ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
 
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
+    fig.savefig(cache, format="png", bbox_inches="tight")
     plt.close(fig)
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    return _png_response(cache, max_age=10)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -855,6 +1159,7 @@ def api_pipeline_luminosity_png():
 @app.route("/api/script/preview", methods=["GET"])
 def api_script_preview():
     kind = request.args.get("kind", "run_processes")
+    run_mode = request.args.get("run_mode", session.snapshot().get("last_run_mode", "full"))
     s = session.snapshot()
     if not s.get("global_dir"):
         return jsonify({"ok": False, "error": "no experiment"}), 400
@@ -863,7 +1168,7 @@ def api_script_preview():
             s, s.get("f0_frame", 1), s.get("stim_frames", ""),
         )
     else:
-        text = _build_run_processes_script(s)
+        text = _build_run_processes_script(s, run_mode)
     return jsonify({"ok": True, "script": text})
 
 

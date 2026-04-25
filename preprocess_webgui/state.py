@@ -40,6 +40,7 @@ class PipelineState:
     max_distance: float = 30.0
 
     # ROI
+    roi_enabled: bool = True
     radius: int = 2000
     y_shift: int = 0
     x_shift: int = 0
@@ -50,6 +51,15 @@ class PipelineState:
     # Post-analysis
     f0_frame: int = 1
     stim_frames: str = ""
+
+    # Web GUI guidance / validation
+    last_preview_frame: int = -1
+    preview_mask_source: str = ""
+    segmentation_reviewed: bool = False
+    last_roi_count: int = 0
+    last_run_mode: str = "full"
+    completed_stages: list = field(default_factory=list)
+    validation_warnings: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -75,6 +85,7 @@ class SessionStore:
         self.state = PipelineState()
         # Non-serialised runtime caches
         self.temp_segmentation = None  # numpy array from last Cellpose run
+        self.temp_segmentation_version = 0
         self.load()
 
     def load(self) -> None:
