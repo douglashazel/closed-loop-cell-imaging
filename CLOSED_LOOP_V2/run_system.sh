@@ -6,7 +6,6 @@ cd "$(dirname "$0")" || exit 1
 # -----------------------------
 # PATHS
 # -----------------------------
-LOGFILE="/mnt/data/Close_Loop_Data/monitoring.log"
 SCRIPTS=(config.py HandleSegmentations.py CreateDecisions.py SendDecisions.py MonitorPerformance.py)
 
 # Ensure all scripts exist before doing anything
@@ -14,15 +13,17 @@ for s in "${SCRIPTS[@]}"; do
     [[ -f "$s" ]] || { echo "Missing script: $s"; exit 1; }
 done
 
-# Ensure log directory exists
-mkdir -p "$(dirname "$LOGFILE")"
-
 # -----------------------------
 # Initialize: run config.py synchronously so directories + config.json
-# are ready before any monitor starts
+# are ready before any monitor starts. Output goes to stdout only since
+# LOGFILE is not known until after config.json exists.
 # -----------------------------
-echo ">>> Initializing config... <<<" | tee -a "$LOGFILE"
-python3 -u config.py 2>&1 | tee -a "$LOGFILE"
+echo ">>> Initializing config... <<<"
+python3 -u config.py
+
+# Read log path from config so the launcher and the GUI agree on it
+LOGFILE=$(python3 -c "import json; print(json.load(open('config.json'))['log_path'])")
+mkdir -p "$(dirname "$LOGFILE")"
 
 # -----------------------------
 # Cleanup: kill all child monitors on exit / Ctrl-C

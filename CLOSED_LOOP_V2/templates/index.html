@@ -43,6 +43,16 @@
     </button>
   </header>
 
+  <!-- ============================== READINESS STRIP ============================== -->
+  <div class="status-strip" id="status-strip">
+    <div class="strip-item"><span class="status-dot warn" id="strip-config"></span><span>Config saved</span></div>
+    <div class="strip-item"><span class="status-dot warn" id="strip-watch"></span><span>Watch dir</span></div>
+    <div class="strip-item"><span class="status-dot warn" id="strip-frame0"></span><span>Frame 0 <em id="strip-frame0-count">0/0</em></span></div>
+    <div class="strip-item"><span class="status-dot warn" id="strip-masks"></span><span>Masks pushed <em id="strip-masks-count">0/0</em></span></div>
+    <div class="strip-item"><span class="status-dot warn" id="strip-onix"></span><span>ONIX</span></div>
+    <div class="strip-item"><span class="status-dot warn" id="strip-pipeline"></span><span>Pipeline</span></div>
+  </div>
+
   <!-- ============================== MAIN SHELL ============================== -->
   <div class="shell">
     <div class="main">
@@ -136,12 +146,12 @@
               <div class="stat-value" id="stat-uptime">—</div>
             </div>
             <div class="stat">
-              <div class="stat-label">Decisions / hr</div>
-              <div class="stat-value" id="stat-decisions">—</div>
+              <div class="stat-label">Last decision frame</div>
+              <div class="stat-value" id="stat-last-decision">—</div>
             </div>
             <div class="stat">
-              <div class="stat-label">Avg latency</div>
-              <div class="stat-value" id="stat-latency">—</div>
+              <div class="stat-label">Masks ready</div>
+              <div class="stat-value" id="stat-masks-ready">—</div>
             </div>
           </div>
         </div>
@@ -183,13 +193,6 @@
                 <input type="number" id="cfg-num-channels" value="2" min="1" max="10">
               </div>
               <div class="field">
-                <label class="lbl" for="cfg-threshold-ratio">
-                  Threshold ratio
-                  <span class="help" data-tip="Relative change in masked luminosity required to trigger an acidic-media pulse. 0.05 = 5% deviation from the reference.">?</span>
-                </label>
-                <input type="number" id="cfg-threshold-ratio" value="0.05" step="0.001" min="0" max="1">
-              </div>
-              <div class="field">
                 <label class="lbl" for="cfg-run-duration">
                   Run duration (sec)
                   <span class="help" data-tip="Total wall-clock duration of the neutral-media run. 86400 = 24 hours. When reached, the pipeline stops on its own.">?</span>
@@ -212,6 +215,19 @@
                     <span class="switch-desc">On: every incoming frame is segmented and archived to <code>mask_dir</code>. Off: only frame 0 is segmented; all decisions use the reference mask in <code>curr_mask_dir</code>.</span>
                   </span>
                 </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-head"><h3>Segmentation Health</h3></div>
+          <div class="section-body">
+            <div class="field-grid">
+              <div class="field">
+                <label class="lbl" for="cfg-threshold-ratio">
+                  ROI drift sensitivity
+                  <span class="help" data-tip="Fractional change in segmented cell count between consecutive frames before MonitorPerformance flags a drift event. 0.05 = flag when cell count moves by 5%. Does not affect decisions.">?</span>
+                </label>
+                <input type="number" id="cfg-threshold-ratio" value="0.05" step="0.001" min="0" max="1">
               </div>
             </div>
           </div>
@@ -333,7 +349,8 @@
               <div id="seg-status" class="seg-status-line"></div>
 
               <div class="divider-label">Reference mask</div>
-              <p style="margin: 0 0 10px; font-size: 12px; color: var(--text-muted);">Pushing the mask to <code>curr_mask_dir</code> is what unblocks <code>CreateDecisions.py</code> — do this once you're happy with the segmentation.</p>
+              <div id="seg-mask-chips" class="mask-chip-row"></div>
+              <p style="margin: 0 0 10px; font-size: 12px; color: var(--text-muted);">Pushing the mask to <code>curr_mask_dir</code> is what unblocks <code>CreateDecisions.py</code> — do this once you're happy with the segmentation. The pushed file is always saved as <code>00000_channel{ch}.npy</code> regardless of which source frame you used.</p>
               <button class="btn btn-success" id="btn-update-masks" style="width: 100%">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
                 Push mask &amp; start decisions
@@ -558,8 +575,8 @@
               <div class="v" id="rail-uptime">—</div>
             </div>
             <div class="mini-stat">
-              <div class="k">Queue</div>
-              <div class="v" id="rail-queue">—</div>
+              <div class="k">ONIX</div>
+              <div class="v" id="rail-onix">—</div>
             </div>
             <div class="mini-stat">
               <div class="k">Cells</div>

@@ -145,6 +145,18 @@ function setPipelineUi(state) {
 }
 
 btnStart.addEventListener('click', async () => {
+  // Soft gate: if any required reference mask hasn't been pushed yet,
+  // CreateDecisions will block on startup. Surface that to the operator and
+  // let them override (preprocess.ipynb mode pushes masks after launch).
+  if (lastReadiness && lastReadiness.masks_ready) {
+    const missing = Object.entries(lastReadiness.masks_ready)
+      .filter(([, ok]) => !ok).map(([ch]) => ch);
+    if (missing.length) {
+      const msg = `Channel(s) ${missing.join(', ')} have no pushed reference mask. `
+        + `CreateDecisions will block waiting for them. Start anyway?`;
+      if (!window.confirm(msg)) return;
+    }
+  }
   // Save config first (matching original app.js behavior)
   try {
     await fetch('/api/config', {
@@ -265,6 +277,110 @@ function flashStatus(el, text) {
   el.textContent = text;
   clearTimeout(el._flashT);
   el._flashT = setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 4000);
+}
+
+// -----------------------------------------------------------------------------
+// System readiness — drives the readiness strip, mask chips, and start gate
+// -----------------------------------------------------------------------------
+let lastReadiness = null;
+
+function fmtAge(sec) {
+  if (sec == null) return '—';
+  if (sec < 60) return `${Math.round(sec)}s ago`;
+  if (sec < 3600) return `${Math.round(sec / 60)}m ago`;
+  return `${Math.round(sec / 3600)}h ago`;
+}
+
+function readyCount(map) {
+  if (!map) return [0, 0];
+  const keys = Object.keys(map);
+  const ok = keys.filter(k => map[k]).length;
+  return [ok, keys.length];
+}
+
+function setStripDot(id, state) {
+  const el = $(id);
+  if (!el) return;
+  el.classList.remove('ok', 'warn', 'bad');
+  el.classList.add(state);
+}
+
+function renderReadinessStrip(r) {
+  if (!r) return;
+  setStripDot('strip-config',  r.config_saved ? 'ok' : 'bad');
+  setStripDot('strip-watch',   r.watch_dir_exists ? 'ok' : 'bad');
+  const [f0, f0n]    = readyCount(r.frame0_present);
+  const [mr, mrn]    = readyCount(r.masks_ready);
+  setStripDot('strip-frame0',  f0 === f0n && f0n > 0 ? 'ok' : (f0 > 0 ? 'warn' : 'bad'));
+  setStripDot('strip-masks',   mr === mrn && mrn > 0 ? 'ok' : (mr > 0 ? 'warn' : 'bad'));
+  setStripDot('strip-onix',    r.onix_reachable ? 'ok' : 'bad');
+  setStripDot('strip-pipeline', r.pipeline_running ? 'ok' : 'warn');
+  const set = (id, txt) => { const el = $(id); if (el) el.textContent = txt; };
+  set('strip-frame0-count', `${f0}/${f0n}`);
+  set('strip-masks-count',  `${mr}/${mrn}`);
+}
+
+function renderMaskChips(r) {
+  const wrap = $('seg-mask-chips');
+  if (!wrap || !r || !r.masks_ready) return;
+  const channels = Object.keys(r.masks_ready)
+    .map(Number).sort((a, b) => a - b);
+  wrap.innerHTML = '';
+  for (const ch of channels) {
+    const ok = !!r.masks_ready[ch];
+    const chip = document.createElement('span');
+    chip.className = 'mask-chip ' + (ok ? 'ok' : 'bad');
+    chip.textContent = `CH${ch} ${ok ? '✓ pushed' : '— not pushed'}`;
+    wrap.appendChild(chip);
+  }
+}
+
+function renderPipelineTiles(r) {
+  if (!r) return;
+  const lastEl = $('stat-last-decision');
+  if (lastEl) {
+    lastEl.textContent = (r.last_decision_frame == null)
+      ? '—'
+      : `${r.last_decision_frame}  ·  ${fmtAge(r.last_decision_age_sec)}`;
+  }
+  const masksEl = $('stat-masks-ready');
+  if (masksEl) {
+    const [mr, mrn] = readyCount(r.masks_ready);
+    masksEl.textContent = `${mr} / ${mrn}`;
+  }
+  const onixEl = $('rail-onix');
+  if (onixEl) {
+    onixEl.textContent = r.onix_reachable ? 'OK' : 'down';
+  }
+}
+
+async function pollReadiness() {
+  try {
+    const r = await fetch('/api/system/readiness');
+    const data = await r.json();
+    lastReadiness = data;
+    renderReadinessStrip(data);
+    renderMaskChips(data);
+    renderPipelineTiles(data);
+  } catch (e) { /* network blip */ }
+}
+
+async function pollLuminosity() {
+  // Refill recentLumi for each channel from the server log so the rail
+  // sparkline + per-channel inline trace always reflect the latest decisions.
+  for (let ch = 1; ch <= numChannels; ch++) {
+    try {
+      const r = await fetch(`/api/luminosity?channel=${ch}&limit=80`);
+      const data = await r.json();
+      if (!data.ok) continue;
+      recentLumi.set(ch, []);
+      for (const rec of data.records) {
+        if (rec && typeof rec.mean_luminosity === 'number') {
+          pushLumi(ch, rec.mean_luminosity);
+        }
+      }
+    } catch (e) { /* ignore one-channel blip */ }
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -652,7 +768,7 @@ async function loadSetpoints() {
       field.innerHTML = `
         <label class="lbl" for="sp-ch-${c.channel}">
           Channel ${c.channel}
-          <span class="help" data-tip="Reference luminosity for CH${c.channel}. Decisions fire when live luminosity deviates by more than threshold_ratio from this value.">?</span>
+          <span class="help" data-tip="Reference luminosity for CH${c.channel}. An acidic-media pulse fires whenever the masked mean luminosity is greater than or equal to this setpoint.">?</span>
         </label>
         <input type="number" step="any" id="sp-ch-${c.channel}" data-channel="${c.channel}"
           value="${c.value != null ? Number(c.value).toFixed(6) : ''}"
@@ -830,6 +946,7 @@ $('btn-update-masks').addEventListener('click', async () => {
     const data = await r.json();
     if (data.ok) {
       setSegStatus(`Mask pushed → ${data.dst.split('/').pop()}`, 'done');
+      pollReadiness();  // optimistically refresh chips + strip
     } else {
       setSegStatus(data.error || 'Push failed', 'error');
     }
@@ -898,6 +1015,8 @@ async function pollAll() {
     pollLog(),
     pollMediaStatus(),
     pollFrames(),
+    pollReadiness(),
+    pollLuminosity(),
   ]);
   // Track state history for timeline
   for (const ch of channelsState) pushStateHistory(ch);
@@ -924,4 +1043,6 @@ setInterval(pollAll, 1000);
   await pollPipelineStatus();
   await pollMediaStatus();
   await pollFrames();
+  await pollReadiness();
+  await pollLuminosity();
 })();

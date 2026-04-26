@@ -53,24 +53,28 @@ def append_luminosity(frame, channel, mean_val, setpoint, decision_label):
 
 def get_latest_complete_frame():
     """Return the highest frame number that has all channels present, or -1."""
-    frame_counts = {}
+    frame_channels = {}
     for f in os.listdir(watch_dir):
         if not f.endswith('.png'):
             continue
-        parsed = parse_filename(f)
-        if parsed is None:
+        ch, frame_num = parse_filename(f)
+        if ch is None:
             continue
-        _, frame_num = parsed
-        frame_counts[frame_num] = frame_counts.get(frame_num, 0) + 1
-    complete = [fr for fr, count in frame_counts.items() if count >= num_channels]
+        frame_channels.setdefault(frame_num, set()).add(ch)
+    complete = [fr for fr, chs in frame_channels.items() if len(chs) >= num_channels]
     return max(complete) if complete else -1
 
 def wait_for_frame(frame):
     """Block until the given frame has all channels present."""
     while True:
-        imgs = [f for f in os.listdir(watch_dir)
-                if f.endswith('.png') and parse_filename(f)[1] == frame]
-        if len(imgs) >= num_channels:
+        chs = set()
+        for f in os.listdir(watch_dir):
+            if not f.endswith('.png'):
+                continue
+            ch, frame_num = parse_filename(f)
+            if ch is not None and frame_num == frame:
+                chs.add(ch)
+        if len(chs) >= num_channels:
             return
         time.sleep(cfg["sleep_time"])
 

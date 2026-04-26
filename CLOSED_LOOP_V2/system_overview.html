@@ -336,7 +336,7 @@
     <h1>PE Pipeline — Closed-Loop Bio-Control System</h1>
     <p class="tagline">Images in, media pulses out. Fully file-synchronized.</p>
     <div class="meta">
-      <span>4 parallel monitors</span>
+      <span>3–4 parallel monitors</span>
       <span>Flask web GUI · :5000</span>
       <span>ONIX2 @ 192.0.2.10:8881</span>
       <span>Cellpose on GPU 0</span>
@@ -486,7 +486,7 @@
         <!-- Orchestrator footer -->
         <g transform="translate(20,362)">
           <rect width="1130" height="54" rx="10" fill="#0f1216" stroke="#262b33" stroke-width="1"/>
-          <text x="565" y="24" text-anchor="middle" class="label muted">run_system.sh · launches all 4 monitors in parallel + the Flask GUI · traps SIGINT/SIGTERM to kill the process group</text>
+          <text x="565" y="24" text-anchor="middle" class="label muted">run_system.sh · launches 3–4 monitors in parallel (HandleSegmentations only when continuous_segmentation=True) · traps SIGINT/SIGTERM to kill the process group</text>
           <text x="565" y="42" text-anchor="middle" class="small muted">( everything above runs concurrently · communication = files )</text>
         </g>
       </svg>
@@ -549,7 +549,7 @@
 
       <div class="card">
         <h3><span class="dot" style="--c: var(--muted);"></span>run_system.sh</h3>
-        <div class="role">The entry point. Runs <code>config.py</code> synchronously, then forks the 4 monitors and tees each into <code>monitoring.log</code>.</div>
+        <div class="role">The entry point. Runs <code>config.py</code> synchronously, then forks 3–4 monitors and tees each into <code>monitoring.log</code>. <code>HandleSegmentations.py</code> is only launched when <code>continuous_segmentation=True</code>; in <code>False</code> mode <code>preprocess.ipynb</code> owns frame-0 segmentation and only CreateDecisions / SendDecisions / MonitorPerformance run.</div>
         <div class="io">
           <div class="k">runs</div><div class="v"><span class="path">config.py</span><span class="path">HandleSegmentations.py</span><span class="path">CreateDecisions.py</span><span class="path">SendDecisions.py</span><span class="path">MonitorPerformance.py</span></div>
           <div class="k">traps</div><div class="v"><span class="path">EXIT / INT / TERM</span></div>

@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import threading
 import time
@@ -244,6 +245,120 @@ def api_pipeline_status():
     return jsonify({"running": False, "pid": pipeline_proc.pid, "exit_code": rc})
 
 
+# ---- System readiness -----------------------------------------------------
+def _onix_reachable(ip, port, timeout=0.2):
+    try:
+        with socket.create_connection((ip, int(port)), timeout=timeout):
+            return True
+    except (OSError, ValueError):
+        return False
+
+
+def _frame0_present(watch_dir, num_channels):
+    """Return {ch: bool} for whether frame-0 image exists for each channel."""
+    present = {ch: False for ch in range(1, num_channels + 1)}
+    if not os.path.isdir(watch_dir):
+        return present
+    for f in os.listdir(watch_dir):
+        m = _FILENAME_RE.search(f)
+        if m and int(m.group(2)) == 0:
+            ch = int(m.group(1))
+            if ch in present:
+                present[ch] = True
+    return present
+
+
+def _last_decision_record(luminosity_file, num_channels):
+    """Find the most-recent decision across all per-channel luminosity logs."""
+    base, ext = os.path.splitext(luminosity_file)
+    latest_frame = -1
+    latest_mtime = None
+    for ch in range(1, num_channels + 1):
+        path = f"{base}_channel{ch}{ext}"
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path) as f:
+                records = json.load(f)
+            if records:
+                fr = records[-1].get("frame", -1)
+                if fr > latest_frame:
+                    latest_frame = fr
+                    latest_mtime = os.path.getmtime(path)
+        except (OSError, ValueError):
+            continue
+    age = None
+    if latest_mtime is not None:
+        age = max(0, time.time() - latest_mtime)
+    return latest_frame, age
+
+
+@app.route("/api/system/readiness", methods=["GET"])
+def api_system_readiness():
+    """Snapshot of operator-facing system state — drives the readiness strip
+    and the per-channel mask chips. All values are cheap derivations of state
+    the pipeline already produces; nothing is cached."""
+    global pipeline_proc
+    cfg = _load_cfg()
+    num_channels = int(cfg.get("num_channels", 2))
+    watch_dir = cfg.get("watch_dir", "")
+    curr_mask_dir = cfg.get("curr_mask_dir", "")
+
+    masks_ready = {}
+    for ch in range(1, num_channels + 1):
+        masks_ready[ch] = os.path.isfile(
+            os.path.join(curr_mask_dir, f"00000_channel{ch}.npy")
+        )
+
+    frame0 = _frame0_present(watch_dir, num_channels)
+    last_frame, last_age = _last_decision_record(
+        cfg.get("luminosity_file", ""), num_channels
+    )
+
+    pipeline_running = (pipeline_proc is not None and pipeline_proc.poll() is None)
+
+    return jsonify({
+        "config_saved": os.path.isfile(_CONFIG_PATH),
+        "watch_dir_exists": os.path.isdir(watch_dir),
+        "frame0_present": frame0,
+        "masks_ready": masks_ready,
+        "onix_reachable": _onix_reachable(
+            cfg.get("onix_server_ip", ""), cfg.get("onix_server_port", 0)
+        ),
+        "pipeline_running": pipeline_running,
+        "last_decision_frame": last_frame if last_frame >= 0 else None,
+        "last_decision_age_sec": last_age,
+        "num_channels": num_channels,
+    })
+
+
+@app.route("/api/luminosity", methods=["GET"])
+def api_luminosity():
+    """Return the last N records of the per-channel luminosity log (default 80).
+
+    Feeds the rail sparkline (pushLumi) without re-rendering the matplotlib PNG."""
+    cfg = _load_cfg()
+    try:
+        channel = int(request.args.get("channel", 1))
+        limit = int(request.args.get("limit", 80))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "bad channel/limit"}), 400
+    base, ext = os.path.splitext(cfg["luminosity_file"])
+    path = f"{base}_channel{channel}{ext}"
+    if not os.path.isfile(path):
+        return jsonify({"ok": True, "channel": channel, "records": []})
+    try:
+        with open(path) as f:
+            records = json.load(f)
+    except (OSError, ValueError) as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({
+        "ok": True,
+        "channel": channel,
+        "records": records[-limit:] if limit > 0 else records,
+    })
+
+
 # ---- Log tail -------------------------------------------------------------
 @app.route("/api/log/tail", methods=["GET"])
 def api_log_tail():
@@ -252,7 +367,7 @@ def api_log_tail():
     Matches LaunchNapari._update_log semantics exactly: client keeps the
     last returned position and passes it back on the next poll."""
     cfg = _load_cfg()
-    log_path = os.path.join(cfg["global_path"], "monitoring.log")
+    log_path = cfg.get("log_path") or os.path.join(cfg["global_path"], "monitoring.log")
     pos = int(request.args.get("pos", 0))
     if not os.path.isfile(log_path):
         return jsonify({"text": "", "pos": 0, "exists": False})
@@ -587,10 +702,11 @@ def api_segmentation_update_masks():
         if f.endswith(f"_channel{channel}.npy"):
             os.remove(os.path.join(curr_mask_dir, f))
 
-    # CreateDecisions.py expects the initial mask at frame 00000
-    dst = os.path.join(curr_mask_dir, f"{frame:05d}_channel{channel}.npy")
+    # CreateDecisions.py waits for 00000_channel{ch}.npy specifically; the source
+    # frame is operator-chosen but the pushed file always represents the reference.
+    dst = os.path.join(curr_mask_dir, f"00000_channel{channel}.npy")
     shutil.copy2(src, dst)
-    log(f"Updated channel{channel} mask -> {dst}")
+    log(f"pushed channel{channel} mask (from frame {frame}) -> {dst}")
     return jsonify({"ok": True, "dst": dst})
 
 

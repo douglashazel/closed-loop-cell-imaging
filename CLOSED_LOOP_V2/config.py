@@ -28,6 +28,7 @@ def build_config(global_path=None, **overrides):
         "flags_dir": f"{global_path}/flags",
         "setpoint_file": f"{global_path}/setpoints.txt",
         "luminosity_file": f"{global_path}/luminosity_log.json",
+        "log_path": f"{global_path}/monitoring.log",
         "threshold_ratio": 0.05,
         "num_channels": 2,
         "num_tries": 30,
@@ -83,6 +84,11 @@ if __name__ == "__main__":
         for key in _DIR_KEYS:
             if key in cfg:
                 os.makedirs(cfg[key], exist_ok=True)
+        # Backfill log_path for configs written before it was added
+        if "log_path" not in cfg and "global_path" in cfg:
+            cfg["log_path"] = os.path.join(cfg["global_path"], "monitoring.log")
+            with open(save_path, "w") as f:
+                json.dump(cfg, f, indent=4)
         print(f"config.json exists -- ensured directories at {save_path}")
     else:
         cfg = build_config()

@@ -871,3 +871,53 @@ body[data-theme="dark"] .seg-img.seg-mask { mix-blend-mode: screen; }
 
 /* Lumi image fallback wrapper */
 #lumi-image-wrap { margin-top: 4px; }
+
+/* ---- System readiness strip --------------------------------------------- */
+.status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  padding: 8px 18px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.status-strip .strip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-strip em {
+  font-style: normal;
+  color: var(--text);
+  font-weight: 600;
+  margin-left: 4px;
+}
+.status-dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  box-shadow: 0 0 0 2px transparent;
+}
+.status-dot.ok   { background: var(--green); box-shadow: 0 0 0 2px var(--green-ring); }
+.status-dot.warn { background: #d97706;       box-shadow: 0 0 0 2px rgba(217,119,6,.2); }
+.status-dot.bad  { background: var(--red);   box-shadow: 0 0 0 2px var(--red-ring); }
+
+/* ---- Per-channel mask chips (Segmentation tab) -------------------------- */
+.mask-chip-row {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 4px 0 8px;
+}
+.mask-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+}
+.mask-chip.ok  { color: var(--green); border-color: color-mix(in oklab, var(--green) 40%, var(--border)); background: color-mix(in oklab, var(--green) 6%, var(--bg-subtle)); }
+.mask-chip.bad { color: var(--text-muted); border-color: var(--border); }
