@@ -11,3 +11,4 @@ archive
 *.csv
 *.png
 *.parquet
+*.pkl
