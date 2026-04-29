@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 2 D"
+GLOBAL_DIR="EXPERIMENTS/pc3/pc3_nicotine_1"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -15,21 +15,21 @@ SCRIPT2="SCRIPTS/trajectories.py"
 # -----------------------------
 # CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.9675
-CELLPROB_THRESHOLD=-5
-NITER=2250
-DIAMETER=21
+FLOW_THRESHOLD=0.97
+CELLPROB_THRESHOLD=-6
+NITER=4000
+DIAMETER=15
 
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=190
+MAX_DISTANCE=180
 GRACE_PERIOD=3
-RADIUS=1670
-RADIUS_Y=84
-RADIUS_X=228
-SHIFT_FRAME=527
-SHIFT_XY="0 0"
+RADIUS=2000
+RADIUS_Y=0
+RADIUS_X=0
+SHIFT_FRAME=2
+SHIFT_XY="3 -12"
 SAVE_INTERVAL=100
 
 # -----------------------------
