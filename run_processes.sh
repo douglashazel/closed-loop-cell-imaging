@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/pc3/pc3_nicotine_1"
+GLOBAL_DIR="EXPERIMENTS/pc3/pc3_nicotine_2"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -15,7 +15,7 @@ SCRIPT2="SCRIPTS/trajectories.py"
 # -----------------------------
 # CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.97
+FLOW_THRESHOLD=0.965
 CELLPROB_THRESHOLD=-6
 NITER=4000
 DIAMETER=15
@@ -23,14 +23,14 @@ DIAMETER=15
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=180
+MAX_DISTANCE=158
 GRACE_PERIOD=3
 RADIUS=2000
 RADIUS_Y=0
 RADIUS_X=0
 SHIFT_FRAME=2
-SHIFT_XY="3 -12"
-SAVE_INTERVAL=100
+SHIFT_XY="9 6"
+SAVE_INTERVAL=10
 
 # -----------------------------
 # Ensure scripts exist
@@ -77,37 +77,37 @@ echo "--- Accessing ${GLOBAL_DIR} ---"
 # -----------------------------
 # Run segmentation
 # -----------------------------
-# echo "Starting cellpose segmentation..."
-# python3 "$SCRIPT1" \
-#     --image_dir "$IMAGE_DIR" \
-#     --mask_dir "$MASK_DIR" \
-#     --flow_threshold "$FLOW_THRESHOLD" \
-#     --cellprob_threshold "$CELLPROB_THRESHOLD" \
-#     --niter "$NITER" \
-#     --diameter "$DIAMETER" &
-# PID1=$!
+echo "Starting cellpose segmentation..."
+python3 "$SCRIPT1" \
+    --image_dir "$IMAGE_DIR" \
+    --mask_dir "$MASK_DIR" \
+    --flow_threshold "$FLOW_THRESHOLD" \
+    --cellprob_threshold "$CELLPROB_THRESHOLD" \
+    --niter "$NITER" \
+    --diameter "$DIAMETER" &
+PID1=$!
 
-# sleep 5 # small buffer
+sleep 5 # small buffer
 
-# # -----------------------------
-# # Run trajectory processing
-# # -----------------------------
-# echo "Starting trajectory processing..."
-# python3 "$SCRIPT2" \
-#     --mask_dir "$MASK_DIR" \
-#     --image_dir "$IMAGE_DIR" \
-#     --save_path "$SAVE_PATH" \
-#     --max_distance "$MAX_DISTANCE" \
-#     --grace_period "$GRACE_PERIOD" \
-#     --radius "$RADIUS" \
-#     --radius_y "$RADIUS_Y" \
-#     --radius_x "$RADIUS_X" \
-#     --shift_frame "$SHIFT_FRAME" \
-#     --shift_xy $SHIFT_XY \
-#     --save_interval "$SAVE_INTERVAL" &
-# PID2=$!
+# -----------------------------
+# Run trajectory processing
+# -----------------------------
+echo "Starting trajectory processing..."
+python3 "$SCRIPT2" \
+    --mask_dir "$MASK_DIR" \
+    --image_dir "$IMAGE_DIR" \
+    --save_path "$SAVE_PATH" \
+    --max_distance "$MAX_DISTANCE" \
+    --grace_period "$GRACE_PERIOD" \
+    --radius "$RADIUS" \
+    --radius_y "$RADIUS_Y" \
+    --radius_x "$RADIUS_X" \
+    --shift_frame "$SHIFT_FRAME" \
+    --shift_xy $SHIFT_XY \
+    --save_interval "$SAVE_INTERVAL" &
+PID2=$!
 
-# wait $PID1 $PID2
+wait $PID1 $PID2
 
 # -----------------------------
 # Pre-analysis plots
