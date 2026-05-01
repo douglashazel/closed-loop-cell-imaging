@@ -31,18 +31,21 @@ from PIL import Image
 
 RESULTS_DIR = Path("April28_preprint_results")
 OUTPUT_PDF = RESULTS_DIR / "April28_preprint_figures.pdf"
-SKIP_DIRS = {"bg_cache"}
+SKIP_DIRS = {"bg_cache", "archive"}
 
 OVERVIEW_ORDER = [
     "bg_diagnostic",
     "time_traces",
     "corrected_traces",
+    "dff_mean_combined",
     "corr_vs_dist",
+    "corr_vs_dist_combined",
 ]
 PER_CHANNEL_ORDER = [
     "dff",
-    "peak_value_violin",
+    "dff_response_breakdown",
     "response_violin",
+    "response_violin_responders",
     "hw_lum_log",
 ]
 
@@ -50,10 +53,13 @@ CATEGORY_LABELS = {
     "bg_diagnostic": "Background-correction diagnostic",
     "time_traces": "Raw time traces",
     "corrected_traces": "Corrected per-cell traces",
+    "dff_mean_combined": "Mean dF/F0 — all channels combined",
     "corr_vs_dist": "Pairwise correlation vs. distance",
+    "corr_vs_dist_combined": "Pairwise correlation vs. distance (combined)",
     "dff": "dF/F0 normalized traces",
-    "peak_value_violin": "Per-stimulus peak-value violin",
-    "response_violin": "Per-stimulus response violin (baseline → peak)",
+    "dff_response_breakdown": "dF/F0 response breakdown (mean/median/percentile + per-cell peak histogram)",
+    "response_violin": "Per-stimulus Δ luminosity (peak − baseline)",
+    "response_violin_responders": "Per-stimulus Δ luminosity — responders only (|peak Δ dF/F0| ≥ 0.10)",
     "hw_lum_log": "Hardware feedback luminosity (log)",
 }
 
