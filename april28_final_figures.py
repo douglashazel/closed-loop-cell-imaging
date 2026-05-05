@@ -1825,7 +1825,12 @@ def _scatter_corr_vs_dist(ax, dists, corrs, color, title):
             x_line, y_line,
             color=PLOT_PARAMS["corr_fit_color"],
             linewidth=PLOT_PARAMS["mean_lw"],
-            label=f"Linear fit  (r={res.rvalue:.3f})",
+            label=(
+                f"Linear fit\n"
+                f"Pearson r = {res.rvalue:.3f}\n"
+                f"R² = {res.rvalue ** 2:.3f}\n"
+                f"p (slope=0) = {res.pvalue:.2e}"
+            ),
             zorder=3,
         )
         ax.fill_between(
@@ -1978,7 +1983,12 @@ def _plot_corr_vs_dist_combined(exp_name, per_channel_pairs):
             x_line, y_line,
             color=PLOT_PARAMS["corr_fit_color"],
             linewidth=PLOT_PARAMS["mean_lw"],
-            label=f"Pooled linear fit  (r={res.rvalue:.3f})",
+            label=(
+                f"Pooled linear fit\n"
+                f"Pearson r = {res.rvalue:.3f}\n"
+                f"R² = {res.rvalue ** 2:.3f}\n"
+                f"p (slope=0) = {res.pvalue:.2e}"
+            ),
             zorder=3,
         )
         ax.fill_between(

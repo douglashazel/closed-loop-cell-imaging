@@ -4,7 +4,7 @@ set -euo pipefail
 # -----------------------------
 # PATHS
 # -----------------------------
-GLOBAL_DIR="EXPERIMENTS/u87/u87_nicotine_2"
+GLOBAL_DIR="EXPERIMENTS/ht29/ht29_serotonin_1"
 IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
@@ -15,21 +15,21 @@ SCRIPT2="SCRIPTS/trajectories.py"
 # -----------------------------
 # CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
 # -----------------------------
-FLOW_THRESHOLD=0.94
-CELLPROB_THRESHOLD=-3
-NITER=900
-DIAMETER=16
+FLOW_THRESHOLD=0.98
+CELLPROB_THRESHOLD=-6
+NITER=2000
+DIAMETER=12
 
 # -----------------------------
 # TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
 # -----------------------------
-MAX_DISTANCE=148
+MAX_DISTANCE=101
 GRACE_PERIOD=3
-RADIUS=2000
-RADIUS_Y=0
-RADIUS_X=0
-SHIFT_FRAME=2
-SHIFT_XY="-3 -6"
+RADIUS=1520
+RADIUS_Y=-387
+RADIUS_X=-1262
+SHIFT_FRAME=3
+SHIFT_XY="-15 -25"
 SAVE_INTERVAL=10
 
 # -----------------------------
