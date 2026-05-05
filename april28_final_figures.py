@@ -243,7 +243,7 @@ EXPERIMENTS = {
         "channels": ["channel 1", "channel 2", "channel 3"],
         "bg_ref": "EXPERIMENTS/other/background images for subtraction method/20APR26/8.png",
         "stim_frames": [],   # auto-filled by stim_minutes/timestamps below
-        "f0_frame": 0,
+        # F0 is computed automatically from stim_frames (mean of frames 0..first_stim-1).
         # 15 min neutral, then 3 blocks of (5x: 2 min DMSO + 8 min neutral) separated
         # by 30 min neutral. The first 15 min is treated as a single neutral block
         # (the priming sub-step is invisible at the cell side).
@@ -270,7 +270,7 @@ EXPERIMENTS = {
         "channels": ["channel 1 A", "channel 1 C", "channel 2 B", "channel 2 D"],
         "bg_ref": "EXPERIMENTS/other/background images for subtraction method/20APR26/8.png",
         "stim_frames": [],   # auto-filled by stim_logs below
-        "f0_frame": 0,
+        # F0 is computed automatically from stim_frames (mean of frames 0..first_stim-1).
         # Acid pulse delivery window is ~30 s.
         "stim_duration_minutes": 0.5,
         "stim_label": "Acid pulse (30 s)",
@@ -1090,6 +1090,40 @@ def per_cell_response_delta(values_by_col, stim_col, direction, window):
     return extremum - base
 
 
+def compute_f0_baseline(state, exp_name, ch, cfg):
+    """Per-cell F0 = mean of corrected luminosity from frame 0 up to the first stim.
+
+    Returns
+    -------
+    F0 : np.ndarray of shape (n_cells, 1)
+        Per-cell baseline mean, aligned with rows of ``lum_dict_to_df(...)``
+        sorted by CellID. Cells with all-NaN baseline get NaN.
+    baseline_cols : list[str]
+        The frame-column names ("f0", "f1", ...) that were averaged.
+    first_stim : int
+        The first stim frame for this channel. Falls back to 1 (so the
+        baseline is just frame 0) when no stims are configured.
+    """
+    stim_frames = cfg.get("stim_frames", {}).get(ch, [])
+    if len(stim_frames):
+        first_stim = int(min(stim_frames))
+    else:
+        first_stim = 1
+
+    df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
+    frame_cols = sorted(
+        [c for c in df.columns if str(c).startswith("f")],
+        key=lambda c: int(str(c).lstrip("f")),
+    )
+    baseline_cols = [
+        c for c in frame_cols if int(str(c).lstrip("f")) < first_stim
+    ]
+    if not baseline_cols:
+        baseline_cols = frame_cols[:1]
+    F0 = np.nanmean(df[baseline_cols].values, axis=1, keepdims=True)
+    return F0, baseline_cols, first_stim
+
+
 # =============================================================================
 # Pipeline step 2 — Background diagnostic figure
 # =============================================================================
@@ -1392,13 +1426,13 @@ def plot_corrected_traces(experiments, state):
 def plot_dff(experiments, state):
     """One figure per (experiment, channel): raw corrected + dF/F0 stacked.
 
-    F0 is taken from ``cfg['f0_frame']``. The mean across cells is overlaid in
-    bold. Stimuli are drawn as shaded blocks of width
-    ``cfg['stim_duration_minutes']``; the F0 frame is marked with a dashed line.
+    F0 per cell is the mean of corrected luminosity from frame 0 up to
+    (but not including) the first stim frame. The mean across cells is
+    overlaid in bold. Stimuli are drawn as shaded blocks of width
+    ``cfg['stim_duration_minutes']``; the F0 baseline window is shaded
+    in light green.
     """
     for exp_name, cfg in experiments.items():
-        f0_frame = cfg["f0_frame"]
-
         for ch in cfg["channels"]:
             stim_frames = cfg["stim_frames"][ch]
             df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
@@ -1410,17 +1444,28 @@ def plot_dff(experiments, state):
             frame_min = frames_to_min(state, exp_name, ch, frame_nums)
             mat = df[frame_cols].values
 
-            f0_col = f"f{f0_frame}"
-            if f0_col not in df.columns:
-                print(f"{exp_name} / {ch}: F0 frame {f0_frame} missing — skipping dF/F0")
-                continue
-            F0 = df[f0_col].values[:, np.newaxis]
+            F0, baseline_cols, first_stim = compute_f0_baseline(
+                state, exp_name, ch, cfg
+            )
             F0_safe = np.where(F0 == 0, np.nan, F0)
             dff_mat = (mat - F0) / F0_safe
 
-            f0_min = frames_to_min(state, exp_name, ch, [f0_frame])[0]
             spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
             rsp = state["real_setpoint_min"][exp_name].get(ch)
+            baseline_lo_min = frames_to_min(state, exp_name, ch, [0])[0]
+            baseline_hi_min = frames_to_min(
+                state, exp_name, ch, [max(first_stim - 1, 0)]
+            )[0]
+            baseline_label = (
+                f"F₀ baseline (frames 0–{first_stim - 1})"
+                if first_stim > 1
+                else "F₀ baseline (frame 0)"
+            )
+            f0_title_suffix = (
+                f"F₀ = mean of baseline (frames 0–{first_stim - 1})"
+                if first_stim > 1
+                else "F₀ = frame 0"
+            )
 
             fig, axes = plt.subplots(
                 2, 1,
@@ -1430,7 +1475,7 @@ def plot_dff(experiments, state):
 
             panels = [
                 (mat, "Corrected luminosity", "Corrected luminosity"),
-                (dff_mat, "dF/F₀", f"dF/F₀  (F₀ = frame {f0_frame})"),
+                (dff_mat, "dF/F₀", f"dF/F₀  ({f0_title_suffix})"),
             ]
 
             for ax, (data, ylabel, title_suffix) in zip(axes, panels):
@@ -1456,12 +1501,10 @@ def plot_dff(experiments, state):
                     ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18
                 )
 
-                ax.axvline(
-                    f0_min,
-                    color=PLOT_PARAMS["f0_color"],
-                    linewidth=PLOT_PARAMS["f0_lw"],
-                    linestyle="--", zorder=4,
-                    label=f"F0 frame ({f0_frame})",
+                ax.axvspan(
+                    baseline_lo_min, baseline_hi_min,
+                    color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
+                    label=baseline_label,
                 )
 
                 if rsp is not None:
@@ -1499,15 +1542,14 @@ def plot_dff_mean_combined(experiments, state):
     """One figure per experiment: mean dF/F0 trace from every channel overlaid.
 
     Each channel's mean is computed the same way as in :func:`plot_dff` —
-    normalize each cell to its own ``f0_frame`` then average across cells —
-    so the per-channel and combined views agree by construction.
+    normalize each cell to its baseline-window mean F0 then average across
+    cells — so the per-channel and combined views agree by construction.
 
     Stimuli are shaded per channel using the channel's own minute axis (in
     practice the schedules align across channels of one experiment, so the
     bands overlap visually).
     """
     for exp_name, cfg in experiments.items():
-        f0_frame = cfg["f0_frame"]
         channels = cfg["channels"]
 
         fig, ax = plt.subplots(
@@ -1519,6 +1561,7 @@ def plot_dff_mean_combined(experiments, state):
 
         cmap = plt.get_cmap("tab10")
         any_drawn = False
+        ref_first_stim = None
         for col, ch in enumerate(channels):
             df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
             frame_cols = sorted(
@@ -1531,17 +1574,12 @@ def plot_dff_mean_combined(experiments, state):
             frame_min = frames_to_min(state, exp_name, ch, frame_nums)
             mat = df[frame_cols].values
 
-            f0_col = f"f{f0_frame}"
-            if f0_col not in df.columns:
-                print(
-                    f"{exp_name} / {ch}: F0 frame {f0_frame} missing — "
-                    "skipping in combined dF/F0."
-                )
-                continue
-            F0 = df[f0_col].values[:, np.newaxis]
+            F0, _, first_stim = compute_f0_baseline(state, exp_name, ch, cfg)
             F0_safe = np.where(F0 == 0, np.nan, F0)
             dff_mat = (mat - F0) / F0_safe
             mean_trace = np.nanmean(dff_mat, axis=0)
+            if ref_first_stim is None:
+                ref_first_stim = first_stim
 
             ax.plot(
                 frame_min, mean_trace,
@@ -1564,10 +1602,26 @@ def plot_dff_mean_combined(experiments, state):
             ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18
         )
 
+        # Shade the F0 baseline window using the reference channel's first stim.
+        if ref_first_stim is not None:
+            base_lo = frames_to_min(state, exp_name, ref_ch, [0])[0]
+            base_hi = frames_to_min(
+                state, exp_name, ref_ch, [max(ref_first_stim - 1, 0)]
+            )[0]
+            ax.axvspan(
+                base_lo, base_hi,
+                color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
+                label=(
+                    f"F₀ baseline (frames 0–{ref_first_stim - 1})"
+                    if ref_first_stim > 1
+                    else "F₀ baseline (frame 0)"
+                ),
+            )
+
         ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
         ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
         ax.set_ylabel(
-            f"Mean dF/F₀  (F₀ = frame {f0_frame})",
+            "Mean dF/F₀  (F₀ = baseline-window mean)",
             fontsize=PLOT_PARAMS["axis_label_fontsize"],
         )
         ax.set_title(
@@ -1608,7 +1662,6 @@ def plot_dff_response_diagnostic(experiments, state, only_experiments=("c2c12_dm
     for exp_name, cfg in experiments.items():
         if exp_name not in only_experiments:
             continue
-        f0_frame = cfg["f0_frame"]
         direction = cfg.get("response_direction", "increase")
         window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
         # Direction-aware cutoffs: positive for increase, negative for decrease.
@@ -1627,10 +1680,7 @@ def plot_dff_response_diagnostic(experiments, state, only_experiments=("c2c12_dm
             frame_min = frames_to_min(state, exp_name, ch, frame_nums)
             mat = df[frame_cols].values
 
-            f0_col = f"f{f0_frame}"
-            if f0_col not in df.columns:
-                continue
-            F0 = df[f0_col].values[:, np.newaxis]
+            F0, _, first_stim = compute_f0_baseline(state, exp_name, ch, cfg)
             F0_safe = np.where(F0 == 0, np.nan, F0)
             dff_mat = (mat - F0) / F0_safe
 
@@ -1661,8 +1711,16 @@ def plot_dff_response_diagnostic(experiments, state, only_experiments=("c2c12_dm
             p75_trace = np.nanpercentile(dff_mat, 75, axis=0)
             p90_trace = np.nanpercentile(dff_mat, 90, axis=0)
 
-            f0_min = frames_to_min(state, exp_name, ch, [f0_frame])[0]
             spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
+            baseline_lo_min = frames_to_min(state, exp_name, ch, [0])[0]
+            baseline_hi_min = frames_to_min(
+                state, exp_name, ch, [max(first_stim - 1, 0)]
+            )[0]
+            baseline_label = (
+                f"F₀ baseline (frames 0–{first_stim - 1})"
+                if first_stim > 1
+                else "F₀ baseline (frame 0)"
+            )
 
             fig, axes = plt.subplots(
                 2, 1,
@@ -1695,12 +1753,10 @@ def plot_dff_response_diagnostic(experiments, state, only_experiments=("c2c12_dm
             draw_stim_spans(
                 ax_top, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18
             )
-            ax_top.axvline(
-                f0_min,
-                color=PLOT_PARAMS["f0_color"],
-                linewidth=PLOT_PARAMS["f0_lw"],
-                linestyle="--", zorder=3,
-                label=f"F0 frame ({f0_frame})",
+            ax_top.axvspan(
+                baseline_lo_min, baseline_hi_min,
+                color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
+                label=baseline_label,
             )
             ax_top.axhline(0, color="gray", lw=0.8, ls=":", alpha=0.6, zorder=2)
             ax_top.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
@@ -2026,8 +2082,102 @@ def _plot_corr_vs_dist_combined(exp_name, per_channel_pairs):
 # =============================================================================
 # Pipeline step 5b — Trace clustering (PCA + UMAP + KMeans)
 # =============================================================================
+def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,
+                                   n_pca_max=20, n_neighbors=15):
+    """Shared pipeline used by both trace-clustering figure functions.
+
+    Builds the per-cell corrected-luminosity matrix, z-scores per cell along
+    time, runs PCA and UMAP. Returns ``None`` if the channel has too few cells.
+
+    Returns
+    -------
+    dict with keys: ``X_raw`` (n_cells, n_frames) corrected luminosity (post
+    NaN-fill, post zero-std drop), ``frame_nums``, ``frame_min``, ``pcs``
+    (n_cells, n_pca), ``evr`` (explained variance ratios), ``embedding``
+    (n_cells, 2 — UMAP), ``n_pca``.
+    """
+    df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
+    frame_cols = sorted(
+        [c for c in df.columns if str(c).startswith("f")],
+        key=lambda c: int(str(c).lstrip("f")),
+    )
+    frame_nums = np.array([int(str(c).lstrip("f")) for c in frame_cols])
+    frame_min = frames_to_min(state, exp_name, ch, frame_nums)
+
+    X_raw = df[frame_cols].values.astype(float)
+    row_all_nan = np.isnan(X_raw).all(axis=1)
+    X_raw = X_raw[~row_all_nan]
+    if X_raw.shape[0] < 5:
+        return None
+    row_means = np.nanmean(X_raw, axis=1, keepdims=True)
+    X_raw = np.where(np.isnan(X_raw), row_means, X_raw)
+
+    mu = X_raw.mean(axis=1, keepdims=True)
+    sd = X_raw.std(axis=1, keepdims=True)
+    keep = sd[:, 0] > 0
+    X_raw = X_raw[keep]
+    mu = mu[keep]
+    sd = sd[keep]
+    X_z = (X_raw - mu) / sd
+    X_z = np.nan_to_num(X_z, nan=0.0, posinf=0.0, neginf=0.0)
+
+    n_cells, n_frames = X_z.shape
+    if n_cells < 5:
+        return None
+
+    n_pca = int(min(n_pca_max, n_cells, n_frames))
+    pca = PCA(n_components=n_pca, random_state=random_state)
+    pcs = pca.fit_transform(X_z)
+    evr = pca.explained_variance_ratio_
+
+    nn = int(min(n_neighbors, max(2, n_cells - 1)))
+    reducer = umap.UMAP(
+        n_components=2,
+        n_neighbors=nn,
+        min_dist=0.1,
+        random_state=random_state,
+    )
+    embedding = reducer.fit_transform(pcs)
+
+    return {
+        "X_raw": X_raw,
+        "frame_nums": frame_nums,
+        "frame_min": frame_min,
+        "pcs": pcs,
+        "evr": evr,
+        "embedding": embedding,
+        "n_pca": n_pca,
+        "n_cells": n_cells,
+    }
+
+
+def _silhouette_sweep(pcs, k_min=2, k_max=8, random_state=0):
+    """Fit KMeans for each k and return (ks, scores, best_k, best_score)."""
+    n_cells = pcs.shape[0]
+    k_upper = min(k_max, n_cells - 1)
+    ks = []
+    scores = []
+    best_k = k_min
+    best_score = -np.inf
+    for k in range(k_min, k_upper + 1):
+        km_try = KMeans(n_clusters=k, n_init=10, random_state=random_state)
+        labs_try = km_try.fit_predict(pcs)
+        if len(np.unique(labs_try)) < 2:
+            continue
+        try:
+            s = silhouette_score(pcs, labs_try)
+        except ValueError:
+            continue
+        ks.append(k)
+        scores.append(s)
+        if s > best_score:
+            best_score = s
+            best_k = k
+    return np.array(ks), np.array(scores), best_k, best_score
+
+
 def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
-    """Cluster cells by trace shape and visualize as a 2x2 figure per channel.
+    """Cluster cells by trace shape and visualize as a 3x2 figure per channel.
 
     Pipeline, per (experiment, channel):
       1. Build the (n_cells, n_frames) corrected-luminosity matrix.
@@ -2036,82 +2186,35 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
       3. PCA -> n_pca = min(20, n_cells, n_frames) components.
       4. UMAP(n_components=2) on the PCA scores for the 2D layout.
       5. KMeans on the PCA scores (UMAP distances are unreliable for clustering),
-         with k chosen by silhouette score over k_min..k_max.
+         with k chosen by silhouette score over k_min..k_max — the silhouette
+         curve is shown so reviewers can see whether higher-k structure exists.
 
-    Saves one PNG per (experiment, channel) at
-    ``fig_path(exp, f"{ch}_trace_clustering")``. Layout:
-       (a) top-left:  PCA scree.
-       (b) top-right: UMAP embedding colored by cluster.
-       (c) bot-left:  cluster mean traces (corrected luminosity, +/-1 SEM)
-                      with stim shading and F0 marker.
-       (d) bot-right: cluster size bar chart.
+    Layout (3x2):
+      (a) PCA scree           (b) Silhouette curve vs k
+      (c) PC1 vs PC2          (d) UMAP
+      (e) Cluster mean traces (f) Cluster sizes
 
     Requires scikit-learn and umap-learn.
     """
     for exp_name, cfg in experiments.items():
-        f0_frame = cfg["f0_frame"]
-
         for ch in cfg["channels"]:
-            df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
-            frame_cols = sorted(
-                [c for c in df.columns if str(c).startswith("f")],
-                key=lambda c: int(str(c).lstrip("f")),
+            emb = _compute_clustering_embeddings(
+                state, exp_name, ch, random_state=random_state,
             )
-            frame_nums = np.array([int(str(c).lstrip("f")) for c in frame_cols])
-            frame_min = frames_to_min(state, exp_name, ch, frame_nums)
-
-            X_raw = df[frame_cols].values.astype(float)  # (n_cells, n_frames)
-            row_all_nan = np.isnan(X_raw).all(axis=1)
-            X_raw = X_raw[~row_all_nan]
-            if X_raw.shape[0] < max(k_min + 1, 5):
-                print(f"{exp_name} / {ch}: only {X_raw.shape[0]} cells — skipping clustering")
+            if emb is None:
+                print(f"{exp_name} / {ch}: too few cells — skipping clustering")
                 continue
-            row_means = np.nanmean(X_raw, axis=1, keepdims=True)
-            X_raw = np.where(np.isnan(X_raw), row_means, X_raw)
+            pcs = emb["pcs"]
+            evr = emb["evr"]
+            embedding = emb["embedding"]
+            X_raw = emb["X_raw"]
+            frame_min = emb["frame_min"]
+            n_cells = emb["n_cells"]
+            n_pca = emb["n_pca"]
 
-            mu = X_raw.mean(axis=1, keepdims=True)
-            sd = X_raw.std(axis=1, keepdims=True)
-            keep = sd[:, 0] > 0
-            X_raw = X_raw[keep]
-            mu = mu[keep]
-            sd = sd[keep]
-            X_z = (X_raw - mu) / sd
-            X_z = np.nan_to_num(X_z, nan=0.0, posinf=0.0, neginf=0.0)
-
-            n_cells, n_frames = X_z.shape
-            if n_cells < max(k_min + 1, 5):
-                print(f"{exp_name} / {ch}: only {n_cells} cells after filter — skipping")
-                continue
-
-            n_pca = int(min(20, n_cells, n_frames))
-            pca = PCA(n_components=n_pca, random_state=random_state)
-            pcs = pca.fit_transform(X_z)
-            evr = pca.explained_variance_ratio_
-
-            n_neighbors = int(min(15, max(2, n_cells - 1)))
-            reducer = umap.UMAP(
-                n_components=2,
-                n_neighbors=n_neighbors,
-                min_dist=0.1,
-                random_state=random_state,
+            ks, scores, best_k, best_score = _silhouette_sweep(
+                pcs, k_min=k_min, k_max=k_max, random_state=random_state,
             )
-            embedding = reducer.fit_transform(pcs)
-
-            best_k = k_min
-            best_score = -np.inf
-            k_upper = min(k_max, n_cells - 1)
-            for k in range(k_min, k_upper + 1):
-                km_try = KMeans(n_clusters=k, n_init=10, random_state=random_state)
-                labs_try = km_try.fit_predict(pcs)
-                if len(np.unique(labs_try)) < 2:
-                    continue
-                try:
-                    s = silhouette_score(pcs, labs_try)
-                except ValueError:
-                    continue
-                if s > best_score:
-                    best_score = s
-                    best_k = k
             km = KMeans(n_clusters=best_k, n_init=10, random_state=random_state)
             labels = km.fit_predict(pcs)
 
@@ -2119,14 +2222,15 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
             cluster_colors = [cmap(i % 10) for i in range(best_k)]
 
             fig, axes = plt.subplots(
-                2, 2,
-                figsize=(14, 10),
+                3, 2,
+                figsize=(16, 14),
                 dpi=PLOT_PARAMS["dpi"],
             )
             for ax in axes.ravel():
                 ax.spines[["top", "right"]].set_visible(False)
                 ax.tick_params(top=False, right=False)
 
+            # (a) PCA scree
             ax = axes[0, 0]
             n_show = int(min(10, len(evr)))
             ax.bar(
@@ -2142,7 +2246,68 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
                 fontweight=PLOT_PARAMS["title_fontweight"],
             )
 
+            # (b) Silhouette curve vs k
             ax = axes[0, 1]
+            if len(ks):
+                ax.plot(
+                    ks, scores,
+                    "-o",
+                    color=PLOT_PARAMS["fit_color"],
+                    linewidth=1.8,
+                    markersize=7,
+                )
+                # Star the chosen k.
+                ax.plot(
+                    [best_k], [best_score],
+                    marker="*",
+                    color=PLOT_PARAMS["mean_marker_color"],
+                    markersize=20,
+                    markeredgecolor="#222222",
+                    markeredgewidth=0.8,
+                    linestyle="None",
+                    label=f"chosen k={best_k} (s={best_score:.3f})",
+                    zorder=5,
+                )
+                ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+            ax.set_xlabel("k (number of clusters)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_ylabel("Silhouette score", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_xticks(ks if len(ks) else [k_min])
+            ax.axhline(0, color="gray", lw=0.8, ls=":", alpha=0.6)
+            ax.set_title(
+                f"Silhouette across k=[{k_min}, {min(k_max, n_cells - 1)}]",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+
+            # (c) PC1 vs PC2 scatter colored by cluster
+            ax = axes[1, 0]
+            for cid in range(best_k):
+                mask = labels == cid
+                ax.scatter(
+                    pcs[mask, 0], pcs[mask, 1],
+                    s=PLOT_PARAMS["scatter_size"] * 1.4,
+                    color=cluster_colors[cid],
+                    alpha=0.75,
+                    edgecolors="none",
+                    label=f"Cluster {cid} (n={int(mask.sum())})",
+                )
+            ax.set_xlabel(
+                f"PC 1 ({evr[0] * 100:.1f}% var)",
+                fontsize=PLOT_PARAMS["axis_label_fontsize"],
+            )
+            ax.set_ylabel(
+                f"PC 2 ({evr[1] * 100:.1f}% var)" if len(evr) > 1 else "PC 2",
+                fontsize=PLOT_PARAMS["axis_label_fontsize"],
+            )
+            ax.set_title(
+                "PCA: PC1 vs PC2 (interpretable axes)",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+            ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+
+            # (d) UMAP scatter colored by cluster
+            ax = axes[1, 1]
             for cid in range(best_k):
                 mask = labels == cid
                 ax.scatter(
@@ -2162,9 +2327,19 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
             )
             ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
 
-            ax = axes[1, 0]
+            # (e) Cluster mean traces
+            ax = axes[2, 0]
             spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
-            f0_min = frames_to_min(state, exp_name, ch, [f0_frame])[0]
+            _, _, first_stim = compute_f0_baseline(state, exp_name, ch, cfg)
+            baseline_lo_min = frames_to_min(state, exp_name, ch, [0])[0]
+            baseline_hi_min = frames_to_min(
+                state, exp_name, ch, [max(first_stim - 1, 0)]
+            )[0]
+            baseline_label = (
+                f"F₀ baseline (frames 0–{first_stim - 1})"
+                if first_stim > 1
+                else "F₀ baseline (frame 0)"
+            )
             for cid in range(best_k):
                 mask = labels == cid
                 cluster_traces = X_raw[mask]
@@ -2184,12 +2359,10 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
             draw_stim_spans(
                 ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
             )
-            ax.axvline(
-                f0_min,
-                color=PLOT_PARAMS["f0_color"],
-                linewidth=PLOT_PARAMS["f0_lw"],
-                linestyle="--",
-                label=f"F0 frame ({f0_frame})",
+            ax.axvspan(
+                baseline_lo_min, baseline_hi_min,
+                color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
+                label=baseline_label,
             )
             rsp = state["real_setpoint_min"][exp_name].get(ch)
             if rsp is not None:
@@ -2211,7 +2384,8 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
             )
             ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
 
-            ax = axes[1, 1]
+            # (f) Cluster size bar chart
+            ax = axes[2, 1]
             sizes = np.array([int((labels == cid).sum()) for cid in range(best_k)])
             ax.bar(
                 np.arange(best_k), sizes,
@@ -2242,6 +2416,85 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
             plt.tight_layout()
             fig.savefig(
                 fig_path(exp_name, f"{ch}_trace_clustering"),
+                dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            )
+            plt.close(fig)
+
+
+def plot_trace_clustering_kselect(experiments, state, ks=(2, 3, 4, 5),
+                                   random_state=0):
+    """Per (exp, ch): a 1×len(ks) row of UMAP scatters at fixed k values.
+
+    Lets reviewers see how cluster carving changes across k without trusting
+    a single auto-selection criterion. Reuses the same z-score → PCA → UMAP
+    pipeline as :func:`plot_trace_clustering`. Saves
+    ``<exp>/<ch>_trace_clustering_kselect.png``.
+    """
+    cmap = plt.get_cmap("tab10")
+    for exp_name, cfg in experiments.items():
+        for ch in cfg["channels"]:
+            emb = _compute_clustering_embeddings(
+                state, exp_name, ch, random_state=random_state,
+            )
+            if emb is None:
+                continue
+            pcs = emb["pcs"]
+            embedding = emb["embedding"]
+            n_cells = emb["n_cells"]
+
+            valid_ks = [k for k in ks if k < n_cells]
+            if not valid_ks:
+                continue
+
+            fig, axes = plt.subplots(
+                1, len(valid_ks),
+                figsize=(4.0 * len(valid_ks), 4.5),
+                dpi=PLOT_PARAMS["dpi"],
+            )
+            if len(valid_ks) == 1:
+                axes = np.array([axes])
+
+            for col, k in enumerate(valid_ks):
+                ax = axes[col]
+                ax.spines[["top", "right"]].set_visible(False)
+                ax.tick_params(top=False, right=False)
+
+                km = KMeans(n_clusters=k, n_init=10, random_state=random_state)
+                labels = km.fit_predict(pcs)
+                try:
+                    s = silhouette_score(pcs, labels)
+                except ValueError:
+                    s = float("nan")
+
+                for cid in range(k):
+                    mask = labels == cid
+                    ax.scatter(
+                        embedding[mask, 0], embedding[mask, 1],
+                        s=PLOT_PARAMS["scatter_size"] * 1.2,
+                        color=cmap(cid % 10),
+                        alpha=0.75,
+                        edgecolors="none",
+                        label=f"C{cid} (n={int(mask.sum())})",
+                    )
+                ax.set_xlabel("UMAP 1", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+                if col == 0:
+                    ax.set_ylabel("UMAP 2", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+                ax.set_title(
+                    f"k={k}  (silhouette={s:.3f})",
+                    fontsize=PLOT_PARAMS["title_fontsize"],
+                    fontweight=PLOT_PARAMS["title_fontweight"],
+                )
+                ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"] - 1, loc="best")
+
+            fig.suptitle(
+                f"{exp_name} / {ch} — k-selection diagnostic (n={n_cells} cells)",
+                fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+                fontweight="bold",
+                y=1.02,
+            )
+            plt.tight_layout()
+            fig.savefig(
+                fig_path(exp_name, f"{ch}_trace_clustering_kselect"),
                 dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
             )
             plt.close(fig)
@@ -2534,7 +2787,6 @@ def compute_responder_thresholds(
     for exp_name, cfg in experiments.items():
         direction = cfg.get("response_direction", "increase")
         window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
-        f0_frame = cfg["f0_frame"]
         win_lo, win_hi = window
 
         pooled_null = []
@@ -2552,10 +2804,7 @@ def compute_responder_thresholds(
             n_cells, n_cols = mat.shape
             frame_to_col = {f: i for i, f in enumerate(frame_nums)}
 
-            f0_col = f"f{f0_frame}"
-            if f0_col not in df_indexed.columns:
-                continue
-            F0 = df_indexed[f0_col].values[:, np.newaxis]
+            F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
             F0_safe = np.where(F0 == 0, np.nan, F0)
             dff_mat = (mat - F0) / F0_safe
 
@@ -2625,7 +2874,6 @@ def plot_per_stimulus_response_violins_responders(experiments, state, thresholds
     for exp_name, cfg in experiments.items():
         direction = cfg.get("response_direction", "increase")
         window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
-        f0_frame = cfg["f0_frame"]
         sign = -1.0 if direction == "decrease" else 1.0
 
         for ch in cfg["channels"]:
@@ -2650,14 +2898,7 @@ def plot_per_stimulus_response_violins_responders(experiments, state, thresholds
             mat = df_indexed[frame_cols].values
             frame_to_col = {f: i for i, f in enumerate(frame_nums)}
 
-            f0_col = f"f{f0_frame}"
-            if f0_col not in df_indexed.columns:
-                print(
-                    f"{exp_name} / {ch}: F0 frame {f0_frame} missing — "
-                    "skipping responder violin."
-                )
-                continue
-            F0 = df_indexed[f0_col].values[:, np.newaxis]
+            F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
             F0_safe = np.where(F0 == 0, np.nan, F0)
             dff_mat = (mat - F0) / F0_safe
 
@@ -3109,6 +3350,7 @@ def main():
     plot_dff_response_diagnostic(EXPERIMENTS, state)
     plot_correlation_vs_distance(EXPERIMENTS, state)
     plot_trace_clustering(EXPERIMENTS, state)
+    plot_trace_clustering_kselect(EXPERIMENTS, state)
     # Absolute peak-luminosity violin disabled per reviewer request — only
     # peak−baseline deltas are shown going forward.
     # plot_per_stimulus_peak_violins(EXPERIMENTS, state)
