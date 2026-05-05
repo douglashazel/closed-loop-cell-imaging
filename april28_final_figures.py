@@ -70,7 +70,11 @@ from PIL import Image
 from scipy.ndimage import distance_transform_edt
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import linregress, pearsonr, spearmanr
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
 from tqdm.auto import tqdm
+import umap
 
 # Project-local helpers. The notebook used ``sys.path.insert(0, 'SCRIPTS')``;
 # we preserve that so the script keeps working when invoked from the project
@@ -2020,6 +2024,230 @@ def _plot_corr_vs_dist_combined(exp_name, per_channel_pairs):
 
 
 # =============================================================================
+# Pipeline step 5b — Trace clustering (PCA + UMAP + KMeans)
+# =============================================================================
+def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
+    """Cluster cells by trace shape and visualize as a 2x2 figure per channel.
+
+    Pipeline, per (experiment, channel):
+      1. Build the (n_cells, n_frames) corrected-luminosity matrix.
+      2. Per-cell z-score along the time axis (groups by *response shape*,
+         not absolute brightness or amplitude).
+      3. PCA -> n_pca = min(20, n_cells, n_frames) components.
+      4. UMAP(n_components=2) on the PCA scores for the 2D layout.
+      5. KMeans on the PCA scores (UMAP distances are unreliable for clustering),
+         with k chosen by silhouette score over k_min..k_max.
+
+    Saves one PNG per (experiment, channel) at
+    ``fig_path(exp, f"{ch}_trace_clustering")``. Layout:
+       (a) top-left:  PCA scree.
+       (b) top-right: UMAP embedding colored by cluster.
+       (c) bot-left:  cluster mean traces (corrected luminosity, +/-1 SEM)
+                      with stim shading and F0 marker.
+       (d) bot-right: cluster size bar chart.
+
+    Requires scikit-learn and umap-learn.
+    """
+    for exp_name, cfg in experiments.items():
+        f0_frame = cfg["f0_frame"]
+
+        for ch in cfg["channels"]:
+            df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
+            frame_cols = sorted(
+                [c for c in df.columns if str(c).startswith("f")],
+                key=lambda c: int(str(c).lstrip("f")),
+            )
+            frame_nums = np.array([int(str(c).lstrip("f")) for c in frame_cols])
+            frame_min = frames_to_min(state, exp_name, ch, frame_nums)
+
+            X_raw = df[frame_cols].values.astype(float)  # (n_cells, n_frames)
+            row_all_nan = np.isnan(X_raw).all(axis=1)
+            X_raw = X_raw[~row_all_nan]
+            if X_raw.shape[0] < max(k_min + 1, 5):
+                print(f"{exp_name} / {ch}: only {X_raw.shape[0]} cells — skipping clustering")
+                continue
+            row_means = np.nanmean(X_raw, axis=1, keepdims=True)
+            X_raw = np.where(np.isnan(X_raw), row_means, X_raw)
+
+            mu = X_raw.mean(axis=1, keepdims=True)
+            sd = X_raw.std(axis=1, keepdims=True)
+            keep = sd[:, 0] > 0
+            X_raw = X_raw[keep]
+            mu = mu[keep]
+            sd = sd[keep]
+            X_z = (X_raw - mu) / sd
+            X_z = np.nan_to_num(X_z, nan=0.0, posinf=0.0, neginf=0.0)
+
+            n_cells, n_frames = X_z.shape
+            if n_cells < max(k_min + 1, 5):
+                print(f"{exp_name} / {ch}: only {n_cells} cells after filter — skipping")
+                continue
+
+            n_pca = int(min(20, n_cells, n_frames))
+            pca = PCA(n_components=n_pca, random_state=random_state)
+            pcs = pca.fit_transform(X_z)
+            evr = pca.explained_variance_ratio_
+
+            n_neighbors = int(min(15, max(2, n_cells - 1)))
+            reducer = umap.UMAP(
+                n_components=2,
+                n_neighbors=n_neighbors,
+                min_dist=0.1,
+                random_state=random_state,
+            )
+            embedding = reducer.fit_transform(pcs)
+
+            best_k = k_min
+            best_score = -np.inf
+            k_upper = min(k_max, n_cells - 1)
+            for k in range(k_min, k_upper + 1):
+                km_try = KMeans(n_clusters=k, n_init=10, random_state=random_state)
+                labs_try = km_try.fit_predict(pcs)
+                if len(np.unique(labs_try)) < 2:
+                    continue
+                try:
+                    s = silhouette_score(pcs, labs_try)
+                except ValueError:
+                    continue
+                if s > best_score:
+                    best_score = s
+                    best_k = k
+            km = KMeans(n_clusters=best_k, n_init=10, random_state=random_state)
+            labels = km.fit_predict(pcs)
+
+            cmap = plt.get_cmap("tab10")
+            cluster_colors = [cmap(i % 10) for i in range(best_k)]
+
+            fig, axes = plt.subplots(
+                2, 2,
+                figsize=(14, 10),
+                dpi=PLOT_PARAMS["dpi"],
+            )
+            for ax in axes.ravel():
+                ax.spines[["top", "right"]].set_visible(False)
+                ax.tick_params(top=False, right=False)
+
+            ax = axes[0, 0]
+            n_show = int(min(10, len(evr)))
+            ax.bar(
+                np.arange(1, n_show + 1), evr[:n_show],
+                color=PLOT_PARAMS["fit_color"], alpha=0.85,
+            )
+            ax.set_xlabel("Principal component", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_ylabel("Explained variance ratio", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_xticks(np.arange(1, n_show + 1))
+            ax.set_title(
+                f"PCA scree (top {n_show} of {n_pca}) — cum. {evr[:n_show].sum() * 100:.1f}%",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+
+            ax = axes[0, 1]
+            for cid in range(best_k):
+                mask = labels == cid
+                ax.scatter(
+                    embedding[mask, 0], embedding[mask, 1],
+                    s=PLOT_PARAMS["scatter_size"] * 1.4,
+                    color=cluster_colors[cid],
+                    alpha=0.75,
+                    edgecolors="none",
+                    label=f"Cluster {cid} (n={int(mask.sum())})",
+                )
+            ax.set_xlabel("UMAP 1", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_ylabel("UMAP 2", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_title(
+                f"UMAP embedding — k={best_k} (silhouette={best_score:.3f})",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+            ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+
+            ax = axes[1, 0]
+            spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
+            f0_min = frames_to_min(state, exp_name, ch, [f0_frame])[0]
+            for cid in range(best_k):
+                mask = labels == cid
+                cluster_traces = X_raw[mask]
+                mean_trace = np.nanmean(cluster_traces, axis=0)
+                n_in = max(int(mask.sum()), 1)
+                sem_trace = np.nanstd(cluster_traces, axis=0) / np.sqrt(n_in)
+                ax.fill_between(
+                    frame_min, mean_trace - sem_trace, mean_trace + sem_trace,
+                    color=cluster_colors[cid], alpha=0.15, linewidth=0,
+                )
+                ax.plot(
+                    frame_min, mean_trace,
+                    color=cluster_colors[cid],
+                    linewidth=PLOT_PARAMS["mean_lw"],
+                    label=f"Cluster {cid} (n={n_in})",
+                )
+            draw_stim_spans(
+                ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
+            )
+            ax.axvline(
+                f0_min,
+                color=PLOT_PARAMS["f0_color"],
+                linewidth=PLOT_PARAMS["f0_lw"],
+                linestyle="--",
+                label=f"F0 frame ({f0_frame})",
+            )
+            rsp = state["real_setpoint_min"][exp_name].get(ch)
+            if rsp is not None:
+                ax.axvline(
+                    rsp,
+                    color="#000000",
+                    linewidth=2.0, linestyle=":", alpha=0.9,
+                    label=f"Real setpoint ({rsp:.1f} min)",
+                )
+            ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_ylabel(
+                "Corrected luminosity (cluster mean ±1 SEM)",
+                fontsize=PLOT_PARAMS["axis_label_fontsize"],
+            )
+            ax.set_title(
+                "Cluster mean traces",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+            ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+
+            ax = axes[1, 1]
+            sizes = np.array([int((labels == cid).sum()) for cid in range(best_k)])
+            ax.bar(
+                np.arange(best_k), sizes,
+                color=cluster_colors, edgecolor="#222222", linewidth=0.6,
+            )
+            for cid, n in enumerate(sizes):
+                ax.text(
+                    cid, n, str(int(n)),
+                    ha="center", va="bottom",
+                    fontsize=PLOT_PARAMS["legend_fontsize"],
+                )
+            ax.set_xticks(np.arange(best_k))
+            ax.set_xticklabels([f"C{cid}" for cid in range(best_k)])
+            ax.set_xlabel("Cluster", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_title(
+                f"Cluster sizes (total {n_cells})",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+
+            fig.suptitle(
+                f"{exp_name} / {ch} — trace clustering (k={best_k}, n={n_cells})",
+                fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+                fontweight="bold",
+                y=1.00,
+            )
+            plt.tight_layout()
+            fig.savefig(
+                fig_path(exp_name, f"{ch}_trace_clustering"),
+                dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            )
+            plt.close(fig)
+
+
+# =============================================================================
 # Pipeline step 6 — Per-stimulus violin plots
 # =============================================================================
 # Layout constants for the asymmetric violin/box composite below.
@@ -2880,6 +3108,7 @@ def main():
     plot_dff_mean_combined(EXPERIMENTS, state)
     plot_dff_response_diagnostic(EXPERIMENTS, state)
     plot_correlation_vs_distance(EXPERIMENTS, state)
+    plot_trace_clustering(EXPERIMENTS, state)
     # Absolute peak-luminosity violin disabled per reviewer request — only
     # peak−baseline deltas are shown going forward.
     # plot_per_stimulus_peak_violins(EXPERIMENTS, state)
