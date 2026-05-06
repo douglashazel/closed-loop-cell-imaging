@@ -265,6 +265,34 @@ EXPERIMENTS = {
         # Optional: 'perfusion_start': '09-Apr-2026 14:08:16'
         # Default = earliest frame-0 datetime across channels listed in 'timestamps'.
     },
+    "pc3_dmso_23MAR26": {
+        "dir": "EXPERIMENTS/other/PC3 DMSO pulses perfusion 23MAR26",
+        # Single-channel dataset: data lives at <dir>/{frames,masks,analysis}
+        # directly. The "channel 1" name is purely a label (preserved as a
+        # state key and in figure filenames); ``single_channel_root`` short-
+        # circuits the per-channel subdir in path resolution.
+        "channels": ["channel 1"],
+        "single_channel_root": True,
+        "bg_ref": "EXPERIMENTS/other/background images for subtraction method/20APR26/8.png",
+        "stim_frames": [],   # auto-filled by stim_minutes/timestamps below
+        # Same DMSO schedule as c2c12_dmso_09APR26 except for the acclimation
+        # window: 10 min normal medium (vs 15 min for C2C12), then 3 trains of
+        # 5 pulses (2 min DMSO + 8 min normal each), with 30 min rest between
+        # trains. Total runtime 220 min. Per-frame timestamps live in a flat-
+        # root CSV next to frames/ (not in a timestamps/ subfolder like C2C12).
+        "stim_minutes": [
+            10, 20, 30, 40, 50,
+            90, 100, 110, 120, 130,
+            170, 180, 190, 200, 210,
+        ],
+        "stim_duration_minutes": 2.0,
+        "stim_label": "DMSO pulse (2 min)",
+        "response_direction": "increase",
+        "response_window": (1, 8),
+        "timestamps": {
+            "channel 1": "PC3 DMSO pulses perfusion 23MAR26 timestamps.csv",
+        },
+    },
     "nrk_acid_13APR26": {
         "dir": "EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26",
         "channels": ["channel 1 A", "channel 1 C", "channel 2 B", "channel 2 D"],
@@ -277,6 +305,10 @@ EXPERIMENTS = {
         # Acid drives luminosity *down* — the response is the post-stim minimum.
         "response_direction": "decrease",
         "response_window": (1, 8),
+        # Only the first 30 min of NRK data are analyzed; everything past
+        # this is dropped from corrected_lum/bg_trace/stim_frames before any
+        # plot runs (see clip_experiments_to_time_window).
+        "time_window_minutes": 30.0,
         "stim_logs": {
             "channel 1 A": (f"{PE_PIPELINE}/resultsApril13_exp2_channel1A_channel2B/monitoring.log", 1),
             "channel 2 B": (f"{PE_PIPELINE}/resultsApril13_exp2_channel1A_channel2B/monitoring.log", 2),
@@ -326,6 +358,21 @@ def sorted_image_files(frame_dir):
     return sorted([f for f in os.listdir(frame_dir) if f.endswith((".png", ".jpg"))])
 
 
+def channel_dir(cfg, ch):
+    """Resolve the on-disk root for a channel.
+
+    Most experiments store data under ``<cfg['dir']>/<channel>/{frames,masks,analysis}``
+    (one subdirectory per channel). For datasets like PC3 23MAR26 the data is
+    flat — a single channel lives at ``<cfg['dir']>/{frames,masks,analysis}``
+    directly. Setting ``cfg['single_channel_root'] = True`` selects that flat
+    layout. The channel name is preserved as a label for figure filenames and
+    as a key in ``state[exp][ch]``; only the path resolution is short-circuited.
+    """
+    if cfg.get("single_channel_root"):
+        return cfg["dir"]
+    return os.path.join(cfg["dir"], ch)
+
+
 # =============================================================================
 # Background-fit primitives
 # =============================================================================
@@ -363,14 +410,14 @@ def build_background_sampler(cfg, fit_cfg=BG_FIT):
         degree         - polynomial degree
         clearance      - HxW distance-to-nearest-cell-pixel map (debug aid)
     """
-    first_dir = os.path.join(cfg["dir"], cfg["channels"][0], "frames")
+    first_dir = os.path.join(channel_dir(cfg, cfg["channels"][0]), "frames")
     first_files = sorted_image_files(first_dir)
     H, W = np.array(Image.open(os.path.join(first_dir, first_files[0])).convert("L")).shape
 
     # Union of all cell masks across channels and a sampled subset of frames.
     union = np.zeros((H, W), dtype=bool)
     for ch in cfg["channels"]:
-        mdir = os.path.join(cfg["dir"], ch, "masks")
+        mdir = os.path.join(channel_dir(cfg, ch), "masks")
         mfiles = sorted([f for f in os.listdir(mdir) if f.endswith(".npy")])
         if not mfiles:
             continue
@@ -613,6 +660,32 @@ def parse_stim_frames_from_timestamps(ts_path, stim_minutes, perfusion_start_dt)
     return frames
 
 
+def minutes_from_frame_mtimes(cfg, ch):
+    """Return ``(known_frames, minutes)`` derived from frame file mtimes.
+
+    Used for datasets that have no ``timestamps/`` CSV (e.g. PC3 23MAR26).
+    Files are read in name-sorted order; non-monotonic deltas are clamped to
+    zero with a printed warning. Frame 0 is anchored at minute 0.
+    """
+    fdir = os.path.join(channel_dir(cfg, ch), "frames")
+    ffiles = sorted_image_files(fdir)
+    mtimes = np.asarray(
+        [os.path.getmtime(os.path.join(fdir, f)) for f in ffiles],
+        dtype=float,
+    )
+    deltas = np.diff(mtimes)
+    if (deltas < 0).any():
+        n_neg = int((deltas < 0).sum())
+        print(
+            f"  WARNING: mtimes under {fdir} have {n_neg} non-monotonic steps "
+            "— clamping to 0."
+        )
+        deltas = np.clip(deltas, 0, None)
+    minutes = np.concatenate([[0.0], np.cumsum(deltas) / 60.0])
+    known_frames = np.arange(len(minutes), dtype=float)
+    return known_frames, minutes
+
+
 def resolve_all_stim_frames(experiments):
     """Mutate ``experiments`` in place so each ``cfg['stim_frames']`` is a dict.
 
@@ -670,6 +743,27 @@ def resolve_all_stim_frames(experiments):
                 print(
                     f"  {exp_name} / {ch}: resolved {len(frames)} stims from "
                     f"timestamps (perfusion_start={perfusion_start}) → {frames}"
+                )
+
+        # stim_minutes for single_channel_root datasets — minutes derived
+        # from frame file mtimes (no timestamps CSV). Skipped when a
+        # ``timestamps`` mapping is provided so the CSV-based resolution
+        # immediately above is not overwritten.
+        if (
+            "stim_minutes" in cfg
+            and cfg.get("single_channel_root")
+            and "timestamps" not in cfg
+        ):
+            for ch in cfg["channels"]:
+                _, minutes = minutes_from_frame_mtimes(cfg, ch)
+                frames = [
+                    int(np.argmin(np.abs(minutes - float(sm))))
+                    for sm in cfg["stim_minutes"]
+                ]
+                resolved[ch] = frames
+                print(
+                    f"  {exp_name} / {ch}: resolved {len(frames)} stims from "
+                    f"mtimes-derived minutes → {frames}"
                 )
 
         for ch, (log_path, ch_num) in cfg.get("stim_logs", {}).items():
@@ -780,8 +874,8 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
         )
 
         for ch in cfg["channels"]:
-            fdir = os.path.join(cfg["dir"], ch, "frames")
-            adir = os.path.join(cfg["dir"], ch, "analysis")
+            fdir = os.path.join(channel_dir(cfg, ch), "frames")
+            adir = os.path.join(channel_dir(cfg, ch), "analysis")
             ffiles = sorted_image_files(fdir)
             n_frames = len(ffiles)
 
@@ -988,7 +1082,7 @@ def build_frame_to_minutes_lookups(experiments, state):
                         f"event(s) in monitor.log — no real-setpoint marker"
                     )
 
-            # ---- C2C12: timestamps.csv ------------------------------------
+            # ---- C2C12 / PC3-with-CSV: timestamps.csv ---------------------
             elif "timestamps" in cfg and ch in cfg["timestamps"]:
                 ts_path = os.path.join(cfg["dir"], cfg["timestamps"][ch])
                 df = pd.read_csv(
@@ -1002,6 +1096,19 @@ def build_frame_to_minutes_lookups(experiments, state):
                 )
                 state["real_setpoint_min"][exp_name][ch] = None
 
+            # ---- single_channel_root w/o CSV: derive minutes from mtimes --
+            elif cfg.get("single_channel_root"):
+                known_frames, minutes = minutes_from_frame_mtimes(cfg, ch)
+                state["frame_minutes_src"][exp_name][ch] = (
+                    known_frames, minutes,
+                )
+                state["real_setpoint_min"][exp_name][ch] = None
+                print(
+                    f"  {exp_name} / {ch}: minutes from mtimes — "
+                    f"frame 0 → {minutes[0]:.2f} min, "
+                    f"frame {len(minutes) - 1} → {minutes[-1]:.2f} min"
+                )
+
             # ---- Fallback: identity (frame == "minutes") ------------------
             else:
                 print(
@@ -1012,6 +1119,65 @@ def build_frame_to_minutes_lookups(experiments, state):
                 state["frame_minutes_src"][exp_name][ch] = (idx, idx.copy())
                 state["real_setpoint_min"][exp_name][ch] = None
 
+    print()
+
+
+def clip_experiments_to_time_window(experiments, state):
+    """Trim per-(experiment, channel) data to ``cfg['time_window_minutes']``.
+
+    For experiments declaring a window (currently NRK only), every downstream
+    analysis sees only frames whose interpolated minute-from-t0 is within
+    ``[0, window]``. State entries clipped in place:
+
+        * ``state['corrected_lum'][exp][ch]``   — drop ``f{i}`` keys past cutoff
+        * ``state['bg_trace'][exp][ch]``        — slice to the first kept frames
+        * ``state['frame_counts'][exp][ch]``    — set to clipped count
+        * ``cfg['stim_frames'][ch]``            — drop stim frames past window
+
+    ``state['frame_minutes_src']`` is intentionally untouched — ``frames_to_min``
+    uses it through ``np.interp``, which still resolves correctly inside the
+    retained window.
+    """
+    for exp_name, cfg in experiments.items():
+        window = cfg.get("time_window_minutes")
+        if window is None:
+            continue
+        for ch in cfg["channels"]:
+            n_frames = state["frame_counts"][exp_name][ch]
+            all_min = frames_to_min(
+                state, exp_name, ch, np.arange(n_frames, dtype=float),
+            )
+            kept_idx = np.where(all_min <= float(window))[0]
+            if kept_idx.size == 0:
+                raise RuntimeError(
+                    f"{exp_name} / {ch}: time_window_minutes={window} "
+                    f"excludes all frames"
+                )
+            cutoff = int(kept_idx[-1])
+            kept_keys = {f"f{i}" for i in range(cutoff + 1)}
+
+            corr = state["corrected_lum"][exp_name][ch]
+            new_corr = {}
+            for cid, per_cell in corr.items():
+                kept = {k: v for k, v in per_cell.items() if k in kept_keys}
+                if kept:
+                    new_corr[cid] = kept
+            state["corrected_lum"][exp_name][ch] = new_corr
+
+            bg = state["bg_trace"][exp_name][ch]
+            state["bg_trace"][exp_name][ch] = bg[: cutoff + 1]
+            state["frame_counts"][exp_name][ch] = cutoff + 1
+
+            sf = cfg["stim_frames"].get(ch, []) if isinstance(cfg["stim_frames"], dict) else []
+            kept_sf = [f for f in sf if f <= cutoff]
+            if isinstance(cfg["stim_frames"], dict):
+                cfg["stim_frames"][ch] = kept_sf
+
+            print(
+                f"  {exp_name} / {ch}: clipped to ≤ {window:.1f} min — "
+                f"frames 0..{cutoff} kept ({cutoff + 1} of {n_frames}), "
+                f"{len(kept_sf)} stims remain"
+            )
     print()
 
 
@@ -1046,6 +1212,36 @@ def stim_spans_min(state, exp_name, ch, cfg):
     return spans, cfg.get("stim_label", "Stimulus")
 
 
+def stim_timing_aligned_across_channels(cfg, state, exp_name, tol_min=0.5):
+    """True if every channel's stim minutes match the first channel's.
+
+    Used to gate stim shading on combined/pooled plots: when channels share a
+    schedule (DMSO-style ``stim_minutes``), the spans are meaningful overlays;
+    when each channel has its own decision-driven timing (NRK acid pulses
+    parsed from per-channel ``monitoring.log``), the spans don't line up so we
+    skip them. ``tol_min`` is the per-event tolerance in minutes.
+    """
+    channels = cfg.get("channels", [])
+    if len(channels) <= 1:
+        return True
+    sf_dict = cfg.get("stim_frames")
+    if not isinstance(sf_dict, dict):
+        return True
+    ref_ch = channels[0]
+    ref_frames = sf_dict.get(ref_ch, [])
+    if not ref_frames:
+        return True
+    ref_min = np.asarray(frames_to_min(state, exp_name, ref_ch, ref_frames))
+    for ch in channels[1:]:
+        sf = sf_dict.get(ch, [])
+        if len(sf) != len(ref_frames):
+            return False
+        ch_min = np.asarray(frames_to_min(state, exp_name, ch, sf))
+        if np.any(np.abs(ch_min - ref_min) > tol_min):
+            return False
+    return True
+
+
 def draw_stim_spans(ax, spans, label, color, alpha=0.18):
     """Shade each ``(start, end)`` span on ``ax``; label only the first."""
     for idx, (start_m, end_m) in enumerate(spans):
@@ -1057,7 +1253,32 @@ def draw_stim_spans(ax, spans, label, color, alpha=0.18):
         )
 
 
-def per_cell_response_delta(values_by_col, stim_col, direction, window):
+def compute_stim_caps(stim_cols, n_cols):
+    """Return per-stim "cap column" for the width search.
+
+    The width search runs forward from the per-cell peak toward this column;
+    if the cell hasn't returned to baseline by then, the width is reported as
+    the (capped) elapsed time from baseline to the cap column.
+
+    Cap policy (per user spec):
+        * Stim *i* (not last) caps at ``stim_cols[i + 1]`` — the next stim's
+          baseline frame.
+        * The very last stim caps at ``n_cols - 1`` (end of recording).
+    """
+    out = []
+    for i, sc in enumerate(stim_cols):
+        if i + 1 < len(stim_cols):
+            out.append(int(stim_cols[i + 1]))
+        else:
+            out.append(int(n_cols - 1))
+    return out
+
+
+def per_cell_response_delta(
+    values_by_col, stim_col, direction, window,
+    *,
+    return_width=False, cap_col=None, frame_to_min_fn=None,
+):
     """Return per-cell ``response_value − baseline`` for one stimulus.
 
     ``values_by_col`` is a 2-D array shaped ``(n_cells, n_cols)`` where each
@@ -1072,22 +1293,85 @@ def per_cell_response_delta(values_by_col, stim_col, direction, window):
     Returns a 1-D array of deltas (sign preserved: positive for increase
     responses, negative for decrease responses). Cells with no valid samples
     in the window get NaN.
+
+    Width mode (``return_width=True``)
+    ----------------------------------
+    Returns ``(deltas, widths_min)`` where ``widths_min`` is the per-cell
+    response width in **minutes**, defined as the elapsed time from the
+    baseline frame to the first frame after the per-cell peak where the
+    trace returns to (or crosses) the baseline value. For ``direction='increase'``
+    that is the first frame at or below baseline; for ``'decrease'`` the
+    first frame at or above baseline. If no crossing is found before
+    ``cap_col``, the width is the elapsed time from baseline to ``cap_col``
+    (right-censored). Cells whose peak is itself NaN get width = NaN.
+
+    Width mode requires ``cap_col`` (int) and ``frame_to_min_fn`` (a callable
+    that maps an array-like of frame indices to minutes-from-t0). Both are
+    typically populated by the caller via :func:`compute_stim_caps` and a
+    partial of :func:`frames_to_min`.
     """
     n_cells, n_cols = values_by_col.shape
     lo, hi = window
     if stim_col < 0 or stim_col >= n_cols:
-        return np.full(n_cells, np.nan)
+        empty = np.full(n_cells, np.nan)
+        return (empty, empty.copy()) if return_width else empty
     base = values_by_col[:, stim_col]
     win_lo = max(0, stim_col + lo)
     win_hi = min(n_cols, stim_col + hi)
     if win_lo >= win_hi:
-        return np.full(n_cells, np.nan)
+        empty = np.full(n_cells, np.nan)
+        return (empty, empty.copy()) if return_width else empty
     win = values_by_col[:, win_lo:win_hi]
     if direction == "decrease":
         extremum = np.nanmin(win, axis=1)
+        peak_offsets = np.nanargmin(
+            np.where(np.isnan(win), np.inf, win), axis=1,
+        )
     else:
         extremum = np.nanmax(win, axis=1)
-    return extremum - base
+        peak_offsets = np.nanargmax(
+            np.where(np.isnan(win), -np.inf, win), axis=1,
+        )
+    deltas = extremum - base
+
+    if not return_width:
+        return deltas
+
+    if cap_col is None or frame_to_min_fn is None:
+        raise ValueError(
+            "per_cell_response_delta(return_width=True) requires both "
+            "`cap_col` and `frame_to_min_fn`."
+        )
+    cap_col = int(min(max(cap_col, win_lo), n_cols - 1))
+    base_min = float(frame_to_min_fn([stim_col])[0])
+    cap_min = float(frame_to_min_fn([cap_col])[0])
+
+    widths = np.full(n_cells, np.nan, dtype=np.float64)
+    peak_cols = win_lo + peak_offsets
+    # Search range per cell: from peak+1 to cap_col (inclusive).
+    for i in range(n_cells):
+        b = base[i]
+        if np.isnan(deltas[i]) or np.isnan(b):
+            continue
+        pc = int(peak_cols[i])
+        scan_lo = pc + 1
+        scan_hi = cap_col + 1
+        if scan_lo >= scan_hi:
+            widths[i] = max(0.0, cap_min - base_min)
+            continue
+        seg = values_by_col[i, scan_lo:scan_hi]
+        if direction == "decrease":
+            crossings = np.where(seg >= b)[0]
+        else:
+            crossings = np.where(seg <= b)[0]
+        if crossings.size:
+            cross_col = scan_lo + int(crossings[0])
+            cross_min = float(frame_to_min_fn([cross_col])[0])
+            widths[i] = max(0.0, cross_min - base_min)
+        else:
+            widths[i] = max(0.0, cap_min - base_min)
+
+    return deltas, widths
 
 
 def compute_f0_baseline(state, exp_name, ch, cfg):
@@ -1594,13 +1878,16 @@ def plot_dff_mean_combined(experiments, state):
             plt.close(fig)
             continue
 
-        # Use the first channel's stim spans as a shared reference (schedules
-        # align across channels in practice).
+        # Use the first channel's stim spans as a shared reference. For
+        # experiments where stim timing differs between channels (NRK acid
+        # pulses), skip the overlay — the per-channel pulses don't line up
+        # in this combined view.
         ref_ch = channels[0]
-        spans, stim_label = stim_spans_min(state, exp_name, ref_ch, cfg)
-        draw_stim_spans(
-            ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18
-        )
+        if stim_timing_aligned_across_channels(cfg, state, exp_name):
+            spans, stim_label = stim_spans_min(state, exp_name, ref_ch, cfg)
+            draw_stim_spans(
+                ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18
+            )
 
         # Shade the F0 baseline window using the reference channel's first stim.
         if ref_first_stim is not None:
@@ -1633,6 +1920,182 @@ def plot_dff_mean_combined(experiments, state):
         plt.tight_layout()
         fig.savefig(
             fig_path(exp_name, "dff_mean_combined"),
+            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        )
+        plt.close(fig)
+
+
+def plot_dff_mean_pooled(experiments, state, *, thresholds=None, only_responders=True):
+    """Pool dF/F₀ across channels of an experiment and plot the mean ± SEM.
+
+    For each experiment:
+        * compute (or accept) the per-(experiment, channel) Bonferroni
+          responder thresholds via :func:`compute_responder_thresholds`,
+        * for every channel, build the per-cell dF/F₀ matrix and (optionally)
+          mask to responders only,
+        * concatenate the responder rows across channels (channel frame
+          counts must match — asserted), and
+        * plot the across-cell mean trace with a ±1 SEM band, the stim
+          schedule overlay, and the F₀ baseline shading.
+
+    Output: ``<exp>/dff_mean_pooled[_responders].png``.
+    """
+    if only_responders and thresholds is None:
+        thresholds = compute_responder_thresholds(experiments, state)
+
+    for exp_name, cfg in experiments.items():
+        channels = cfg["channels"]
+        if not channels:
+            continue
+        direction = cfg.get("response_direction", "increase")
+        sign = -1.0 if direction == "decrease" else 1.0
+
+        ref_ch = channels[0]
+        df_ref = lum_dict_to_df(state["corrected_lum"][exp_name][ref_ch]).set_index("CellID")
+        ref_frame_cols = sorted(
+            [c for c in df_ref.columns if str(c).startswith("f")],
+            key=lambda c: int(str(c).lstrip("f")),
+        )
+        if not ref_frame_cols:
+            continue
+        # Pre-scan all channels to determine the common (min) frame count;
+        # channels with longer recordings get truncated, with a warning.
+        per_ch_cols = {}
+        for ch in channels:
+            df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
+            cols_ch = sorted(
+                [c for c in df.columns if str(c).startswith("f")],
+                key=lambda c: int(str(c).lstrip("f")),
+            )
+            per_ch_cols[ch] = (df, cols_ch)
+        n_common = min(len(cols_ch) for _, cols_ch in per_ch_cols.values())
+        if any(len(cols_ch) != n_common for _, cols_ch in per_ch_cols.values()):
+            print(
+                f"  {exp_name}: pooled mean dF/F₀ — channel frame counts "
+                f"{[len(cols_ch) for _, cols_ch in per_ch_cols.values()]} "
+                f"differ; truncating to common length {n_common}."
+            )
+        ref_frame_nums = np.array(
+            [int(str(c).lstrip("f")) for c in ref_frame_cols[:n_common]]
+        )
+        frame_min = frames_to_min(state, exp_name, ref_ch, ref_frame_nums)
+
+        pooled_rows = []
+        per_channel_counts = []
+        for ch in channels:
+            df, frame_cols = per_ch_cols[ch]
+            frame_cols = frame_cols[:n_common]
+            mat = df[frame_cols].values
+            F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
+            F0_safe = np.where(F0 == 0, np.nan, F0)
+            dff_mat = (mat - F0) / F0_safe
+
+            if only_responders:
+                stim_frames = cfg["stim_frames"][ch]
+                frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
+                frame_to_col = {f: i for i, f in enumerate(frame_nums)}
+                window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+                per_stim = []
+                for p in stim_frames:
+                    if p not in frame_to_col:
+                        continue
+                    per_stim.append(
+                        per_cell_response_delta(
+                            dff_mat, frame_to_col[p], direction, window
+                        )
+                    )
+                if not per_stim:
+                    continue
+                stacked = np.vstack(per_stim)
+                if direction == "decrease":
+                    per_cell_peak = np.nanmin(stacked, axis=0)
+                else:
+                    per_cell_peak = np.nanmax(stacked, axis=0)
+                t = float(thresholds.get((exp_name, ch), 0.10))
+                signed_t = sign * t
+                if direction == "decrease":
+                    mask = per_cell_peak <= signed_t
+                else:
+                    mask = per_cell_peak >= signed_t
+                mask = mask & ~np.isnan(per_cell_peak)
+                if not mask.any():
+                    continue
+                pooled_rows.append(dff_mat[mask])
+                per_channel_counts.append((ch, int(mask.sum()), int(mat.shape[0])))
+            else:
+                pooled_rows.append(dff_mat)
+                per_channel_counts.append((ch, int(mat.shape[0]), int(mat.shape[0])))
+
+        if not pooled_rows:
+            print(f"{exp_name}: no responders pooled — skipping pooled mean dF/F₀.")
+            continue
+        pooled = np.vstack(pooled_rows)
+        n_total = pooled.shape[0]
+        mean_trace = np.nanmean(pooled, axis=0)
+        n_per_col = np.sum(~np.isnan(pooled), axis=0).astype(float)
+        sem_trace = np.nanstd(pooled, axis=0) / np.sqrt(np.maximum(n_per_col, 1))
+
+        fig, ax = plt.subplots(
+            figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+        )
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(top=False, right=False)
+        ax.fill_between(
+            frame_min, mean_trace - sem_trace, mean_trace + sem_trace,
+            color=PLOT_PARAMS["mean_color"], alpha=0.18, linewidth=0,
+            label="±1 SEM",
+        )
+        ax.plot(
+            frame_min, mean_trace,
+            color=PLOT_PARAMS["mean_color"],
+            linewidth=PLOT_PARAMS["mean_lw"],
+            label=f"Pooled mean ({n_total} cells)",
+            zorder=3,
+        )
+
+        # Skip stim shading on the pooled mean when channels don't share a
+        # schedule (NRK acid pulses fire at different times per channel).
+        if stim_timing_aligned_across_channels(cfg, state, exp_name):
+            spans, stim_label = stim_spans_min(state, exp_name, ref_ch, cfg)
+            draw_stim_spans(
+                ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
+            )
+        _, _, ref_first_stim = compute_f0_baseline(state, exp_name, ref_ch, cfg)
+        base_lo = frames_to_min(state, exp_name, ref_ch, [0])[0]
+        base_hi = frames_to_min(
+            state, exp_name, ref_ch, [max(ref_first_stim - 1, 0)]
+        )[0]
+        ax.axvspan(
+            base_lo, base_hi,
+            color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
+            label=(
+                f"F₀ baseline (frames 0–{ref_first_stim - 1})"
+                if ref_first_stim > 1
+                else "F₀ baseline (frame 0)"
+            ),
+        )
+        ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
+        ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+        ax.set_ylabel(
+            "Mean dF/F₀  (pooled across channels)",
+            fontsize=PLOT_PARAMS["axis_label_fontsize"],
+        )
+        suffix = " — responders only" if only_responders else ""
+        per_ch_str = ", ".join(
+            f"{ch}: {n}/{tot}" for ch, n, tot in per_channel_counts
+        )
+        ax.set_title(
+            f"{exp_name} — pooled mean dF/F₀{suffix}\n[{per_ch_str}]",
+            fontsize=PLOT_PARAMS["title_fontsize"],
+            fontweight=PLOT_PARAMS["title_fontweight"],
+        )
+        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+        plt.tight_layout()
+        fig.savefig(
+            fig_path(
+                exp_name,
+                "dff_mean_pooled_responders" if only_responders else "dff_mean_pooled",
+            ),
             dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
         )
         plt.close(fig)
@@ -2089,22 +2552,56 @@ def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,
     Builds the per-cell corrected-luminosity matrix, z-scores per cell along
     time, runs PCA and UMAP. Returns ``None`` if the channel has too few cells.
 
+    ``ch`` is either a single channel name (per-channel mode) or an iterable
+    of channel names (pooled mode — concatenates per-cell rows after
+    asserting equal frame counts). The reference channel for the
+    ``frame_nums`` / ``frame_min`` / stim alignment is the first one.
+
     Returns
     -------
     dict with keys: ``X_raw`` (n_cells, n_frames) corrected luminosity (post
     NaN-fill, post zero-std drop), ``frame_nums``, ``frame_min``, ``pcs``
     (n_cells, n_pca), ``evr`` (explained variance ratios), ``embedding``
-    (n_cells, 2 — UMAP), ``n_pca``.
+    (n_cells, 2 — UMAP), ``n_pca``, ``ref_ch`` (the channel whose minutes /
+    stim schedule are canonical for downstream plotting).
     """
-    df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
-    frame_cols = sorted(
-        [c for c in df.columns if str(c).startswith("f")],
+    pooled = isinstance(ch, (list, tuple))
+    channels = list(ch) if pooled else [ch]
+    ref_ch = channels[0]
+
+    df_ref = lum_dict_to_df(
+        state["corrected_lum"][exp_name][ref_ch]
+    ).set_index("CellID")
+    ref_frame_cols = sorted(
+        [c for c in df_ref.columns if str(c).startswith("f")],
         key=lambda c: int(str(c).lstrip("f")),
     )
-    frame_nums = np.array([int(str(c).lstrip("f")) for c in frame_cols])
-    frame_min = frames_to_min(state, exp_name, ch, frame_nums)
+    frame_nums = np.array([int(str(c).lstrip("f")) for c in ref_frame_cols])
+    frame_min = frames_to_min(state, exp_name, ref_ch, frame_nums)
 
-    X_raw = df[frame_cols].values.astype(float)
+    per_channel_cols = []
+    for c in channels:
+        df_c = lum_dict_to_df(
+            state["corrected_lum"][exp_name][c]
+        ).set_index("CellID")
+        cols_c = sorted(
+            [k for k in df_c.columns if str(k).startswith("f")],
+            key=lambda k: int(str(k).lstrip("f")),
+        )
+        per_channel_cols.append((df_c, cols_c))
+    n_common = min(len(cols_c) for _, cols_c in per_channel_cols)
+    if pooled and any(len(cols_c) != n_common for _, cols_c in per_channel_cols):
+        print(
+            f"  {exp_name}: pooled clustering — channel frame counts "
+            f"{[len(cols_c) for _, cols_c in per_channel_cols]} differ; "
+            f"truncating to common length {n_common}."
+        )
+        frame_nums = frame_nums[:n_common]
+        frame_min = frame_min[:n_common]
+    matrices = []
+    for df_c, cols_c in per_channel_cols:
+        matrices.append(df_c[cols_c[:n_common]].values.astype(float))
+    X_raw = np.vstack(matrices)
     row_all_nan = np.isnan(X_raw).all(axis=1)
     X_raw = X_raw[~row_all_nan]
     if X_raw.shape[0] < 5:
@@ -2148,6 +2645,7 @@ def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,
         "embedding": embedding,
         "n_pca": n_pca,
         "n_cells": n_cells,
+        "ref_ch": ref_ch,
     }
 
 
@@ -2176,7 +2674,10 @@ def _silhouette_sweep(pcs, k_min=2, k_max=8, random_state=0):
     return np.array(ks), np.array(scores), best_k, best_score
 
 
-def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
+def plot_trace_clustering(
+    experiments, state, k_min=2, k_max=8, random_state=0,
+    *, pool_channels=False,
+):
     """Cluster cells by trace shape and visualize as a 3x2 figure per channel.
 
     Pipeline, per (experiment, channel):
@@ -2194,231 +2695,281 @@ def plot_trace_clustering(experiments, state, k_min=2, k_max=8, random_state=0):
       (c) PC1 vs PC2          (d) UMAP
       (e) Cluster mean traces (f) Cluster sizes
 
+    When ``pool_channels=True`` cells from every channel of an experiment are
+    concatenated into a single matrix (frame counts must match) and one
+    figure is emitted per experiment under ``pooled_trace_clustering.png``.
+
     Requires scikit-learn and umap-learn.
     """
     for exp_name, cfg in experiments.items():
-        for ch in cfg["channels"]:
-            emb = _compute_clustering_embeddings(
-                state, exp_name, ch, random_state=random_state,
-            )
-            if emb is None:
-                print(f"{exp_name} / {ch}: too few cells — skipping clustering")
+        if pool_channels:
+            channels = cfg["channels"]
+            if len(channels) < 1:
                 continue
-            pcs = emb["pcs"]
-            evr = emb["evr"]
-            embedding = emb["embedding"]
-            X_raw = emb["X_raw"]
-            frame_min = emb["frame_min"]
-            n_cells = emb["n_cells"]
-            n_pca = emb["n_pca"]
-
-            ks, scores, best_k, best_score = _silhouette_sweep(
-                pcs, k_min=k_min, k_max=k_max, random_state=random_state,
-            )
-            km = KMeans(n_clusters=best_k, n_init=10, random_state=random_state)
-            labels = km.fit_predict(pcs)
-
-            cmap = plt.get_cmap("tab10")
-            cluster_colors = [cmap(i % 10) for i in range(best_k)]
-
-            fig, axes = plt.subplots(
-                3, 2,
-                figsize=(16, 14),
-                dpi=PLOT_PARAMS["dpi"],
-            )
-            for ax in axes.ravel():
-                ax.spines[["top", "right"]].set_visible(False)
-                ax.tick_params(top=False, right=False)
-
-            # (a) PCA scree
-            ax = axes[0, 0]
-            n_show = int(min(10, len(evr)))
-            ax.bar(
-                np.arange(1, n_show + 1), evr[:n_show],
-                color=PLOT_PARAMS["fit_color"], alpha=0.85,
-            )
-            ax.set_xlabel("Principal component", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_ylabel("Explained variance ratio", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_xticks(np.arange(1, n_show + 1))
-            ax.set_title(
-                f"PCA scree (top {n_show} of {n_pca}) — cum. {evr[:n_show].sum() * 100:.1f}%",
-                fontsize=PLOT_PARAMS["title_fontsize"],
-                fontweight=PLOT_PARAMS["title_fontweight"],
-            )
-
-            # (b) Silhouette curve vs k
-            ax = axes[0, 1]
-            if len(ks):
-                ax.plot(
-                    ks, scores,
-                    "-o",
-                    color=PLOT_PARAMS["fit_color"],
-                    linewidth=1.8,
-                    markersize=7,
+            ch_arg = channels
+            ch_label = f"pooled ({', '.join(channels)})"
+            save_name = "pooled_trace_clustering"
+        else:
+            ch_arg_list = [(ch, ch, f"{ch}_trace_clustering") for ch in cfg["channels"]]
+            for ch, ch_label, save_name in ch_arg_list:
+                _render_trace_clustering(
+                    state, exp_name, cfg, ch, ch, save_name,
+                    k_min=k_min, k_max=k_max, random_state=random_state,
                 )
-                # Star the chosen k.
-                ax.plot(
-                    [best_k], [best_score],
-                    marker="*",
-                    color=PLOT_PARAMS["mean_marker_color"],
-                    markersize=20,
-                    markeredgecolor="#222222",
-                    markeredgewidth=0.8,
-                    linestyle="None",
-                    label=f"chosen k={best_k} (s={best_score:.3f})",
-                    zorder=5,
-                )
-                ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-            ax.set_xlabel("k (number of clusters)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_ylabel("Silhouette score", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_xticks(ks if len(ks) else [k_min])
-            ax.axhline(0, color="gray", lw=0.8, ls=":", alpha=0.6)
-            ax.set_title(
-                f"Silhouette across k=[{k_min}, {min(k_max, n_cells - 1)}]",
-                fontsize=PLOT_PARAMS["title_fontsize"],
-                fontweight=PLOT_PARAMS["title_fontweight"],
-            )
+            continue
+        _render_trace_clustering(
+            state, exp_name, cfg, ch_arg, ch_label, save_name,
+            k_min=k_min, k_max=k_max, random_state=random_state,
+        )
 
-            # (c) PC1 vs PC2 scatter colored by cluster
-            ax = axes[1, 0]
-            for cid in range(best_k):
-                mask = labels == cid
-                ax.scatter(
-                    pcs[mask, 0], pcs[mask, 1],
-                    s=PLOT_PARAMS["scatter_size"] * 1.4,
-                    color=cluster_colors[cid],
-                    alpha=0.75,
-                    edgecolors="none",
-                    label=f"Cluster {cid} (n={int(mask.sum())})",
-                )
-            ax.set_xlabel(
-                f"PC 1 ({evr[0] * 100:.1f}% var)",
-                fontsize=PLOT_PARAMS["axis_label_fontsize"],
-            )
-            ax.set_ylabel(
-                f"PC 2 ({evr[1] * 100:.1f}% var)" if len(evr) > 1 else "PC 2",
-                fontsize=PLOT_PARAMS["axis_label_fontsize"],
-            )
-            ax.set_title(
-                "PCA: PC1 vs PC2 (interpretable axes)",
-                fontsize=PLOT_PARAMS["title_fontsize"],
-                fontweight=PLOT_PARAMS["title_fontweight"],
-            )
-            ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
 
-            # (d) UMAP scatter colored by cluster
-            ax = axes[1, 1]
-            for cid in range(best_k):
-                mask = labels == cid
-                ax.scatter(
-                    embedding[mask, 0], embedding[mask, 1],
-                    s=PLOT_PARAMS["scatter_size"] * 1.4,
-                    color=cluster_colors[cid],
-                    alpha=0.75,
-                    edgecolors="none",
-                    label=f"Cluster {cid} (n={int(mask.sum())})",
-                )
-            ax.set_xlabel("UMAP 1", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_ylabel("UMAP 2", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_title(
-                f"UMAP embedding — k={best_k} (silhouette={best_score:.3f})",
-                fontsize=PLOT_PARAMS["title_fontsize"],
-                fontweight=PLOT_PARAMS["title_fontweight"],
-            )
-            ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+def _render_trace_clustering(
+    state, exp_name, cfg, ch_arg, ch_label, save_name,
+    *, k_min, k_max, random_state,
+):
+    """Internal renderer used by both per-channel and pooled clustering.
 
-            # (e) Cluster mean traces
-            ax = axes[2, 0]
-            spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
-            _, _, first_stim = compute_f0_baseline(state, exp_name, ch, cfg)
-            baseline_lo_min = frames_to_min(state, exp_name, ch, [0])[0]
-            baseline_hi_min = frames_to_min(
-                state, exp_name, ch, [max(first_stim - 1, 0)]
-            )[0]
-            baseline_label = (
-                f"F₀ baseline (frames 0–{first_stim - 1})"
-                if first_stim > 1
-                else "F₀ baseline (frame 0)"
-            )
-            for cid in range(best_k):
-                mask = labels == cid
-                cluster_traces = X_raw[mask]
-                mean_trace = np.nanmean(cluster_traces, axis=0)
-                n_in = max(int(mask.sum()), 1)
-                sem_trace = np.nanstd(cluster_traces, axis=0) / np.sqrt(n_in)
-                ax.fill_between(
-                    frame_min, mean_trace - sem_trace, mean_trace + sem_trace,
-                    color=cluster_colors[cid], alpha=0.15, linewidth=0,
-                )
-                ax.plot(
-                    frame_min, mean_trace,
-                    color=cluster_colors[cid],
-                    linewidth=PLOT_PARAMS["mean_lw"],
-                    label=f"Cluster {cid} (n={n_in})",
-                )
-            draw_stim_spans(
-                ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
-            )
-            ax.axvspan(
-                baseline_lo_min, baseline_hi_min,
-                color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
-                label=baseline_label,
-            )
-            rsp = state["real_setpoint_min"][exp_name].get(ch)
-            if rsp is not None:
-                ax.axvline(
-                    rsp,
-                    color="#000000",
-                    linewidth=2.0, linestyle=":", alpha=0.9,
-                    label=f"Real setpoint ({rsp:.1f} min)",
-                )
-            ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_ylabel(
-                "Corrected luminosity (cluster mean ±1 SEM)",
-                fontsize=PLOT_PARAMS["axis_label_fontsize"],
-            )
-            ax.set_title(
-                "Cluster mean traces",
-                fontsize=PLOT_PARAMS["title_fontsize"],
-                fontweight=PLOT_PARAMS["title_fontweight"],
-            )
-            ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    ``ch_arg`` is what's passed to ``_compute_clustering_embeddings`` (a
+    string for single channel or a list for pooled). ``ch_label`` is what
+    appears in the figure title. ``save_name`` is the basename used by
+    :func:`fig_path`.
+    """
+    emb = _compute_clustering_embeddings(
+        state, exp_name, ch_arg, random_state=random_state,
+    )
+    if emb is None:
+        print(
+            f"{exp_name} / {ch_label}: too few cells — skipping clustering"
+        )
+        return
+    pcs = emb["pcs"]
+    evr = emb["evr"]
+    embedding = emb["embedding"]
+    X_raw = emb["X_raw"]
+    frame_min = emb["frame_min"]
+    n_cells = emb["n_cells"]
+    n_pca = emb["n_pca"]
+    # Stim spans / F₀ baseline / real-setpoint lookups live on a *single*
+    # channel; for pooled mode we fall back to the reference (first) channel.
+    ref_ch = emb["ref_ch"]
 
-            # (f) Cluster size bar chart
-            ax = axes[2, 1]
-            sizes = np.array([int((labels == cid).sum()) for cid in range(best_k)])
-            ax.bar(
-                np.arange(best_k), sizes,
-                color=cluster_colors, edgecolor="#222222", linewidth=0.6,
-            )
-            for cid, n in enumerate(sizes):
-                ax.text(
-                    cid, n, str(int(n)),
-                    ha="center", va="bottom",
-                    fontsize=PLOT_PARAMS["legend_fontsize"],
-                )
-            ax.set_xticks(np.arange(best_k))
-            ax.set_xticklabels([f"C{cid}" for cid in range(best_k)])
-            ax.set_xlabel("Cluster", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-            ax.set_title(
-                f"Cluster sizes (total {n_cells})",
-                fontsize=PLOT_PARAMS["title_fontsize"],
-                fontweight=PLOT_PARAMS["title_fontweight"],
-            )
+    ks, scores, best_k, best_score = _silhouette_sweep(
+        pcs, k_min=k_min, k_max=k_max, random_state=random_state,
+    )
+    km = KMeans(n_clusters=best_k, n_init=10, random_state=random_state)
+    labels = km.fit_predict(pcs)
 
-            fig.suptitle(
-                f"{exp_name} / {ch} — trace clustering (k={best_k}, n={n_cells})",
-                fontsize=PLOT_PARAMS["title_fontsize"] + 1,
-                fontweight="bold",
-                y=1.00,
-            )
-            plt.tight_layout()
-            fig.savefig(
-                fig_path(exp_name, f"{ch}_trace_clustering"),
-                dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
-            )
-            plt.close(fig)
+    cmap = plt.get_cmap("tab10")
+    cluster_colors = [cmap(i % 10) for i in range(best_k)]
+
+    fig, axes = plt.subplots(
+        3, 2,
+        figsize=(16, 14),
+        dpi=PLOT_PARAMS["dpi"],
+    )
+    for ax in axes.ravel():
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(top=False, right=False)
+
+    # (a) PCA scree
+    ax = axes[0, 0]
+    n_show = int(min(10, len(evr)))
+    ax.bar(
+        np.arange(1, n_show + 1), evr[:n_show],
+        color=PLOT_PARAMS["fit_color"], alpha=0.85,
+    )
+    ax.set_xlabel("Principal component", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("Explained variance ratio", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_xticks(np.arange(1, n_show + 1))
+    ax.set_title(
+        f"PCA scree (top {n_show} of {n_pca}) — cum. {evr[:n_show].sum() * 100:.1f}%",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+
+    # (b) Silhouette curve vs k
+    ax = axes[0, 1]
+    if len(ks):
+        ax.plot(
+            ks, scores,
+            "-o",
+            color=PLOT_PARAMS["fit_color"],
+            linewidth=1.8,
+            markersize=7,
+        )
+        # Star the chosen k.
+        ax.plot(
+            [best_k], [best_score],
+            marker="*",
+            color=PLOT_PARAMS["mean_marker_color"],
+            markersize=20,
+            markeredgecolor="#222222",
+            markeredgewidth=0.8,
+            linestyle="None",
+            label=f"chosen k={best_k} (s={best_score:.3f})",
+            zorder=5,
+        )
+        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    ax.set_xlabel("k (number of clusters)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("Silhouette score", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_xticks(ks if len(ks) else [k_min])
+    ax.axhline(0, color="gray", lw=0.8, ls=":", alpha=0.6)
+    ax.set_title(
+        f"Silhouette across k=[{k_min}, {min(k_max, n_cells - 1)}]",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+
+    # (c) PC1 vs PC2 scatter colored by cluster
+    ax = axes[1, 0]
+    for cid in range(best_k):
+        mask = labels == cid
+        ax.scatter(
+            pcs[mask, 0], pcs[mask, 1],
+            s=PLOT_PARAMS["scatter_size"] * 1.4,
+            color=cluster_colors[cid],
+            alpha=0.75,
+            edgecolors="none",
+            label=f"Cluster {cid} (n={int(mask.sum())})",
+        )
+    ax.set_xlabel(
+        f"PC 1 ({evr[0] * 100:.1f}% var)",
+        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_ylabel(
+        f"PC 2 ({evr[1] * 100:.1f}% var)" if len(evr) > 1 else "PC 2",
+        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_title(
+        "PCA: PC1 vs PC2 (interpretable axes)",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+
+    # (d) UMAP scatter colored by cluster
+    ax = axes[1, 1]
+    for cid in range(best_k):
+        mask = labels == cid
+        ax.scatter(
+            embedding[mask, 0], embedding[mask, 1],
+            s=PLOT_PARAMS["scatter_size"] * 1.4,
+            color=cluster_colors[cid],
+            alpha=0.75,
+            edgecolors="none",
+            label=f"Cluster {cid} (n={int(mask.sum())})",
+        )
+    ax.set_xlabel("UMAP 1", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("UMAP 2", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        f"UMAP embedding — k={best_k} (silhouette={best_score:.3f})",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+
+    # (e) Cluster mean traces
+    ax = axes[2, 0]
+    # In pooled mode the ref channel's stim spans only apply if every channel
+    # shares the schedule. For NRK acid pulses (per-channel timing) the spans
+    # are misleading on a pooled cluster-mean view, so skip them.
+    pooled_misaligned = (
+        isinstance(ch_arg, list)
+        and not stim_timing_aligned_across_channels(cfg, state, exp_name)
+    )
+    if not pooled_misaligned:
+        spans, stim_label = stim_spans_min(state, exp_name, ref_ch, cfg)
+    else:
+        spans, stim_label = [], None
+    _, _, first_stim = compute_f0_baseline(state, exp_name, ref_ch, cfg)
+    baseline_lo_min = frames_to_min(state, exp_name, ref_ch, [0])[0]
+    baseline_hi_min = frames_to_min(
+        state, exp_name, ref_ch, [max(first_stim - 1, 0)]
+    )[0]
+    baseline_label = (
+        f"F₀ baseline (frames 0–{first_stim - 1})"
+        if first_stim > 1
+        else "F₀ baseline (frame 0)"
+    )
+    for cid in range(best_k):
+        mask = labels == cid
+        cluster_traces = X_raw[mask]
+        mean_trace = np.nanmean(cluster_traces, axis=0)
+        n_in = max(int(mask.sum()), 1)
+        sem_trace = np.nanstd(cluster_traces, axis=0) / np.sqrt(n_in)
+        ax.fill_between(
+            frame_min, mean_trace - sem_trace, mean_trace + sem_trace,
+            color=cluster_colors[cid], alpha=0.15, linewidth=0,
+        )
+        ax.plot(
+            frame_min, mean_trace,
+            color=cluster_colors[cid],
+            linewidth=PLOT_PARAMS["mean_lw"],
+            label=f"Cluster {cid} (n={n_in})",
+        )
+    draw_stim_spans(
+        ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
+    )
+    ax.axvspan(
+        baseline_lo_min, baseline_hi_min,
+        color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
+        label=baseline_label,
+    )
+    rsp = state["real_setpoint_min"][exp_name].get(ref_ch)
+    if rsp is not None:
+        ax.axvline(
+            rsp,
+            color="#000000",
+            linewidth=2.0, linestyle=":", alpha=0.9,
+            label=f"Real setpoint ({rsp:.1f} min)",
+        )
+    ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel(
+        "Corrected luminosity (cluster mean ±1 SEM)",
+        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_title(
+        "Cluster mean traces",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+
+    # (f) Cluster size bar chart
+    ax = axes[2, 1]
+    sizes = np.array([int((labels == cid).sum()) for cid in range(best_k)])
+    ax.bar(
+        np.arange(best_k), sizes,
+        color=cluster_colors, edgecolor="#222222", linewidth=0.6,
+    )
+    for cid, n in enumerate(sizes):
+        ax.text(
+            cid, n, str(int(n)),
+            ha="center", va="bottom",
+            fontsize=PLOT_PARAMS["legend_fontsize"],
+        )
+    ax.set_xticks(np.arange(best_k))
+    ax.set_xticklabels([f"C{cid}" for cid in range(best_k)])
+    ax.set_xlabel("Cluster", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        f"Cluster sizes (total {n_cells})",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+
+    fig.suptitle(
+        f"{exp_name} / {ch_label} — trace clustering (k={best_k}, n={n_cells})",
+        fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+        fontweight="bold",
+        y=1.00,
+    )
+    plt.tight_layout()
+    fig.savefig(
+        fig_path(exp_name, save_name),
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+    )
+    plt.close(fig)
 
 
 def plot_trace_clustering_kselect(experiments, state, ks=(2, 3, 4, 5),
@@ -2686,72 +3237,191 @@ def plot_per_stimulus_peak_violins(experiments, state):
                 print(f"{exp_name} / {ch}: no non-empty peak data — skipped.")
 
 
-def plot_per_stimulus_response_violins(experiments, state):
-    """Violin of per-cell delta = response_value − baseline, where the response
-    value is the post-stim *extremum* (max for ``response_direction='increase'``,
-    min for ``'decrease'``) over ``response_window`` frames after the stim.
+def _per_channel_stim_response_arrays(state, exp_name, ch, cfg, *, metric):
+    """Return ``(violin_data, base_min, n_total)`` for one (exp, channel).
 
-    Sign convention is preserved: positive deltas for increasing dyes (DMSO),
-    negative deltas for decreasing dyes (acid). One figure per
-    (experiment, channel), saved as ``<channel>_response_violin.png``.
+    ``violin_data`` is a list (one entry per stim) of 1-D arrays. Each entry
+    is the per-cell value for that stim:
+        * ``metric='height'`` → Δ luminosity (extremum − baseline).
+        * ``metric='width'``  → response width in **minutes** (capped at the
+          next-stim onset, or end of recording for the last stim, per the
+          user's policy).
+    ``base_min`` is the list of stim onset minutes for x-axis labels.
+    ``n_total`` is the number of cells in the channel.
+    """
+    direction = cfg.get("response_direction", "increase")
+    window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+
+    stim_frames = cfg["stim_frames"][ch]
+    df_indexed = lum_dict_to_df(
+        state["corrected_lum"][exp_name][ch]
+    ).set_index("CellID")
+    frame_cols = sorted(
+        [c for c in df_indexed.columns if str(c).startswith("f")],
+        key=lambda c: int(str(c).lstrip("f")),
+    )
+    frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
+    mat = df_indexed[frame_cols].values
+    n_cells, n_cols = mat.shape
+    frame_to_col = {f: i for i, f in enumerate(frame_nums)}
+
+    valid_stim_cols = [frame_to_col[p] for p in stim_frames if p in frame_to_col]
+    caps = (
+        compute_stim_caps(valid_stim_cols, n_cols)
+        if metric == "width" and valid_stim_cols
+        else []
+    )
+    cap_for_col = dict(zip(valid_stim_cols, caps))
+
+    def _f2m(frames):
+        return frames_to_min(state, exp_name, ch, frames)
+
+    violin_data = []
+    for p in stim_frames:
+        if p not in frame_to_col:
+            violin_data.append(np.array([]))
+            continue
+        col = frame_to_col[p]
+        if metric == "width":
+            _, widths = per_cell_response_delta(
+                mat, col, direction, window,
+                return_width=True,
+                cap_col=cap_for_col[col],
+                frame_to_min_fn=_f2m,
+            )
+            vals = widths[~np.isnan(widths)]
+        else:
+            deltas = per_cell_response_delta(mat, col, direction, window)
+            vals = deltas[~np.isnan(deltas)]
+        violin_data.append(vals)
+
+    base_min = list(frames_to_min(state, exp_name, ch, stim_frames)) if stim_frames else []
+    return violin_data, base_min, n_cells
+
+
+def plot_per_stimulus_response_violins(
+    experiments, state, *, metric="height", pool_channels=False,
+):
+    """Violin of per-cell response per stim.
+
+    ``metric``:
+        * ``"height"`` (default) → Δ luminosity (extremum − baseline).
+        * ``"width"``  → response width in minutes (time from baseline frame
+          to the first frame at/past the peak that returns to baseline,
+          capped at next-stim onset).
+
+    ``pool_channels`` (default False) emits one figure per experiment with
+    all channels' per-cell values concatenated per stim. Pooling requires
+    every channel to share the same number of stims (DMSO experiments do;
+    NRK channels parse their own logs and do not necessarily — pooled mode
+    skips experiments where stim counts differ). Per-channel mode emits one
+    figure per (experiment, channel) as before.
     """
     for exp_name, cfg in experiments.items():
         direction = cfg.get("response_direction", "increase")
         window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+        extremum_label = "max" if direction == "increase" else "min"
+        window_str = f"stim+{window[0]}…stim+{window[1] - 1} frames"
+        if metric == "width":
+            y_label = "Response width (min)"
+        else:
+            y_label = f"Δ luminosity  ({extremum_label} − baseline)"
 
-        for ch in cfg["channels"]:
-            stim_frames = cfg["stim_frames"][ch]
-            if not stim_frames:
-                print(f"{exp_name} / {ch}: no stim_frames — skipping response violin.")
+        if pool_channels:
+            channels = cfg["channels"]
+            stim_counts = [len(cfg["stim_frames"][ch]) for ch in channels]
+            if not channels or len(set(stim_counts)) != 1 or stim_counts[0] == 0:
+                print(
+                    f"{exp_name}: pooled response violin ({metric}) — channels "
+                    f"have differing stim counts {stim_counts} or no stims; skipping."
+                )
                 continue
-
-            df_indexed = lum_dict_to_df(
-                state["corrected_lum"][exp_name][ch]
-            ).set_index("CellID")
-            frame_cols = sorted(
-                [c for c in df_indexed.columns if str(c).startswith("f")],
-                key=lambda c: int(str(c).lstrip("f")),
-            )
-            frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
-            mat = df_indexed[frame_cols].values
-            # Map frame number → column index for safe indexing.
-            frame_to_col = {f: i for i, f in enumerate(frame_nums)}
-
-            violin_data = []
-            for p in stim_frames:
-                if p not in frame_to_col:
-                    violin_data.append(np.array([]))
-                    continue
-                col = frame_to_col[p]
-                deltas = per_cell_response_delta(mat, col, direction, window)
-                deltas = deltas[~np.isnan(deltas)]
-                violin_data.append(deltas)
-
+            n_stims = stim_counts[0]
+            pooled = [[] for _ in range(n_stims)]
+            ref_ch = channels[0]
+            ref_base_min = None
+            total_cells = 0
+            for ch in channels:
+                vd, base_min, n_cells = _per_channel_stim_response_arrays(
+                    state, exp_name, ch, cfg, metric=metric,
+                )
+                if ref_base_min is None:
+                    ref_base_min = base_min
+                total_cells += n_cells
+                for i, arr in enumerate(vd):
+                    if arr.size:
+                        pooled[i].append(arr)
+            violin_data = [
+                np.concatenate(p) if p else np.array([]) for p in pooled
+            ]
+            x_labels = [f"{bm:.1f}" for bm in (ref_base_min or [])]
             n_complete = sum(len(v) > 0 for v in violin_data)
             print(
-                f"{exp_name} / {ch}: response violin — "
-                f"{n_complete}/{len(stim_frames)} stimuli have data."
+                f"{exp_name}: pooled response violin ({metric}) — "
+                f"{n_complete}/{n_stims} stims have data, {total_cells} cells "
+                f"across {len(channels)} channels."
             )
-
-            base_min = frames_to_min(state, exp_name, ch, stim_frames) if stim_frames else []
-            x_labels = [f"{bm:.1f}" for bm in base_min]
-
-            extremum_label = "max" if direction == "increase" else "min"
-            window_str = f"stim+{window[0]}…stim+{window[1] - 1} frames"
             ok = _draw_half_violin_with_box(
                 ax=None,
                 violin_data=violin_data,
                 x_label=x_labels,
-                y_label=f"Δ luminosity  ({extremum_label} − baseline)",
+                y_label=y_label,
                 title=(
-                    f"{exp_name} / {ch} — per-stimulus Δ luminosity "
-                    f"({extremum_label} over {window_str} − baseline)"
+                    f"{exp_name} — pooled per-stimulus {metric} "
+                    f"({extremum_label} over {window_str} − baseline; "
+                    f"{total_cells} cells, {len(channels)} channels)"
                 ),
-                save_path=fig_path(exp_name, f"{ch}_response_violin"),
+                save_path=fig_path(
+                    exp_name, f"pooled_response_violin_{metric}"
+                ),
                 x_axis_label="Stimulus onset (min)",
             )
             if not ok:
-                print(f"{exp_name} / {ch}: no non-empty response data — skipped.")
+                print(
+                    f"{exp_name}: pooled response violin ({metric}) — "
+                    "no non-empty data; skipped."
+                )
+            continue
+
+        for ch in cfg["channels"]:
+            stim_frames = cfg["stim_frames"][ch]
+            if not stim_frames:
+                print(
+                    f"{exp_name} / {ch}: no stim_frames — "
+                    f"skipping response violin ({metric})."
+                )
+                continue
+
+            violin_data, base_min, _ = _per_channel_stim_response_arrays(
+                state, exp_name, ch, cfg, metric=metric,
+            )
+            n_complete = sum(len(v) > 0 for v in violin_data)
+            print(
+                f"{exp_name} / {ch}: response violin ({metric}) — "
+                f"{n_complete}/{len(stim_frames)} stimuli have data."
+            )
+            x_labels = [f"{bm:.1f}" for bm in base_min]
+            metric_suffix = "" if metric == "height" else f"_{metric}"
+            title = (
+                f"{exp_name} / {ch} — per-stimulus {metric} "
+                f"({extremum_label} over {window_str} − baseline)"
+            )
+            ok = _draw_half_violin_with_box(
+                ax=None,
+                violin_data=violin_data,
+                x_label=x_labels,
+                y_label=y_label,
+                title=title,
+                save_path=fig_path(
+                    exp_name, f"{ch}_response_violin{metric_suffix}"
+                ),
+                x_axis_label="Stimulus onset (min)",
+            )
+            if not ok:
+                print(
+                    f"{exp_name} / {ch}: no non-empty response data ({metric}) — "
+                    "skipped."
+                )
 
 
 def compute_responder_thresholds(
@@ -2976,6 +3646,387 @@ def plot_per_stimulus_response_violins_responders(experiments, state, thresholds
                     f"{exp_name} / {ch}: responder violin — "
                     f"{n_resp}/{n_total} cells passed |dF/F0| ≥ {dff_threshold}."
                 )
+
+
+# =============================================================================
+# Pipeline step 6c — Learning scores (DMSO only)
+# =============================================================================
+LEARNING_STIMS_PER_TRAIN = 5  # Each DMSO train is 5 pulses (3 trains/expt).
+
+
+def _build_learning_inputs(state, exp_name, ch, cfg, *, metric):
+    """Per-channel inputs needed by every learning-score function.
+
+    Returns ``None`` if the channel has no usable stims. Otherwise returns a
+    dict with:
+        ``mat``               (n_cells, n_cols) corrected luminosity
+        ``stim_cols``         valid stim column indices (in order)
+        ``caps``              per-stim cap col for the width search
+        ``frame_to_min_fn``   minutes lookup specific to this channel
+        ``per_stim``          (n_stims, n_cells) per-stim metric (height or
+                              width). Heights are signed luminosity deltas;
+                              widths are minutes.
+        ``per_stim_height``   parallel per-stim signed height deltas, used
+                              by anticipation for sign assignment regardless
+                              of which metric is being scored.
+        ``n_cells``, ``n_cols``
+    """
+    direction = cfg.get("response_direction", "increase")
+    window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+    stim_frames = cfg["stim_frames"][ch]
+    df_indexed = lum_dict_to_df(
+        state["corrected_lum"][exp_name][ch]
+    ).set_index("CellID")
+    frame_cols = sorted(
+        [c for c in df_indexed.columns if str(c).startswith("f")],
+        key=lambda c: int(str(c).lstrip("f")),
+    )
+    if not frame_cols:
+        return None
+    frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
+    mat = df_indexed[frame_cols].values
+    n_cells, n_cols = mat.shape
+    frame_to_col = {f: i for i, f in enumerate(frame_nums)}
+    valid_stim_cols = [frame_to_col[p] for p in stim_frames if p in frame_to_col]
+    if not valid_stim_cols:
+        return None
+    caps = compute_stim_caps(valid_stim_cols, n_cols)
+
+    def f2m(frames):
+        return frames_to_min(state, exp_name, ch, frames)
+
+    per_stim_height = np.full((len(valid_stim_cols), n_cells), np.nan)
+    per_stim_width = np.full((len(valid_stim_cols), n_cells), np.nan)
+    for i, (sc, cap) in enumerate(zip(valid_stim_cols, caps)):
+        d, w = per_cell_response_delta(
+            mat, sc, direction, window,
+            return_width=True, cap_col=cap, frame_to_min_fn=f2m,
+        )
+        per_stim_height[i] = d
+        per_stim_width[i] = w
+
+    per_stim = per_stim_width if metric == "width" else per_stim_height
+    return {
+        "mat": mat,
+        "stim_cols": valid_stim_cols,
+        "caps": caps,
+        "frame_to_min_fn": f2m,
+        "per_stim": per_stim,
+        "per_stim_height": per_stim_height,
+        "n_cells": n_cells,
+        "n_cols": n_cols,
+        "direction": direction,
+        "window": window,
+    }
+
+
+def _score_running_extremum(per_stim, *, mode, n_per_train=LEARNING_STIMS_PER_TRAIN):
+    """Habituation (``mode='min'``) or sensitization (``mode='max'``).
+
+    ``per_stim`` is shaped ``(n_stims, n_cells)``. Trains are ``n_per_train``
+    consecutive stims. The first valid (non-NaN) response in each train sets
+    the running extremum but doesn't increment the score; each subsequent
+    valid response that beats the running extremum increments the score.
+    Score range per cell: ``[0, n_trains × (n_per_train − 1)]``.
+    """
+    n_stims, n_cells = per_stim.shape
+    n_trains = n_stims // n_per_train
+    score = np.zeros(n_cells, dtype=int)
+    for t in range(n_trains):
+        train = per_stim[t * n_per_train:(t + 1) * n_per_train]
+        if mode == "min":
+            current = np.full(n_cells, np.inf)
+        else:
+            current = np.full(n_cells, -np.inf)
+        seen_any = np.zeros(n_cells, dtype=bool)
+        for s in range(n_per_train):
+            r = train[s]
+            valid = ~np.isnan(r)
+            if mode == "min":
+                beats = valid & (r < current)
+            else:
+                beats = valid & (r > current)
+            update_score = beats & seen_any
+            update_value = beats | (valid & ~seen_any)
+            score += update_score.astype(int)
+            current = np.where(update_value, r, current)
+            seen_any = seen_any | valid
+    return score
+
+
+def _per_cell_typical_fluctuation(mat, stim_cols, frame_to_min_fn,
+                                  n_per_train=LEARNING_STIMS_PER_TRAIN,
+                                  rest_min=10.0):
+    """Per-cell std of frame-to-frame deltas in non-stim periods.
+
+    A "stim period" is from the first stim of a train through ``rest_min``
+    minutes after the last stim of that train. Frame-to-frame deltas where
+    either endpoint sits inside a stim period are excluded.
+    """
+    n_cells, n_cols = mat.shape
+    n_trains = len(stim_cols) // n_per_train
+    non_stim = np.ones(n_cols, dtype=bool)
+    all_minutes = frame_to_min_fn(np.arange(n_cols))
+    for t in range(n_trains):
+        first_sc = stim_cols[t * n_per_train]
+        last_sc = stim_cols[t * n_per_train + n_per_train - 1]
+        end_min = float(frame_to_min_fn([last_sc])[0]) + rest_min
+        end_col = int(np.argmin(np.abs(all_minutes - end_min)))
+        non_stim[first_sc:end_col + 1] = False
+    deltas = np.diff(mat, axis=1)
+    keep = non_stim[:-1] & non_stim[1:]
+    if not keep.any():
+        return np.full(n_cells, np.nan)
+    return np.nanstd(deltas[:, keep], axis=1)
+
+
+def _score_anticipation(inputs, *, metric):
+    """Compute (pos_score, neg_score) per cell.
+
+    For each train:
+        * find the per-cell peak frame inside the response window of the
+          *last* stim of the train,
+        * derive a single ``anticipationTime`` per train as 10 minutes after
+          the across-cell median peak frame,
+        * compute the per-cell *signed height* response and (for metric=
+          'width') per-cell width at that anticipation time,
+        * compare ``|height_response|`` vs the cell's typical-fluctuation
+          floor (skip if not significant),
+        * for height metric, increment ``pos`` / ``neg`` by sign of the
+          response (in the experiment's response direction);
+        * for width metric, the count is gated by the *same* significance
+          test (height-based — there is no signed width), and the pos/neg
+          axis follows the underlying height response sign (so height-aligned
+          increases contribute to pos, opposite-sign dips to neg).
+
+    If the anticipation time exceeds the recording, that train is skipped
+    (does not bias the score downward).
+    """
+    mat = inputs["mat"]
+    stim_cols = inputs["stim_cols"]
+    f2m = inputs["frame_to_min_fn"]
+    direction = inputs["direction"]
+    window = inputs["window"]
+    n_cells, n_cols = mat.shape
+    n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
+    sign = -1.0 if direction == "decrease" else 1.0
+
+    typical = _per_cell_typical_fluctuation(mat, stim_cols, f2m)
+
+    pos = np.zeros(n_cells, dtype=int)
+    neg = np.zeros(n_cells, dtype=int)
+    win_lo_off, win_hi_off = window
+    all_minutes = f2m(np.arange(n_cols))
+
+    for t in range(n_trains):
+        train = stim_cols[
+            t * LEARNING_STIMS_PER_TRAIN:(t + 1) * LEARNING_STIMS_PER_TRAIN
+        ]
+        last_sc = train[-1]
+        win_lo = max(0, last_sc + win_lo_off)
+        win_hi = min(n_cols, last_sc + win_hi_off)
+        if win_lo >= win_hi:
+            continue
+        seg = mat[:, win_lo:win_hi]
+        if direction == "decrease":
+            peak_offsets = np.argmin(
+                np.where(np.isnan(seg), np.inf, seg), axis=1,
+            )
+        else:
+            peak_offsets = np.argmax(
+                np.where(np.isnan(seg), -np.inf, seg), axis=1,
+            )
+        peak_cols = win_lo + peak_offsets
+        ref_peak_col = int(np.round(np.nanmedian(peak_cols)))
+        ref_peak_min = float(f2m([ref_peak_col])[0])
+        anticip_min = ref_peak_min + 10.0
+        if anticip_min > float(all_minutes[-1]):
+            # Past end of recording — drop this train (do not clamp).
+            continue
+        anticip_col = int(np.argmin(np.abs(all_minutes - anticip_min)))
+        if anticip_col + win_hi_off > n_cols:
+            continue
+
+        cap = compute_stim_caps([anticip_col], n_cols)[0]
+        height_resp, width_resp = per_cell_response_delta(
+            mat, anticip_col, direction, window,
+            return_width=True, cap_col=cap, frame_to_min_fn=f2m,
+        )
+        signed = sign * height_resp
+        significant = np.abs(height_resp) > typical
+        if metric == "width":
+            significant = significant & ~np.isnan(width_resp)
+        pos = pos + (significant & (signed > 0)).astype(int)
+        neg = neg + (significant & (signed < 0)).astype(int)
+
+    return pos, neg
+
+
+def compute_learning_scores(experiments, state):
+    """Compute habituation, sensitization, anticipation scores per DMSO expt.
+
+    Pools cells across all channels of an experiment. Returns a nested dict::
+
+        scores[exp_name][metric] = {
+            "habituation":     np.ndarray (n_cells_pooled,),
+            "sensitization":   np.ndarray (n_cells_pooled,),
+            "anticipation_pos": np.ndarray,
+            "anticipation_neg": np.ndarray,
+        }
+
+    Where ``metric ∈ {"height", "width"}``. Only experiments with
+    ``response_direction == "increase"`` (i.e., DMSO-style pulse trains) are
+    included; others are skipped silently.
+    """
+    out = {}
+    for exp_name, cfg in experiments.items():
+        if cfg.get("response_direction") != "increase":
+            continue
+        out[exp_name] = {}
+        for metric in ("height", "width"):
+            hab_chunks, sen_chunks, pos_chunks, neg_chunks = [], [], [], []
+            for ch in cfg["channels"]:
+                inputs = _build_learning_inputs(
+                    state, exp_name, ch, cfg, metric=metric,
+                )
+                if inputs is None:
+                    continue
+                hab = _score_running_extremum(
+                    inputs["per_stim"], mode="min",
+                )
+                sen = _score_running_extremum(
+                    inputs["per_stim"], mode="max",
+                )
+                pos, neg = _score_anticipation(inputs, metric=metric)
+                hab_chunks.append(hab)
+                sen_chunks.append(sen)
+                pos_chunks.append(pos)
+                neg_chunks.append(neg)
+            if not hab_chunks:
+                out[exp_name][metric] = None
+                continue
+            out[exp_name][metric] = {
+                "habituation": np.concatenate(hab_chunks),
+                "sensitization": np.concatenate(sen_chunks),
+                "anticipation_pos": np.concatenate(pos_chunks),
+                "anticipation_neg": np.concatenate(neg_chunks),
+            }
+            n = len(out[exp_name][metric]["habituation"])
+            print(
+                f"  learning scores: {exp_name} ({metric}) — {n} cells pooled "
+                f"across {len(cfg['channels'])} channels."
+            )
+    return out
+
+
+def _plot_score_histogram(scores, *, title, xlabel, save_path,
+                          bins=None, color=None):
+    """Single-distribution histogram (used for habituation / sensitization)."""
+    fig, ax = plt.subplots(
+        figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(top=False, right=False)
+    if bins is None:
+        max_v = int(np.nanmax(scores)) if scores.size else 0
+        bins = np.arange(-0.5, max_v + 1.5, 1)
+    ax.hist(
+        scores, bins=bins,
+        color=color or PLOT_PARAMS["fit_color"],
+        alpha=0.85, edgecolor="#222222", linewidth=0.6,
+    )
+    ax.set_xlabel(xlabel, fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        title,
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    plt.tight_layout()
+    fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    plt.close(fig)
+
+
+def _plot_anticipation_histogram(pos, neg, *, title, save_path):
+    """Overlapping pos/neg histograms with transparent bars."""
+    fig, ax = plt.subplots(
+        figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(top=False, right=False)
+    max_v = int(max(np.nanmax(pos) if pos.size else 0,
+                    np.nanmax(neg) if neg.size else 0))
+    bins = np.arange(-0.5, max_v + 1.5, 1)
+    ax.hist(
+        pos, bins=bins, color="#1a9d51", alpha=0.45,
+        edgecolor="#0d4f29", linewidth=0.8, label=f"positive (n={pos.size})",
+    )
+    ax.hist(
+        neg, bins=bins, color="#e74c3c", alpha=0.45,
+        edgecolor="#7a1a12", linewidth=0.8, label=f"negative (n={neg.size})",
+    )
+    ax.set_xlabel("Anticipation score (events / 3 trains)",
+                  fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        title,
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    plt.tight_layout()
+    fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_learning_score_histograms(experiments, state, scores=None):
+    """Emit habituation / sensitization / anticipation histograms (DMSO only).
+
+    Per DMSO experiment, six figures land under ``<exp>/``:
+        * ``learning_habituation_height.png``
+        * ``learning_habituation_width.png``
+        * ``learning_sensitization_height.png``
+        * ``learning_sensitization_width.png``
+        * ``learning_anticipation_height.png`` (pos+neg overlapped)
+        * ``learning_anticipation_width.png``  (pos+neg overlapped)
+    """
+    if scores is None:
+        scores = compute_learning_scores(experiments, state)
+    for exp_name, by_metric in scores.items():
+        for metric, blob in by_metric.items():
+            if blob is None:
+                continue
+            metric_label = "height" if metric == "height" else "width"
+            _plot_score_histogram(
+                blob["habituation"],
+                title=(
+                    f"{exp_name} — habituation score ({metric_label})\n"
+                    f"new minimums per cell across 3 trains × 4 increments "
+                    f"(max 12; first stim per train sets baseline)"
+                ),
+                xlabel=f"Habituation score ({metric_label})",
+                save_path=fig_path(exp_name, f"learning_habituation_{metric}"),
+            )
+            _plot_score_histogram(
+                blob["sensitization"],
+                title=(
+                    f"{exp_name} — sensitization score ({metric_label})\n"
+                    f"new maximums per cell across 3 trains × 4 increments "
+                    f"(max 12; first stim per train sets baseline)"
+                ),
+                xlabel=f"Sensitization score ({metric_label})",
+                save_path=fig_path(exp_name, f"learning_sensitization_{metric}"),
+            )
+            _plot_anticipation_histogram(
+                blob["anticipation_pos"],
+                blob["anticipation_neg"],
+                title=(
+                    f"{exp_name} — anticipation score ({metric_label})\n"
+                    f"|response| > typical fluctuation, 10 min after last "
+                    f"train peak"
+                ),
+                save_path=fig_path(exp_name, f"learning_anticipation_{metric}"),
+            )
 
 
 # =============================================================================
@@ -3285,10 +4336,11 @@ def plot_nrk_hardware_log(experiments, state, exp_name="nrk_acid_13APR26"):
                 label=f"Real setpoint ({rsp:.1f} min)",
             )
 
-        # Trim view to the first 30 minutes (reviewer request). Y-limits are
-        # recomputed over only the in-window samples so the trace fills the panel.
+        # Trim view to the configured analysis window (reviewer request).
+        # Y-limits are recomputed over only the in-window samples so the
+        # trace fills the panel.
         x_lo = float(np.asarray(frames_min).min())
-        x_hi = 30.0
+        x_hi = float(cfg.get("time_window_minutes", 30.0))
         in_window = [
             lum for lum, m in zip(luminosity, frames_min)
             if x_lo <= m <= x_hi
@@ -3341,6 +4393,10 @@ def main():
     # Step 1b: per-frame minutes lookup + NRK real-setpoint anchor.
     build_frame_to_minutes_lookups(EXPERIMENTS, state)
 
+    # Step 1c: trim experiments declaring a `time_window_minutes` cap (NRK
+    # only) so every downstream analysis sees only the in-window data.
+    clip_experiments_to_time_window(EXPERIMENTS, state)
+
     # Steps 2–8: figures for every experiment / channel.
     plot_bg_diagnostic(EXPERIMENTS, state)
     plot_time_traces(EXPERIMENTS, state)
@@ -3351,16 +4407,28 @@ def main():
     plot_correlation_vs_distance(EXPERIMENTS, state)
     plot_trace_clustering(EXPERIMENTS, state)
     plot_trace_clustering_kselect(EXPERIMENTS, state)
+    plot_trace_clustering(EXPERIMENTS, state, pool_channels=True)
     # Absolute peak-luminosity violin disabled per reviewer request — only
     # peak−baseline deltas are shown going forward.
     # plot_per_stimulus_peak_violins(EXPERIMENTS, state)
     plot_per_stimulus_response_violins(EXPERIMENTS, state)
+    plot_per_stimulus_response_violins(EXPERIMENTS, state, metric="width")
+    plot_per_stimulus_response_violins(
+        EXPERIMENTS, state, pool_channels=True, metric="height",
+    )
+    plot_per_stimulus_response_violins(
+        EXPERIMENTS, state, pool_channels=True, metric="width",
+    )
     responder_thresholds = compute_responder_thresholds(
         EXPERIMENTS, state, alpha=0.01,
     )
     plot_per_stimulus_response_violins_responders(
         EXPERIMENTS, state, thresholds=responder_thresholds,
     )
+    plot_dff_mean_pooled(
+        EXPERIMENTS, state, thresholds=responder_thresholds, only_responders=True,
+    )
+    plot_learning_score_histograms(EXPERIMENTS, state)
     # plot_sliding_correlation(EXPERIMENTS, state)
 
     # Step 9: NRK-only hardware feedback luminosity log.
