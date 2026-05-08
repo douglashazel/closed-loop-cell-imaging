@@ -99,13 +99,14 @@ def plot_nrk_hardware_log(experiments, state, exp_name="nrk_acid_13APR26"):
             label="Mean luminosity", zorder=3,
         )
 
+        pulse_duration = float(cfg.get("stim_duration_minutes", 0.5) or 0.5)
+        acid_label = f"Acidic pulse ({int(pulse_duration * 60)} s)"
         for i, m in enumerate(acid_min):
-            ax.axvline(
-                m,
-                color=pp["acid_color"],
-                linewidth=pp["acid_lw"], linestyle="--",
-                label="Acidic pulse" if i == 0 else None,
-                zorder=4,
+            ax.axvspan(
+                m, m + pulse_duration,
+                color=pp["acid_color"], alpha=0.30,
+                linewidth=0, zorder=2,
+                label=acid_label if i == 0 else None,
             )
 
         if rsp is not None:

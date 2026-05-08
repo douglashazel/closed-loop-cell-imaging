@@ -59,13 +59,22 @@ def draw_stim_spans(ax, spans, label, color, alpha=0.18):
         )
 
 
-def compute_stim_caps(stim_cols, n_cols):
+def compute_stim_caps(stim_cols, n_cols, *, uniform_cap_cols=None):
     """Return per-stim "cap column" for the width search.
 
     Cap policy:
-        * Stim *i* (not last) caps at ``stim_cols[i + 1]``.
-        * The very last stim caps at ``n_cols - 1``.
+        * If ``uniform_cap_cols`` is given, every stim caps at
+          ``stim_col + uniform_cap_cols`` (clamped to ``n_cols - 1``).
+          Use this to make widths comparable across pulses with uneven
+          inter-stim spacing.
+        * Otherwise: stim *i* (not last) caps at ``stim_cols[i + 1]`` and
+          the very last stim caps at ``n_cols - 1``.
     """
+    if uniform_cap_cols is not None:
+        return [
+            int(min(int(sc) + int(uniform_cap_cols), n_cols - 1))
+            for sc in stim_cols
+        ]
     out = []
     for i, sc in enumerate(stim_cols):
         if i + 1 < len(stim_cols):

@@ -128,6 +128,10 @@ EXPERIMENTS = {
         "stim_label": "DMSO pulse (2 min)",
         "response_direction": "increase",
         "response_window": (1, 8),
+        # The PC3 camera occasionally produces dark/dropped frames that show
+        # up as sharp downward spikes in the per-cell traces. Mask them out
+        # before any downstream analysis runs (see mask_dead_frames()).
+        "filter_dead_frames": True,
         "timestamps": {
             "channel 1": "PC3 DMSO pulses perfusion 23MAR26 timestamps.csv",
         },

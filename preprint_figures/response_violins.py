@@ -215,11 +215,16 @@ def _per_channel_stim_response_arrays(state, exp_name, ch, cfg, *, metric):
     frame_to_col = {f: i for i, f in enumerate(frame_nums)}
 
     valid_stim_cols = [frame_to_col[p] for p in stim_frames if p in frame_to_col]
-    caps = (
-        compute_stim_caps(valid_stim_cols, n_cols)
-        if metric == "width" and valid_stim_cols
-        else []
-    )
+    if metric == "width" and valid_stim_cols:
+        if len(valid_stim_cols) >= 2:
+            uniform_cap = int(np.min(np.diff(valid_stim_cols)))
+        else:
+            uniform_cap = max(0, n_cols - 1 - valid_stim_cols[0])
+        caps = compute_stim_caps(
+            valid_stim_cols, n_cols, uniform_cap_cols=uniform_cap,
+        )
+    else:
+        caps = []
     cap_for_col = dict(zip(valid_stim_cols, caps))
 
     def _f2m(frames):
@@ -259,8 +264,12 @@ def plot_per_stimulus_response_violins(
         window_str = f"stim+{window[0]}…stim+{window[1] - 1} frames"
         if metric == "width":
             y_label = "Response width (min)"
+            width_cap_note = (
+                " — width search capped at min inter-stim interval"
+            )
         else:
             y_label = f"Δ luminosity  ({extremum_label} − baseline)"
+            width_cap_note = ""
 
         if pool_channels:
             channels = cfg["channels"]
@@ -304,6 +313,7 @@ def plot_per_stimulus_response_violins(
                     f"{exp_name} — pooled per-stimulus {metric} "
                     f"({extremum_label} over {window_str} − baseline; "
                     f"{total_cells} cells, {len(channels)} channels)"
+                    f"{width_cap_note}"
                 ),
                 save_path=fig_path(
                     exp_name, f"pooled_response_violin_{metric}"
@@ -339,6 +349,7 @@ def plot_per_stimulus_response_violins(
             title = (
                 f"{exp_name} / {ch} — per-stimulus {metric} "
                 f"({extremum_label} over {window_str} − baseline)"
+                f"{width_cap_note}"
             )
             ok = _draw_half_violin_with_box(
                 ax=None,

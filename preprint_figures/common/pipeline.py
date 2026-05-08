@@ -234,14 +234,79 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
     return state
 
 
+def mask_dead_frames(experiments, state, *, mad_k=6.0, window=21):
+    """Mask frames where the sampled background diverges sharply from local median.
+
+    Some cameras occasionally emit dark/dropped frames or flash frames that
+    show up as sharp spikes in the per-cell traces. Dropouts depress the
+    sampled background; flashes elevate it (and via bg subtraction, depress
+    the corrected luminosity). We detect both directions on the per-frame
+    ``bg_trace`` using a robust rolling-MAD test, then mask those frames in
+    ``state["corrected_lum"][exp][ch][cell]`` by setting their values to
+    ``None`` (so they become NaN downstream and get skipped by nan-aware
+    aggregations). We deliberately do NOT pop the keys, so that column
+    indices in any reconstructed cell-by-frame matrix continue to match
+    actual frame indices.
+
+    Opt-in per experiment via ``cfg["filter_dead_frames"] = True``.
+    """
+    from scipy.ndimage import median_filter
+
+    for exp_name, cfg in experiments.items():
+        if not cfg.get("filter_dead_frames"):
+            continue
+        for ch in cfg["channels"]:
+            bg = np.asarray(
+                state["bg_trace"][exp_name][ch], dtype=np.float64
+            )
+            if bg.size < 3:
+                continue
+            med = median_filter(bg, size=window, mode="nearest")
+            delta = bg - med
+            mad = float(np.median(np.abs(delta - np.median(delta))))
+            scale = 1.4826 * mad if mad > 0 else 0.0
+            if scale == 0.0:
+                continue
+            dead_idx = np.where(np.abs(delta) > mad_k * scale)[0]
+            if dead_idx.size == 0:
+                print(
+                    f"  {exp_name} / {ch}: no dead frames detected "
+                    f"(MAD scale={scale:.3f})"
+                )
+                continue
+            n_neg = int(np.sum(delta[dead_idx] < 0))
+            n_pos = int(np.sum(delta[dead_idx] > 0))
+            dead_set = {f"f{int(i)}" for i in dead_idx}
+            cells_touched = 0
+            entries_masked = 0
+            nan_val = float("nan")
+            for cid, frames in state["corrected_lum"][exp_name][ch].items():
+                hits = dead_set & frames.keys()
+                if hits:
+                    cells_touched += 1
+                    entries_masked += len(hits)
+                    for fk in hits:
+                        frames[fk] = nan_val
+            preview = ", ".join(str(int(i)) for i in dead_idx[:8])
+            more = "" if dead_idx.size <= 8 else f", … (+{dead_idx.size - 8})"
+            print(
+                f"  {exp_name} / {ch}: masked {dead_idx.size} dead frames "
+                f"({n_neg} dropouts + {n_pos} flashes) "
+                f"[{preview}{more}] — masked {entries_masked} entries "
+                f"across {cells_touched} cells"
+            )
+
+
 def prepare_state(experiments, *, recompute_bg=False):
-    """Run the four prep steps and return the populated state dict.
+    """Run the prep steps and return the populated state dict.
 
     Mirrors the prep block in april28_final_figures.py:main() — same
-    operations, same order, identical resulting state.
+    operations, same order, identical resulting state — plus an opt-in
+    dead-frame filter for experiments that set ``filter_dead_frames``.
     """
     resolve_all_stim_frames(experiments)
     state = compute_background_correction(experiments, recompute=recompute_bg)
     build_frame_to_minutes_lookups(experiments, state)
     clip_experiments_to_time_window(experiments, state)
+    mask_dead_frames(experiments, state)
     return state

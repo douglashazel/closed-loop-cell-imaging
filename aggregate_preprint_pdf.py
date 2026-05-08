@@ -31,7 +31,7 @@ from PIL import Image
 
 RESULTS_DIR = Path("April28_preprint_results")
 OUTPUT_PDF = RESULTS_DIR / "April28_preprint_figures.pdf"
-SKIP_DIRS = {"bg_cache", "archive"}
+SKIP_DIRS = {"bg_cache", "archive", "state_cache"}
 
 OVERVIEW_ORDER = [
     "bg_diagnostic",
@@ -46,6 +46,7 @@ PER_CHANNEL_ORDER = [
     "dff_response_breakdown",
     "response_violin",
     "response_violin_responders",
+    "pca_umap_uncolored",
     "hw_lum_log",
 ]
 
@@ -60,6 +61,7 @@ CATEGORY_LABELS = {
     "dff_response_breakdown": "dF/F0 response breakdown (mean/median/percentile + per-cell peak histogram)",
     "response_violin": "Per-stimulus Δ luminosity (peak − baseline)",
     "response_violin_responders": "Per-stimulus Δ luminosity — responders only (|peak Δ dF/F0| ≥ 0.10)",
+    "pca_umap_uncolored": "PCA + UMAP scatter (no clustering)",
     "hw_lum_log": "Hardware feedback luminosity (log)",
 }
 

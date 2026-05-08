@@ -480,12 +480,114 @@ def plot_trace_clustering_kselect(experiments, state, ks=(2, 3, 4, 5),
             plt.close(fig)
 
 
+def _render_pca_umap_uncolored(
+    state, exp_name, ch_arg, ch_label, save_name, *, random_state,
+):
+    """1×2 figure: PC1 vs PC2 + UMAP, all points one color (no clustering)."""
+    emb = _compute_clustering_embeddings(
+        state, exp_name, ch_arg, random_state=random_state,
+    )
+    if emb is None:
+        print(f"{exp_name} / {ch_label}: too few cells — skipping uncolored PCA/UMAP")
+        return
+    pcs = emb["pcs"]
+    evr = emb["evr"]
+    embedding = emb["embedding"]
+    n_cells = emb["n_cells"]
+
+    fig, axes = plt.subplots(
+        1, 2,
+        figsize=(12, 5.5),
+        dpi=PLOT_PARAMS["dpi"],
+    )
+    for ax in axes.ravel():
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(top=False, right=False)
+
+    ax = axes[0]
+    ax.scatter(
+        pcs[:, 0], pcs[:, 1],
+        s=PLOT_PARAMS["scatter_size"] * 1.4,
+        color=PLOT_PARAMS["scatter_color"],
+        alpha=PLOT_PARAMS["scatter_alpha"],
+        edgecolors="none",
+    )
+    ax.set_xlabel(
+        f"PC 1 ({evr[0] * 100:.1f}% var)",
+        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_ylabel(
+        f"PC 2 ({evr[1] * 100:.1f}% var)" if len(evr) > 1 else "PC 2",
+        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_title(
+        "PCA: PC1 vs PC2",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+
+    ax = axes[1]
+    ax.scatter(
+        embedding[:, 0], embedding[:, 1],
+        s=PLOT_PARAMS["scatter_size"] * 1.4,
+        color=PLOT_PARAMS["scatter_color"],
+        alpha=PLOT_PARAMS["scatter_alpha"],
+        edgecolors="none",
+    )
+    ax.set_xlabel("UMAP 1", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("UMAP 2", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        "UMAP embedding",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+
+    fig.suptitle(
+        f"{exp_name} / {ch_label} — PCA + UMAP (no clustering, n={n_cells})",
+        fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+        fontweight="bold",
+        y=1.02,
+    )
+    plt.tight_layout()
+    fig.savefig(
+        fig_path(exp_name, save_name),
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+    )
+    plt.close(fig)
+
+
+def plot_pca_umap_uncolored(
+    experiments, state, *, pool_channels=False, random_state=0,
+):
+    """PCA + UMAP scatters with all points one color (no cluster assignments)."""
+    for exp_name, cfg in experiments.items():
+        if pool_channels:
+            channels = cfg["channels"]
+            if not channels:
+                continue
+            _render_pca_umap_uncolored(
+                state, exp_name, channels,
+                f"pooled ({', '.join(channels)})",
+                "pooled_pca_umap_uncolored",
+                random_state=random_state,
+            )
+        else:
+            for ch in cfg["channels"]:
+                _render_pca_umap_uncolored(
+                    state, exp_name, ch, ch,
+                    f"{ch}_pca_umap_uncolored",
+                    random_state=random_state,
+                )
+
+
 def main():
     experiments, recompute_bg = parse_args()
     state = prepare_state(experiments, recompute_bg=recompute_bg)
     plot_trace_clustering(experiments, state)
     plot_trace_clustering_kselect(experiments, state)
     plot_trace_clustering(experiments, state, pool_channels=True)
+    plot_pca_umap_uncolored(experiments, state)
+    plot_pca_umap_uncolored(experiments, state, pool_channels=True)
 
 
 if __name__ == "__main__":
