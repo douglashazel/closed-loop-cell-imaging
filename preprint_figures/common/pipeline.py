@@ -1,0 +1,247 @@
+"""End-to-end state preparation for every analysis script.
+
+`prepare_state()` runs the four prep steps from the source script's `main()`:
+    1. resolve_all_stim_frames
+    2. compute_background_correction (cache hit on second run)
+    3. build_frame_to_minutes_lookups
+    4. clip_experiments_to_time_window
+
+Each analysis script calls this once and consumes the returned state. The
+per-experiment background pickle cache (April28_preprint_results/bg_cache/<exp>.pkl)
+makes repeated invocations cheap.
+"""
+
+import os
+import pickle
+import sys
+
+import numpy as np
+from PIL import Image
+from tqdm.auto import tqdm
+
+from common.bg_fit import (
+    build_background_sampler,
+    eval_background_at_points,
+    eval_background_image,
+    fit_background_from_image,
+)
+from common.config import BG_FIT, CACHE_DIR, RECOMPUTE_BG
+from common.io_paths import channel_dir, sorted_image_files
+from common.stim_resolve import resolve_all_stim_frames
+from common.time_axis import (
+    build_frame_to_minutes_lookups,
+    clip_experiments_to_time_window,
+)
+
+sys.path.insert(0, "SCRIPTS")
+from io_utils import load_msgpack  # noqa: E402
+
+
+def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
+    """Run per-frame sampled polynomial background correction for every experiment.
+
+    Caches per-experiment results to ``CACHE_DIR/<exp>.pkl`` and reuses them
+    unless ``recompute`` is True or ``BG_FIT`` has changed since the cache
+    was written.
+    """
+    state = {
+        "corrected_lum": {},
+        "bg_trace": {},
+        "traj_by_channel": {},
+        "frame_counts": {},
+        "probe_data": {},
+        "bg_map_by_ch": {},
+        "bg_sampler_by_exp": {},
+        "bg_coefs_by_ch": {},
+        "bg_min_by_ch": {},
+        "bg_sample_points_exp": {},
+    }
+
+    for exp_name, cfg in experiments.items():
+        cache_path = os.path.join(CACHE_DIR, f"{exp_name}.pkl")
+
+        if not recompute and os.path.exists(cache_path):
+            with open(cache_path, "rb") as f:
+                blob = pickle.load(f)
+            if blob.get("BG_FIT") != BG_FIT:
+                print(
+                    f"=== {exp_name} === cached BG_FIT differs from current — recomputing."
+                )
+            else:
+                state["corrected_lum"][exp_name] = blob["corrected_lum"]
+                state["bg_trace"][exp_name] = blob["bg_trace"]
+                state["traj_by_channel"][exp_name] = blob["traj_by_channel"]
+                state["frame_counts"][exp_name] = blob["frame_counts"]
+                state["probe_data"][exp_name] = blob["probe_data"]
+                state["bg_map_by_ch"][exp_name] = blob["bg_map_by_ch"]
+                state["bg_coefs_by_ch"][exp_name] = blob["bg_coefs_by_ch"]
+                state["bg_min_by_ch"][exp_name] = blob["bg_min_by_ch"]
+                state["bg_sampler_by_exp"][exp_name] = blob["sampler"]
+                state["bg_sample_points_exp"][exp_name] = blob["sampler"]["sample_points"]
+                print(
+                    f"=== {exp_name} === loaded cache from {cache_path} "
+                    f"({len(blob['corrected_lum'])} channels)"
+                )
+                continue
+
+        # No usable cache — run the full computation.
+        state["corrected_lum"][exp_name] = {}
+        state["bg_trace"][exp_name] = {}
+        state["traj_by_channel"][exp_name] = {}
+        state["frame_counts"][exp_name] = {}
+        state["probe_data"][exp_name] = {}
+        state["bg_map_by_ch"][exp_name] = {}
+        state["bg_coefs_by_ch"][exp_name] = {}
+        state["bg_min_by_ch"][exp_name] = {}
+
+        sampler = build_background_sampler(cfg)
+        state["bg_sampler_by_exp"][exp_name] = sampler
+        state["bg_sample_points_exp"][exp_name] = sampler["sample_points"]
+        H, W = sampler["shape"]
+        print()
+        print(
+            f"=== {exp_name} === {len(sampler['sample_points'])} / "
+            f"{BG_FIT['grid_n']**2} grid points snapped to cell-free background"
+        )
+
+        for ch in cfg["channels"]:
+            fdir = os.path.join(channel_dir(cfg, ch), "frames")
+            adir = os.path.join(channel_dir(cfg, ch), "analysis")
+            ffiles = sorted_image_files(fdir)
+            n_frames = len(ffiles)
+
+            coefs_by_frame = np.zeros(
+                (n_frames, sampler["A_pinv"].shape[0]), dtype=np.float64
+            )
+            bg_min_by_frame = np.zeros(n_frames, dtype=np.float64)
+            sampled_bg_mean = np.zeros(n_frames, dtype=np.float32)
+            sampled_bg_range = np.zeros((n_frames, 2), dtype=np.float32)
+
+            probe_idx = n_frames // 2
+            probe = None
+            probe_bg = None
+            probe_means = None
+
+            for i, fname in enumerate(
+                tqdm(ffiles, desc=f"{exp_name} / {ch} sampled bg", leave=False)
+            ):
+                img = np.array(
+                    Image.open(os.path.join(fdir, fname)).convert("L"),
+                    dtype=np.float32,
+                )
+                if img.shape != (H, W):
+                    raise ValueError(
+                        f"{exp_name} / {ch} frame {fname} shape {img.shape} "
+                        f"does not match sampler shape {(H, W)}"
+                    )
+
+                coefs, bg_min, means = fit_background_from_image(img, sampler)
+                coefs_by_frame[i] = coefs
+                bg_min_by_frame[i] = bg_min
+                sampled_bg_mean[i] = float(means.mean())
+                sampled_bg_range[i] = (float(means.min()), float(means.max()))
+
+                if i == probe_idx:
+                    probe = img
+                    probe_means = means
+                    probe_bg = eval_background_image(
+                        coefs, bg_min, (H, W), sampler["degree"]
+                    )
+
+            lum = load_msgpack(os.path.join(adir, "luminosity_complete.json"))
+            traj = load_msgpack(os.path.join(adir, "trajectories_complete.json"))
+
+            corr_ch = {}
+            for cid, frames in lum.items():
+                coords = traj.get(cid, {})
+                c_corr = {}
+                for fk, v in frames.items():
+                    if v is None or not fk.startswith("f"):
+                        continue
+                    idx = int(fk[1:])
+                    if idx >= n_frames:
+                        continue
+                    x = coords.get(f"x{idx}")
+                    y = coords.get(f"y{idx}")
+                    if x is None or y is None:
+                        continue
+                    try:
+                        xi = float(x)
+                        yi = float(y)
+                    except (TypeError, ValueError):
+                        continue
+                    if 0 <= yi < H and 0 <= xi < W:
+                        bg_val = eval_background_at_points(
+                            coefs_by_frame[idx],
+                            bg_min_by_frame[idx],
+                            [xi],
+                            [yi],
+                            (H, W),
+                            sampler["degree"],
+                        )[0]
+                        c_corr[fk] = float(v) - float(bg_val)
+                if c_corr:
+                    corr_ch[cid] = c_corr
+
+            state["corrected_lum"][exp_name][ch] = corr_ch
+            state["bg_trace"][exp_name][ch] = sampled_bg_mean
+            state["traj_by_channel"][exp_name][ch] = traj
+            state["frame_counts"][exp_name][ch] = n_frames
+            state["bg_map_by_ch"][exp_name][ch] = probe_bg
+            state["bg_coefs_by_ch"][exp_name][ch] = coefs_by_frame
+            state["bg_min_by_ch"][exp_name][ch] = bg_min_by_frame
+
+            state["probe_data"][exp_name][ch] = {
+                "probe": probe,
+                "probe_idx": probe_idx,
+                "probe_bg": probe_bg,
+                "corrected": probe - probe_bg,
+                "probe_sample_mean": float(sampled_bg_mean[probe_idx]),
+                "probe_sample_min": float(sampled_bg_range[probe_idx, 0]),
+                "probe_sample_max": float(sampled_bg_range[probe_idx, 1]),
+                "probe_bg_min": float(np.nanmin(probe_bg)),
+                "probe_bg_max": float(np.nanmax(probe_bg)),
+                "probe_means": probe_means,
+            }
+            print(
+                f"  {ch}: {n_frames} frames | sample mean range "
+                f"[{sampled_bg_mean.min():.1f}, {sampled_bg_mean.max():.1f}] | "
+                f"probe bg max={np.nanmax(probe_bg):.2f} | "
+                f"{len(corr_ch)} cells corrected"
+            )
+
+        blob = {
+            "BG_FIT": BG_FIT.copy(),
+            "sampler": sampler,
+            "corrected_lum": state["corrected_lum"][exp_name],
+            "bg_trace": state["bg_trace"][exp_name],
+            "traj_by_channel": state["traj_by_channel"][exp_name],
+            "frame_counts": state["frame_counts"][exp_name],
+            "probe_data": state["probe_data"][exp_name],
+            "bg_map_by_ch": state["bg_map_by_ch"][exp_name],
+            "bg_coefs_by_ch": state["bg_coefs_by_ch"][exp_name],
+            "bg_min_by_ch": state["bg_min_by_ch"][exp_name],
+        }
+        with open(cache_path, "wb") as f:
+            pickle.dump(blob, f, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f"  → cached to {cache_path}")
+
+    print()
+    print(
+        "In-memory state ready: corrected_lum[exp][ch], bg_trace[exp][ch], "
+        "traj_by_channel[exp][ch], frame_counts[exp][ch]."
+    )
+    return state
+
+
+def prepare_state(experiments, *, recompute_bg=False):
+    """Run the four prep steps and return the populated state dict.
+
+    Mirrors the prep block in april28_final_figures.py:main() — same
+    operations, same order, identical resulting state.
+    """
+    resolve_all_stim_frames(experiments)
+    state = compute_background_correction(experiments, recompute=recompute_bg)
+    build_frame_to_minutes_lookups(experiments, state)
+    clip_experiments_to_time_window(experiments, state)
+    return state
