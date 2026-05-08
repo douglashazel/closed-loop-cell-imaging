@@ -6,7 +6,7 @@ _cellpose_temp
 
 gifs
 archive
-__pychace__
+__pycache__
 
 *.gif
 *.csv

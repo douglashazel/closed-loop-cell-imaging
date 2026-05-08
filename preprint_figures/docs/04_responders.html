@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responder Threshold · Preprint Figures Field Guide</title>
+  <style>
+    :root { --bg: #f5efe2; --paper: #fffaf0; --paper-2: #fbf3df; --ink: #1d2430; --ink-soft: #48515f; --rule: #d7ccb7; --accent: #9f3b24; --accent-2: #245f5a; --sans: system-ui, sans-serif; --serif: Georgia, serif; --mono: SFMono-Regular, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { color: var(--accent-2); }
+    main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0; }
+    .topnav { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
+    .topnav a { color: var(--ink-soft); border: none; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 32px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 36px; }
+    .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-size: 12px; margin-bottom: 16px; }
+    h1 { font-family: var(--serif); font-size: clamp(36px, 5.5vw, 64px); line-height: 1.05; margin: 0; }
+    h2 { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 32px); margin: 0 0 16px 0; line-height: 1.2; }
+    h3 { font-family: var(--serif); font-size: 19px; margin: 0 0 8px 0; color: var(--accent-2); }
+    .lede { font-family: var(--serif); font-size: clamp(18px, 1.8vw, 22px); color: var(--ink-soft); max-width: 760px; margin-top: 16px; }
+    .card, .callout { background: var(--paper); border: 1px solid var(--rule); padding: 22px; }
+    .callout { border-left: 4px solid var(--accent); background: var(--paper-2); }
+    .callout h3 { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .section { margin-top: 48px; }
+    .section-kicker { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+    ol, ul { padding-left: 22px; } li { margin: 4px 0; }
+    code, .mono { font-family: var(--mono); font-size: 0.9em; background: var(--paper-2); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--rule); }
+    pre { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent-2); padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+    pre code { background: none; padding: 0; border: none; }
+    table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 14.5px; }
+    th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; background: var(--paper-2); color: var(--accent); }
+    tr:last-child td { border-bottom: none; }
+    .crossref { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .crossref a { background: var(--paper); border: 1px solid var(--rule); padding: 8px 14px; font-size: 14px; }
+    .crossref a:hover { background: var(--paper-2); }
+    @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topnav"><a href="index.html">← Field Guide</a></div>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Foundations · 04 · Responders</div>
+        <h1>Responder thresholds</h1>
+        <p class="lede">"Did this cell actually respond?" answered statistically. We build a null distribution from pseudo-stimuli during quiet periods and pick a Bonferroni-corrected percentile. Cells whose real |dF/F0| crosses it are responders.</p>
+      </div>
+      <aside class="card">
+        <h3>How to study this</h3>
+        <ol>
+          <li>Read the null-construction recipe.</li>
+          <li>Note α = 0.01 and the per-stim Bonferroni division.</li>
+          <li>Understand the difference between threshold magnitude and direction.</li>
+          <li>Open <code>common/responders.py</code> in parallel.</li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Core idea</div>
+      <h2>Build a null, then pick a percentile</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>The null</h3>
+          <p>Response magnitudes computed at <em>random</em> frames (not at real stims). These reflect what the response window looks like for a non-responding cell — purely from noise + baseline drift.</p>
+        </article>
+        <article class="card">
+          <h3>The threshold</h3>
+          <p>The (1 − α/n_stim) × 100<sup>th</sup> percentile of <code>|delta|</code> in the null pool. A real response above it is unlikely to be noise after Bonferroni correction.</p>
+        </article>
+        <article class="card">
+          <h3>Per (exp, channel)</h3>
+          <p>Computed independently for each experiment-channel pair, because baseline noise levels differ. Stored as <code>{(exp, ch): threshold}</code>.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Algorithm</div>
+      <h2>Step-by-step</h2>
+      <ol>
+        <li><strong>Compute dF/F0.</strong> For each cell: <code>F0</code> = mean of frames <code>[0, first_stim)</code>; <code>dF/F0 = (F − F0) / F0</code>. Cells with <code>F0 = 0</code> get NaN.</li>
+        <li><strong>Mask the real stims.</strong> Exclude frames within <code>±pad</code> of every real stim, where <code>pad = max(10, response_window_hi)</code>. We don't want pseudo-stims to overlap real responses.</li>
+        <li><strong>Sample 100 pseudo-stims.</strong> Pick 100 random frames from the valid (non-stim) region per channel. Each pseudo-stim must leave room for the response window <code>[stim+lo, stim+hi)</code>.</li>
+        <li><strong>Extract pseudo-deltas.</strong> For each cell × pseudo-stim: same response-window logic as a real stim. <code>delta = max(window) − baseline</code> for "increase" experiments, <code>delta = min(window) − baseline</code> for "decrease".</li>
+        <li><strong>Pool the null.</strong> Concatenate every (cell × pseudo-stim) delta in this experiment-channel.</li>
+        <li><strong>Bonferroni-corrected percentile.</strong>
+          <pre><code>α       = 0.01
+α_per   = α / n_real_stims
+pct     = (1 − α_per) × 100        # e.g. 99.93 for 15 stims
+threshold = percentile(|null|, pct)</code></pre>
+        </li>
+        <li><strong>Save.</strong> <code>thresholds[(exp, ch)] = threshold</code>.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Defining a responder</div>
+      <h2>Per-cell decision rule</h2>
+      <pre><code># For each cell, look at every real stimulus.
+# Compute the response delta (max or min depending on direction).
+# Take the max-magnitude delta across stims:
+peak = max(|delta_stim_0|, |delta_stim_1|, ..., |delta_stim_N|)
+
+# A "responder" is a cell where peak ≥ threshold.
+is_responder = peak ≥ threshold</code></pre>
+      <p style="color: var(--ink-soft);">Note: it's <code>|delta|</code>, not signed delta. A "decrease" experiment uses the same threshold magnitude — direction is handled by which extremum (min vs max) is taken inside <code>per_cell_response_delta()</code>.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Typical values</div>
+      <h2>What the threshold ends up being</h2>
+      <table>
+        <thead><tr><th>Experiment</th><th>n stims</th><th>α per-stim</th><th>Percentile</th><th>Typical threshold (dF/F0)</th></tr></thead>
+        <tbody>
+          <tr><td>C2C12 DMSO</td><td>15</td><td>0.000667</td><td>99.933</td><td>~ 0.10</td></tr>
+          <tr><td>PC3 DMSO</td><td>15</td><td>0.000667</td><td>99.933</td><td>~ 0.05–0.10</td></tr>
+          <tr><td>NRK acid (per channel)</td><td>varies</td><td>varies</td><td>varies</td><td>varies</td></tr>
+        </tbody>
+      </table>
+      <p style="color: var(--ink-soft);">The C2C12 dff page surfaces three reference thresholds (0.02, 0.05, 0.10) on the response-magnitude histogram for visual comparison.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Where it's used</div>
+      <h2>Pages downstream of this</h2>
+      <ul>
+        <li><strong>dff.py</strong> — <code>dff_mean_pooled_responders.png</code> averages dF/F0 only over cells with peak |delta| ≥ threshold.</li>
+        <li><strong>response_violins.py</strong> — <code>&lt;ch&gt;_response_violin_responders.png</code> filters violins to responders only. Shows the population minus the null-floor noise.</li>
+        <li><strong>dff response breakdown</strong> — vertical lines on the histogram at common reference thresholds (0.02, 0.05, 0.10) and at the Bonferroni one.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Watch out</div>
+      <h2>Sanity checks</h2>
+      <div class="callout">
+        <h3>What this threshold does and does not say</h3>
+        <p><strong>It's a magnitude test, not a direction test.</strong> A cell that responds the "wrong" direction (e.g. luminosity drops in a DMSO experiment) can still be flagged as a responder if the magnitude is large. Direction is enforced upstream by which extremum (min/max) is taken in the response window.</p>
+        <p><strong>It depends on F0 quality.</strong> If the baseline window is contaminated (e.g. early imaging instability), F0 is noisy and dF/F0 is noisy and the null is wider — threshold goes up, "real" responders disappear.</p>
+        <p><strong>The null assumes 100 pseudo-stims is enough.</strong> With heavy tails or strong baseline drift, 100 samples may underestimate the tail. Robustness to this hasn't been audited.</p>
+        <p><strong>Bonferroni is conservative.</strong> 15 stims means we're effectively testing for any-stim significance. Per-stim significance would use a softer correction.</p>
+        <p><strong>The null is built per (exp, channel), not per cell.</strong> So cells with very wide intrinsic baseline noise are held to the population-average threshold and may pass even when their response is dominated by their own noise. Tighter per-cell thresholds would be more cell-specific but harder to estimate from one experiment.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">See also</div>
+      <h2>Related pages</h2>
+      <div class="crossref">
+        <a href="00_pipeline_overview.html">00 · Pipeline overview</a>
+        <a href="12_dff.html">12 · dF/F0</a>
+        <a href="15_response_violins.html">15 · Response violins</a>
+        <a href="16_learning_scores.html">16 · Learning scores</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

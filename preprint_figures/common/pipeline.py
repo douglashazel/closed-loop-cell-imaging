@@ -241,12 +241,12 @@ def mask_dead_frames(experiments, state, *, mad_k=6.0, window=21):
     show up as sharp spikes in the per-cell traces. Dropouts depress the
     sampled background; flashes elevate it (and via bg subtraction, depress
     the corrected luminosity). We detect both directions on the per-frame
-    ``bg_trace`` using a robust rolling-MAD test, then mask those frames in
-    ``state["corrected_lum"][exp][ch][cell]`` by setting their values to
-    ``None`` (so they become NaN downstream and get skipped by nan-aware
-    aggregations). We deliberately do NOT pop the keys, so that column
-    indices in any reconstructed cell-by-frame matrix continue to match
-    actual frame indices.
+    ``bg_trace`` using a robust rolling-MAD test, then mask spike frames to
+    NaN in ``state["corrected_lum"][exp][ch][cell]`` so that
+    ``fill_dead_frames()`` can reconstruct them via linear interpolation in
+    the next pipeline step. Frame keys are preserved so column indices in
+    any reconstructed cell-by-frame matrix continue to match actual frame
+    indices.
 
     Opt-in per experiment via ``cfg["filter_dead_frames"] = True``.
     """
@@ -297,6 +297,49 @@ def mask_dead_frames(experiments, state, *, mad_k=6.0, window=21):
             )
 
 
+def fill_dead_frames(experiments, state):
+    """Linearly interpolate masked (NaN) frames so traces are continuous.
+
+    Runs after ``mask_dead_frames()``. For each cell, fills NaN values via
+    ``np.interp`` between the nearest good frame indices; NaNs outside the
+    range of good frames get the boundary value (np.interp's default).
+    Produces a continuous trace for downstream plotting and analysis with
+    no NaN-handling needed at the call sites.
+
+    Opt-in per experiment via ``cfg["filter_dead_frames"] = True`` (same
+    flag as ``mask_dead_frames``).
+    """
+    for exp_name, cfg in experiments.items():
+        if not cfg.get("filter_dead_frames"):
+            continue
+        for ch in cfg["channels"]:
+            cells_filled = 0
+            entries_filled = 0
+            for cid, frames in state["corrected_lum"][exp_name][ch].items():
+                pairs = sorted(
+                    ((int(k[1:]), v) for k, v in frames.items()),
+                    key=lambda t: t[0],
+                )
+                idxs = np.array([p[0] for p in pairs], dtype=np.int64)
+                vals = np.array([p[1] for p in pairs], dtype=np.float64)
+                bad = np.isnan(vals)
+                if not bad.any() or bad.all():
+                    continue
+                good_idxs = idxs[~bad]
+                good_vals = vals[~bad]
+                filled = np.interp(idxs[bad], good_idxs, good_vals)
+                for k_idx, fv in zip(idxs[bad], filled):
+                    frames[f"f{int(k_idx)}"] = float(fv)
+                cells_filled += 1
+                entries_filled += int(bad.sum())
+            if entries_filled:
+                print(
+                    f"  {exp_name} / {ch}: linearly interpolated "
+                    f"{entries_filled} masked entries across "
+                    f"{cells_filled} cells"
+                )
+
+
 def prepare_state(experiments, *, recompute_bg=False):
     """Run the prep steps and return the populated state dict.
 
@@ -309,4 +352,5 @@ def prepare_state(experiments, *, recompute_bg=False):
     build_frame_to_minutes_lookups(experiments, state)
     clip_experiments_to_time_window(experiments, state)
     mask_dead_frames(experiments, state)
+    fill_dead_frames(experiments, state)
     return state

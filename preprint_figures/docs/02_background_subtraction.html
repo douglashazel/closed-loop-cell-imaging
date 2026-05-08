@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Background Subtraction · Preprint Figures Field Guide</title>
+  <style>
+    :root { --bg: #f5efe2; --paper: #fffaf0; --paper-2: #fbf3df; --ink: #1d2430; --ink-soft: #48515f; --rule: #d7ccb7; --accent: #9f3b24; --accent-2: #245f5a; --sans: system-ui, sans-serif; --serif: Georgia, serif; --mono: SFMono-Regular, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { color: var(--accent-2); }
+    main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0; }
+    .topnav { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
+    .topnav a { color: var(--ink-soft); border: none; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 32px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 36px; }
+    .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-size: 12px; margin-bottom: 16px; }
+    h1 { font-family: var(--serif); font-size: clamp(36px, 5.5vw, 64px); line-height: 1.05; margin: 0; }
+    h2 { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 32px); margin: 0 0 16px 0; line-height: 1.2; }
+    h3 { font-family: var(--serif); font-size: 19px; margin: 0 0 8px 0; color: var(--accent-2); }
+    .lede { font-family: var(--serif); font-size: clamp(18px, 1.8vw, 22px); color: var(--ink-soft); max-width: 760px; margin-top: 16px; }
+    .card, .callout { background: var(--paper); border: 1px solid var(--rule); padding: 22px; }
+    .callout { border-left: 4px solid var(--accent); background: var(--paper-2); }
+    .callout h3 { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .section { margin-top: 48px; }
+    .section-kicker { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+    ol, ul { padding-left: 22px; } li { margin: 4px 0; }
+    code, .mono { font-family: var(--mono); font-size: 0.9em; background: var(--paper-2); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--rule); }
+    pre { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent-2); padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+    pre code { background: none; padding: 0; border: none; }
+    table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 14.5px; }
+    th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; background: var(--paper-2); color: var(--accent); }
+    tr:last-child td { border-bottom: none; }
+    .crossref { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .crossref a { background: var(--paper); border: 1px solid var(--rule); padding: 8px 14px; font-size: 14px; }
+    .crossref a:hover { background: var(--paper-2); }
+    @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topnav"><a href="index.html">← Field Guide</a></div>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Foundations · 02 · Background</div>
+        <h1>Background subtraction</h1>
+        <p class="lede">Bioluminescence images have spatially-varying background — vignetting, stray light, sensor offset — that drifts over time. The pipeline fits a degree-4 2D polynomial per frame to cell-free pixels and subtracts it before any cell-level analysis.</p>
+      </div>
+      <aside class="card">
+        <h3>How to study this</h3>
+        <ol>
+          <li>Read the model spec — degree, sample selection, fit method.</li>
+          <li>Open <code>common/bg_fit.py</code> and trace one frame.</li>
+          <li>Run the bg_diagnostic figure to see the result.</li>
+          <li>Note where dead-frame masking sits in the flow.</li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Core idea</div>
+      <h2>Why bother with a polynomial</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Vignetting + drift</h3>
+          <p>Camera optics cause smooth corner-darkening. LED aging and temperature change the global brightness over hours. Both are smooth in <em>(x, y, t)</em>, so a low-order polynomial captures them.</p>
+        </article>
+        <article class="card">
+          <h3>Per-frame, not global</h3>
+          <p>The fit is redone every frame. This catches temporal drift. The fit's <em>sample points</em> are static — chosen once per channel and reused across all frames.</p>
+        </article>
+        <article class="card">
+          <h3>Cells must be excluded</h3>
+          <p>Sample points are chosen to be ≥ 40 px away from <em>any</em> mask in 15 reference snapshots. Otherwise the fit absorbs cell signal and overcorrects.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">The model</div>
+      <h2>Degree-4 2D polynomial</h2>
+      <pre><code>bg(x, y) = Σ c_ij · (x_norm)^i · (y_norm)^j     for i+j ≤ 4
+
+x_norm, y_norm = (x − cx)/(W/2), (y − cy)/(H/2)    # centered, scaled to [-1, 1]
+
+# 15 polynomial terms total: (4+1)(4+2)/2
+
+# Per frame, sample mean intensity in a circle of radius 30 px around each
+# of ~160+ cell-free points, then solve via Moore–Penrose pseudoinverse:
+coefs = A_pinv @ patch_means     # least-squares fit</code></pre>
+      <p style="color: var(--ink-soft);">A_pinv is precomputed once per experiment because the sample-point geometry is fixed. Per-frame cost: one matrix-vector product. Fast.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Sample-point selection</div>
+      <h2>Where the polynomial is fit</h2>
+      <ol>
+        <li><strong>Cell-free mask.</strong> Take 15 evenly-spaced segmentation snapshots across the channel's mask sequence; union them; distance-transform. Pixels with distance ≥ 40 px from <em>any</em> cell across all snapshots are "safe".</li>
+        <li><strong>Candidate grid.</strong> 25 × 25 = 625 evenly-spaced points across the frame, with a 30 px margin from edges.</li>
+        <li><strong>Snap to nearest safe pixel.</strong> For each grid point, find the nearest cell-free pixel within a 180 px search radius. Drop grid points with no safe pixel in range.</li>
+        <li><strong>Verify count.</strong> If fewer than 15 sample points (the polynomial-term count) survive, the experiment errors out. Typical run: 160+ points.</li>
+        <li><strong>Sample patch.</strong> Each sample point gets a 30 px circular patch; mean intensity in the patch is the per-point measurement at every frame.</li>
+      </ol>
+      <p style="color: var(--ink-soft);">All controlled by the <code>BG_FIT</code> dict in <code>common/config.py</code>:</p>
+      <pre><code>BG_FIT = {
+    "clearance_r":     40,    # min distance to ANY cell across snapshots (px)
+    "sample_r":        30,    # local sample-patch radius (px)
+    "grid_n":          25,    # NxN candidate grid
+    "search_r":       180,    # max snap distance from grid point
+    "n_mask_snapshots":15,    # snapshots used to build cell-free mask
+    "poly_degree":      4,    # 2D polynomial degree → 15 terms
+    "min_grid_n":     160,    # coarse grid for finding bg surface minimum
+}</code></pre>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Per-cell correction</div>
+      <h2>From fit to <code>corrected_lum</code></h2>
+      <pre><code>for frame f in 0..n_frames:
+    coefs = fit_background_from_image(image_f, sampler)         # 15 coefs
+    bg_min = min over coarse grid of bg(coarse_x, coarse_y)
+    state["bg_coefs_by_ch"][exp][ch].append(coefs)
+    state["bg_min_by_ch"][exp][ch].append(bg_min)
+
+for cell c at frame f:
+    x, y = trajectory[c][f]
+    bg_at_cell = polynomial(x, y, coefs)
+    corrected_lum[c][f] = raw_lum[c][f] − bg_at_cell           # baseline-aligned</code></pre>
+      <p style="color: var(--ink-soft);">If <code>(x, y)</code> is missing or out of bounds the cell is skipped at that frame. <code>raw_lum</code> comes from <code>analysis/luminosity_complete.json</code> which already contains per-cell mean intensity (the upstream tracking + Cellpose stage).</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Diagnostic data</div>
+      <h2>What the bg_diagnostic figure consumes</h2>
+      <p>The pipeline stores enough to render the QC figure:</p>
+      <ul>
+        <li><strong>Probe frame</strong> — the middle frame of the recording, kept raw + corrected.</li>
+        <li><strong>Probe sample mean</strong> — mean intensity at the cell-free sample points on the probe frame.</li>
+        <li><strong>Bg trace</strong> — for every frame, the mean of all sample-point intensities. Saved as a <code>(n_frames,)</code> array. This is the time-series shown in the diagnostic's right column.</li>
+        <li><strong>Bg map</strong> — the 2D fitted background surface evaluated on a fine grid <em>at the probe frame</em>. Lets you see what's being subtracted.</li>
+        <li><strong>Bg min/max</strong> — over a coarse 160 × 160 grid, used for color-scale alignment between the raw and corrected probe panels.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Dead-frame masking</div>
+      <h2>Catching dropouts and flashes</h2>
+      <p style="color: var(--ink-soft);">Optional, opt-in via <code>filter_dead_frames: True</code> per experiment. PC3 turns it on; C2C12 and NRK leave it off.</p>
+      <ol>
+        <li>Take the bg trace (mean intensity at sample points per frame).</li>
+        <li>Apply a rolling-median filter (window = 21 frames).</li>
+        <li>Compute MAD (median absolute deviation) of the residual; scale by 1.4826 to estimate σ.</li>
+        <li>Flag frames where |residual| &gt; 6 σ — both bright flashes and dark dropouts.</li>
+        <li>Set <code>corrected_lum</code> at those frames to NaN for every cell.</li>
+        <li>Linearly interpolate between valid neighbors to fill back in (so downstream code sees smooth traces).</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Watch out</div>
+      <h2>Sanity checks</h2>
+      <div class="callout">
+        <h3>This step is a common source of artifacts</h3>
+        <p><strong>Sample points on cells.</strong> If a cell drifts into a sample point, that point's measured "background" includes cell signal. The fit gets pulled high → cells get over-subtracted → spurious negative dF/F0. Check the bg_diagnostic figure column 1 (sample-point overlay) and column 3 (corrected image): cells should appear as dim/dark patches, not as enhanced features.</p>
+        <p><strong>Polynomial can't capture sharp features.</strong> Dust spots, sensor hot pixels, optical aberrations are not smooth and will leak into the corrected image as residuals. If your "corrected" image has visible halos or stripes, that's why.</p>
+        <p><strong>The fit is sensitive to outlier sample points.</strong> The pseudoinverse is a least-squares solution; one wildly anomalous point can tilt the surface. There's no robust regression here.</p>
+        <p><strong>Cache + config drift.</strong> The cache only invalidates on <code>BG_FIT</code> changes. Changing <code>filter_dead_frames</code> or <code>time_window_minutes</code> won't trigger a rebuild. Force <code>--recompute-bg</code> after non-bg config edits.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">See also</div>
+      <h2>Related pages</h2>
+      <div class="crossref">
+        <a href="00_pipeline_overview.html">00 · Pipeline overview</a>
+        <a href="10_bg_diagnostic.html">10 · Background diagnostic</a>
+        <a href="11_time_traces.html">11 · Time traces</a>
+        <a href="12_dff.html">12 · dF/F0</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

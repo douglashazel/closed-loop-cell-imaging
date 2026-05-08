@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sliding_correlation · Preprint Figures Field Guide</title>
+  <style>
+    :root { --bg: #f5efe2; --paper: #fffaf0; --paper-2: #fbf3df; --ink: #1d2430; --ink-soft: #48515f; --rule: #d7ccb7; --accent: #9f3b24; --accent-2: #245f5a; --sans: system-ui, sans-serif; --serif: Georgia, serif; --mono: SFMono-Regular, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { color: var(--accent-2); }
+    main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0; }
+    .topnav { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
+    .topnav a { color: var(--ink-soft); border: none; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 32px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 36px; }
+    .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-size: 12px; margin-bottom: 16px; }
+    h1 { font-family: var(--serif); font-size: clamp(36px, 5.5vw, 64px); line-height: 1.05; margin: 0; }
+    h2 { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 32px); margin: 0 0 16px 0; line-height: 1.2; }
+    h3 { font-family: var(--serif); font-size: 19px; margin: 0 0 8px 0; color: var(--accent-2); }
+    .lede { font-family: var(--serif); font-size: clamp(18px, 1.8vw, 22px); color: var(--ink-soft); max-width: 760px; margin-top: 16px; }
+    .card, .callout { background: var(--paper); border: 1px solid var(--rule); padding: 22px; }
+    .callout { border-left: 4px solid var(--accent); background: var(--paper-2); }
+    .callout h3 { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .section { margin-top: 48px; }
+    .section-kicker { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+    ol, ul { padding-left: 22px; } li { margin: 4px 0; }
+    code, .mono { font-family: var(--mono); font-size: 0.9em; background: var(--paper-2); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--rule); }
+    pre { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent-2); padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+    pre code { background: none; padding: 0; border: none; }
+    table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 14.5px; }
+    th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; background: var(--paper-2); color: var(--accent); }
+    tr:last-child td { border-bottom: none; }
+    .crossref { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .crossref a { background: var(--paper); border: 1px solid var(--rule); padding: 8px 14px; font-size: 14px; }
+    .crossref a:hover { background: var(--paper-2); }
+    @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topnav"><a href="index.html">← Field Guide</a></div>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Population structure · 17 · sliding_correlation.py</div>
+        <h1>Sliding correlation</h1>
+        <p class="lede">Filter to non-trivially-correlated pairs, then walk a window across the experiment computing Pearson and Spearman in real-time. Reveals when the population synchronizes (rises) or desynchronizes (falls). Slow; off in <code>run_figures.sh</code> by default.</p>
+      </div>
+      <aside class="card">
+        <h3>How to read this figure</h3>
+        <ol>
+          <li>Bold mean line is the population-average pair correlation.</li>
+          <li>Faint background lines are individual pairs.</li>
+          <li>Vertical lines mark stims — synchronization often peaks here.</li>
+          <li>Pearson and Spearman should agree if linear; divergence = nonlinearity.</li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Purpose</div>
+      <h2>How does synchronization evolve over time?</h2>
+      <p>Two cells responding to the same stimulus tend to be correlated <em>during</em> the response and uncorrelated outside it. By computing pairwise correlation in a sliding window, we can watch synchronization rise and fall across the experiment. Peaks at stims = stim-driven sync. Persistent positive correlation between stims = ongoing coupling. A drift toward zero = the population is becoming independent.</p>
+      <p style="color: var(--ink-soft);">Computational note: this is the slowest analysis in the pipeline. The orchestrator <code>run_figures.sh</code> excludes it from <code>"all"</code> by default; enable explicitly with <code>ANALYSES="sliding_correlation ..."</code>.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Inputs</div>
+      <h2>What it reads from <code>state</code></h2>
+      <ul>
+        <li><code>state["corrected_lum"][exp][ch]</code> — bg-corrected per-cell traces.</li>
+        <li><code>cfg["stim_frames"][ch]</code> — for the stim onset markers in the plot.</li>
+        <li><code>state["real_setpoint_min"][exp][ch]</code> — for the real setpoint marker (NRK only).</li>
+        <li>Plot params: <code>PLOT_PARAMS_SLIDING</code> sets window size (~30 frames), step (~15 frames), SEM multiplier.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Method</div>
+      <h2>Pre-filter, then slide</h2>
+      <ol>
+        <li><strong>Compute full-experiment Pearson per pair.</strong> All <code>N(N−1)/2</code> pairs. This is once-off.</li>
+        <li><strong>Filter pairs.</strong> Keep pairs with full-experiment <code>r &lt; cutoff</code> where <code>cutoff = pp["global_corr_cutoff"]</code>. The default focuses on <em>not-strongly-correlated</em> pairs — the rationale being that pairs with already-high global r are uninteresting (always correlated), and we want to see whether previously uncorrelated pairs <em>become</em> correlated during stims.</li>
+        <li><strong>Sliding window.</strong> For each window center <code>t ∈ [half_w, n_frames − half_w)</code> stepped by <code>step</code>:
+          <ul>
+            <li>Extract trace segment <code>[t − half_w, t + half_w)</code>.</li>
+            <li>For each filtered pair: compute Pearson + Spearman on the segment. Skip if std &lt; 1e-8 (zero-variance — flat segment).</li>
+          </ul>
+        </li>
+        <li><strong>Aggregate.</strong> Per window: mean, std, SEM, n_valid pairs.</li>
+        <li><strong>Plot.</strong> Two stacked panels (Pearson top, Spearman bottom) with: faint individual-pair lines, bold mean, ±n×SEM shaded envelope (n from <code>sem_n</code>, default 2), vertical stim onset lines, vertical dotted setpoint marker.</li>
+      </ol>
+      <p style="color: var(--ink-soft);">The work scales as <code>O(n_pairs_filtered × n_windows)</code>. With ~200 cells (20k pairs) and ~500 windows, that's 10M correlation computations per channel. <code>tqdm</code> progress bar tracks the work.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Outputs</div>
+      <h2>Files produced</h2>
+      <table>
+        <thead><tr><th>File</th><th>Layout</th><th>What's plotted</th></tr></thead>
+        <tbody>
+          <tr><td><code>{ch}_sliding_corr.png</code></td><td>2 panels stacked vertically</td><td>Top: Pearson. Bottom: Spearman. Each: faint per-pair lines, bold mean, ±SEM envelope, stim onsets, real setpoint, legend showing pair counts.</td></tr>
+        </tbody>
+      </table>
+      <p style="color: var(--ink-soft);">Suptitle reports filtered pair count vs total pairs: <code>"sliding-window pairwise correlation (N pairs of M total)"</code>.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">What the cell biology says</div>
+      <h2>Expected trends · interpretation</h2>
+      <div class="grid grid-3">
+        <article class="card">
+          <h3>Synchronizing population</h3>
+          <p>Mean correlation rises during stim windows, drops after. Cells respond together → r increases temporarily. The amplitude of the rise indicates how strong the synchronization is. A common stim-driven outcome.</p>
+        </article>
+        <article class="card">
+          <h3>Persistent coupling</h3>
+          <p>Mean correlation stays high even between stims. Could indicate stable cell-cell signaling (gap junctions, paracrine), or that the stims have left a lasting coordinated state.</p>
+        </article>
+        <article class="card">
+          <h3>No coordination</h3>
+          <p>Mean correlation hovers near 0 throughout. Cells respond independently. The pre-filter removed strong pairs, so this is the expected baseline; deviation from 0 around stims is the signal.</p>
+        </article>
+        <article class="card">
+          <h3>Pearson ≠ Spearman</h3>
+          <p>Pearson detects linear relationships; Spearman detects monotonic ones. If Pearson and Spearman traces diverge, the underlying relationship is nonlinear. Common when one cell saturates while another grows linearly.</p>
+        </article>
+        <article class="card">
+          <h3>Wide SEM envelope</h3>
+          <p>The mean is uncertain — many pairs disagree. Could mean some pairs synchronize while others anti-correlate. The faint background lines should show this directly.</p>
+        </article>
+        <article class="card">
+          <h3>Real setpoint discontinuity (NRK)</h3>
+          <p>Watch for a step in the mean correlation at the dotted setpoint line. The hardware switched modes; population dynamics may shift.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Watch out</div>
+      <h2>Pitfalls</h2>
+      <div class="callout">
+        <h3>The biggest issue: the pre-filter</h3>
+        <p><strong>Cutoff choice frames the question.</strong> <code>global_corr_cutoff</code> determines which pairs are tracked. Too high → most pairs included → mean correlation is dominated by already-correlated pairs and barely changes over time. Too low → only weakly-correlated pairs included → mean is noisy because filtered pairs are already near zero. The default value lives in <code>plot_params.py</code>.</p>
+        <p><strong>Computational cost.</strong> Hundreds of thousands of correlation computations per channel. For a 200-cell experiment with 1000+ frames, expect minutes per channel. The script is opt-in for this reason.</p>
+        <p><strong>Window size trade-off.</strong> Large windows smooth noise but blur fast events (you can't see a 30 s stim response in a 30-frame window if the frame rate is 1 Hz — that's the whole window). Small windows capture sharp events but produce noisy correlation estimates from limited data points.</p>
+        <p><strong>Successive windows are not independent.</strong> Overlapping windows produce smoothed-but-correlated samples. Apparent "events" in the trace might just be the smoothing kernel responding to a single underlying spike. Treat the trace as a smooth visualization, not as N independent measurements.</p>
+        <p><strong>NaN handling is silent.</strong> Pairs with NaN in a window are skipped (continue), reducing <code>n_valid</code> for that window. The mean still plots, but is over fewer pairs and may be less reliable.</p>
+        <p><strong>Spearman with ties.</strong> Cells saturated at the detector ceiling have many tied values; Spearman behaves unpredictably with heavy ties. If your traces hit max counts, prefer Pearson.</p>
+        <p><strong>Frame-rate assumption.</strong> The window size is in <em>frames</em>, but the x-axis is in <em>minutes</em>. Variable frame rates would distort the time interpretation of window size. Check the time axis if frame rate is uneven.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">See also</div>
+      <h2>Related pages</h2>
+      <div class="crossref">
+        <a href="13_correlation_distance.html">13 · Correlation vs distance</a>
+        <a href="14_clustering.html">14 · Trace clustering</a>
+        <a href="11_time_traces.html">11 · Time traces</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

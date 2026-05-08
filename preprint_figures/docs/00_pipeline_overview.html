@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline Overview · Preprint Figures Field Guide</title>
+  <style>
+    :root {
+      --bg: #f5efe2; --paper: #fffaf0; --paper-2: #fbf3df;
+      --ink: #1d2430; --ink-soft: #48515f; --rule: #d7ccb7;
+      --accent: #9f3b24; --accent-2: #245f5a;
+      --sans: system-ui, sans-serif; --serif: Georgia, serif; --mono: SFMono-Regular, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { color: var(--accent-2); }
+    main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0; }
+    .topnav { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
+    .topnav a { color: var(--ink-soft); border: none; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 32px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 36px; }
+    .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-size: 12px; margin-bottom: 16px; }
+    h1 { font-family: var(--serif); font-size: clamp(36px, 5.5vw, 64px); line-height: 1.05; margin: 0; }
+    h2 { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 32px); margin: 0 0 16px 0; line-height: 1.2; }
+    h3 { font-family: var(--serif); font-size: 19px; margin: 0 0 8px 0; color: var(--accent-2); }
+    .lede { font-family: var(--serif); font-size: clamp(18px, 1.8vw, 22px); color: var(--ink-soft); max-width: 760px; margin-top: 16px; }
+    .card, .callout { background: var(--paper); border: 1px solid var(--rule); padding: 22px; }
+    .callout { border-left: 4px solid var(--accent); background: var(--paper-2); }
+    .callout h3 { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .section { margin-top: 48px; }
+    .section-kicker { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+    ol, ul { padding-left: 22px; } li { margin: 4px 0; }
+    code, .mono { font-family: var(--mono); font-size: 0.9em; background: var(--paper-2); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--rule); }
+    pre { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent-2); padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+    pre code { background: none; padding: 0; border: none; }
+    table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 14.5px; }
+    th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; background: var(--paper-2); color: var(--accent); }
+    tr:last-child td { border-bottom: none; }
+    .crossref { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .crossref a { background: var(--paper); border: 1px solid var(--rule); padding: 8px 14px; font-size: 14px; }
+    .crossref a:hover { background: var(--paper-2); }
+    @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topnav"><a href="index.html">← Field Guide</a></div>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Foundations · 00 · Pipeline</div>
+        <h1>Pipeline overview</h1>
+        <p class="lede">How raw image folders become a single in-memory <code>state</code> dict that every analysis script reads from. Knowing this map saves you from chasing ghosts in the analysis pages.</p>
+      </div>
+      <aside class="card">
+        <h3>How to study this</h3>
+        <ol>
+          <li>Memorize the six pipeline phases.</li>
+          <li>Skim the state-dict shape — every key matters later.</li>
+          <li>Note where the cache lives and what invalidates it.</li>
+          <li>Run <code>run_figures.sh</code> with one experiment to see it work.</li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Core idea</div>
+      <h2>One state, eight scripts</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Why a shared state</h3>
+          <p>Background correction is the slow part — minutes per experiment. Doing it once and caching makes subsequent analyses cheap. <code>prepare_state()</code> in <code>preprint_figures/common/pipeline.py</code> is the single entry point.</p>
+        </article>
+        <article class="card">
+          <h3>What you get</h3>
+          <p>Every analysis script calls <code>prepare_state(experiments)</code> at the top, then indexes into it. No script ever opens raw frames or segmentations directly.</p>
+        </article>
+        <article class="card">
+          <h3>Frame ↔ time</h3>
+          <p>Frames carry no time info on their own. The mapping is built late — during visualization — via <code>frames_to_min()</code>, so the data layer stays time-agnostic.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Data flow</div>
+      <h2>From raw frames to <code>state</code></h2>
+      <p style="color: var(--ink-soft); max-width: 720px;">Six phases run in order inside <code>prepare_state()</code>. Each produces a layer of the state dict.</p>
+      <ol>
+        <li><strong>Stim resolution</strong> — <code>resolve_all_stim_frames()</code> turns minutes (or log entries) into frame indices per channel. Mutates <code>cfg["stim_frames"]</code> in place. <a href="03_stim_resolution.html">Details →</a></li>
+        <li><strong>Background correction</strong> — <code>compute_background_correction()</code> fits a degree-4 polynomial to cell-free pixels per frame, evaluates it at each cell's <code>(x, y)</code>, subtracts. Cache hit short-circuits this. <a href="02_background_subtraction.html">Details →</a></li>
+        <li><strong>Time axis</strong> — <code>build_frame_to_minutes_lookups()</code> builds <code>(known_frames, known_minutes)</code> arrays per channel by parsing <code>monitoring.log</code> / <code>timestamps.csv</code> / file mtimes. Also extracts NRK <em>real setpoint</em> time.</li>
+        <li><strong>Time-window clip</strong> — if <code>cfg["time_window_minutes"]</code> is set (NRK = 30 min), trim <code>corrected_lum</code>, <code>bg_trace</code>, <code>stim_frames</code> to that window.</li>
+        <li><strong>Dead-frame mask</strong> — opt-in (<code>filter_dead_frames: True</code>, used by PC3). Rolling MAD on the bg trace; outliers above 6 σ get NaN'd.</li>
+        <li><strong>Dead-frame fill</strong> — linear interpolation between valid neighbors so downstream code doesn't need to handle NaNs.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">State dict shape</div>
+      <h2>What the analyses index into</h2>
+      <pre><code>state = {
+    "corrected_lum":  {exp: {ch: {cell_id: {"f0": v0, "f1": v1, ...}}}},
+    "bg_trace":       {exp: {ch: np.ndarray (n_frames,)}},        # mean of cell-free sample points per frame
+    "frame_counts":   {exp: {ch: int}},
+    "traj_by_channel":{exp: {ch: {cell_id: {"x0": x, "y0": y, ...}}}},
+    "frame_minutes_src": {exp: {ch: (known_frames, known_minutes)}},  # for frames_to_min()
+    "real_setpoint_min": {exp: {ch: float | None}},               # NRK only
+    "probe_data":     {exp: {ch: {probe, corrected, probe_idx, probe_sample_mean, ...}}},  # bg_diagnostic
+    "bg_map_by_ch":   {exp: {ch: 2D fitted bg surface at probe frame}},
+    "bg_coefs_by_ch": {exp: {ch: list of poly coefs per frame}},
+    "bg_min_by_ch":   {exp: {ch: per-frame surface minimum}},
+    "bg_sampler_by_exp": {exp: sampler dict (re-evaluatable at arbitrary points)},
+    "bg_sample_points_exp": {exp: list of (x, y) cell-free points},
+}</code></pre>
+      <p style="color: var(--ink-soft);">Frame-number keys in <code>corrected_lum</code> are <em>strings</em> like <code>"f0"</code>, <code>"f1"</code>; trajectory keys come in <code>x0/y0/x1/y1/...</code> pairs. Many helpers convert these to dataframes via <code>lum_dict_to_df()</code>.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Caching</div>
+      <h2>The bg cache</h2>
+      <div class="grid grid-2">
+        <article class="card">
+          <h3>Where it lives</h3>
+          <p><code>April28_preprint_results/bg_cache/&lt;exp_name&gt;.pkl</code>. One pickle per experiment, ~100 MB each.</p>
+        </article>
+        <article class="card">
+          <h3>What invalidates it</h3>
+          <p>If the cached <code>BG_FIT</code> config differs from the current one, the cache is rebuilt automatically. Add <code>--recompute-bg</code> on the CLI to force a rebuild. Re-running the same analysis script after the first build is essentially instant.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Inputs / Outputs</div>
+      <h2>Files the pipeline reads and writes</h2>
+      <table>
+        <thead><tr><th>Phase</th><th>Reads</th><th>Writes</th></tr></thead>
+        <tbody>
+          <tr><td>Bg correction</td><td><code>&lt;dir&gt;/&lt;ch&gt;/frames/*.png</code>, <code>masks/*.npy</code>, <code>analysis/luminosity_complete.json</code>, <code>trajectories_complete.json</code></td><td><code>bg_cache/&lt;exp&gt;.pkl</code></td></tr>
+          <tr><td>Time axis</td><td><code>monitoring.log</code> (NRK), <code>timestamps/*.csv</code> (C2C12, PC3), or file mtimes</td><td>(in-memory)</td></tr>
+          <tr><td>Analysis scripts</td><td>state dict</td><td><code>April28_preprint_results/&lt;exp&gt;/*.png</code></td></tr>
+          <tr><td>PDF aggregator</td><td>all generated PNGs</td><td><code>April28_preprint_figures.pdf</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Watch out</div>
+      <h2>Sanity checks</h2>
+      <div class="callout">
+        <h3>Don't trust the cache blindly</h3>
+        <p>If you change the config (e.g. <code>filter_dead_frames</code>, <code>time_window_minutes</code>, <code>response_window</code>) the cache <em>will not</em> auto-invalidate — only changes to <code>BG_FIT</code> trigger that. After non-bg config edits, force <code>--recompute-bg</code> or delete the pickle.</p>
+        <p>Frame indices in <code>state["corrected_lum"]</code> are sparse — cells that weren't tracked at frame N just don't have an <code>"fN"</code> key. Code that expects a contiguous range will silently miss frames. Helpers like <code>lum_dict_to_df()</code> handle this; ad-hoc loops may not.</p>
+        <p>NaN appears in two places: (1) cells with missing tracking, and (2) frames killed by the dead-frame mask. Many analyses use <code>nanmean</code> / <code>nanstd</code>; a few use plain <code>mean</code>. Check the script.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">See also</div>
+      <h2>Related pages</h2>
+      <div class="crossref">
+        <a href="01_experiments.html">01 · Experiments</a>
+        <a href="02_background_subtraction.html">02 · Background subtraction</a>
+        <a href="03_stim_resolution.html">03 · Stim resolution</a>
+        <a href="04_responders.html">04 · Responders</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

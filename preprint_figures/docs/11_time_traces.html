@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>time_traces · Preprint Figures Field Guide</title>
+  <style>
+    :root { --bg: #f5efe2; --paper: #fffaf0; --paper-2: #fbf3df; --ink: #1d2430; --ink-soft: #48515f; --rule: #d7ccb7; --accent: #9f3b24; --accent-2: #245f5a; --sans: system-ui, sans-serif; --serif: Georgia, serif; --mono: SFMono-Regular, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { color: var(--accent-2); }
+    main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0; }
+    .topnav { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
+    .topnav a { color: var(--ink-soft); border: none; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 32px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 36px; }
+    .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-size: 12px; margin-bottom: 16px; }
+    h1 { font-family: var(--serif); font-size: clamp(36px, 5.5vw, 64px); line-height: 1.05; margin: 0; }
+    h2 { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 32px); margin: 0 0 16px 0; line-height: 1.2; }
+    h3 { font-family: var(--serif); font-size: 19px; margin: 0 0 8px 0; color: var(--accent-2); }
+    .lede { font-family: var(--serif); font-size: clamp(18px, 1.8vw, 22px); color: var(--ink-soft); max-width: 760px; margin-top: 16px; }
+    .card, .callout { background: var(--paper); border: 1px solid var(--rule); padding: 22px; }
+    .callout { border-left: 4px solid var(--accent); background: var(--paper-2); }
+    .callout h3 { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .section { margin-top: 48px; }
+    .section-kicker { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+    ol, ul { padding-left: 22px; } li { margin: 4px 0; }
+    code, .mono { font-family: var(--mono); font-size: 0.9em; background: var(--paper-2); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--rule); }
+    pre { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent-2); padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+    pre code { background: none; padding: 0; border: none; }
+    table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 14.5px; }
+    th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; background: var(--paper-2); color: var(--accent); }
+    tr:last-child td { border-bottom: none; }
+    .crossref { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .crossref a { background: var(--paper); border: 1px solid var(--rule); padding: 8px 14px; font-size: 14px; }
+    .crossref a:hover { background: var(--paper-2); }
+    @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topnav"><a href="index.html">← Field Guide</a></div>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Per-cell · Time domain · 11 · time_traces.py</div>
+        <h1>Time traces</h1>
+        <p class="lede">Every tracked cell, every frame, plotted as one line. The most direct view of the data: it shows you what each cell did and how the population behaved across stims. Two variants — annotated, and clean for publication.</p>
+      </div>
+      <aside class="card">
+        <h3>How to read this figure</h3>
+        <ol>
+          <li>Look for traces that visibly rise (or fall) at stim shading.</li>
+          <li>Estimate population heterogeneity by trace spread.</li>
+          <li>Note any obvious outlier traces — are they real?</li>
+          <li>Compare the shading variant to the clean variant.</li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Purpose</div>
+      <h2>The most honest view of the data</h2>
+      <p>This is "show me the data" before any aggregation, normalization, or model. Every other figure in this pipeline is a summary of these traces. Use it to (a) confirm that cells are being tracked, (b) spot dropouts and tracking failures, (c) gauge raw response sizes, and (d) compare overall traces across channels in the same experiment.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Inputs</div>
+      <h2>What it reads from <code>state</code></h2>
+      <ul>
+        <li><code>state["corrected_lum"][exp][ch]</code> — per-cell time series, dict of <code>{cell_id → {"fN": value | None}}</code>.</li>
+        <li><code>cfg["stim_frames"][ch]</code> — frame indices for stim shading.</li>
+        <li><code>cfg["channels"]</code> — list of channels to plot side-by-side.</li>
+        <li><code>state["real_setpoint_min"][exp][ch]</code> — only for NRK; minutes-since-start of the second setpoint event.</li>
+        <li>Time axis: built from <code>state["frame_minutes_src"]</code> via <code>frames_to_min()</code>.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Method</div>
+      <h2>What the script does</h2>
+      <ol>
+        <li>For each experiment, build a 1 × N_channels figure (subplots side-by-side, shared y-axis).</li>
+        <li>For each channel:
+          <ul>
+            <li>Iterate <code>corrected_lum[exp][ch].items()</code>. For every cell:
+              <ul>
+                <li>Pull the (frame_index, value) pairs, drop <code>None</code>s, sort by frame.</li>
+                <li>Convert frame indices to minutes via <code>frames_to_min</code>.</li>
+                <li>Plot as a line: per-cell color from a colormap (viridis-like), α=0.7, linewidth ≈ 1.2× nominal.</li>
+              </ul>
+            </li>
+            <li>Title with channel name + cell count + stim count.</li>
+          </ul>
+        </li>
+        <li>For the annotated variant: call <code>stim_spans_min()</code> and <code>draw_stim_spans()</code> to fill stim regions with red shading at α=0.18. Add a vertical dotted line for the real setpoint (NRK only).</li>
+        <li>For the clean variant: same plot, no stim shading. Setpoint marker is still drawn if present.</li>
+        <li>Remove top/right spines for a publication look. Save both variants.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Outputs</div>
+      <h2>Files produced</h2>
+      <table>
+        <thead><tr><th>File</th><th>Style</th><th>Use case</th></tr></thead>
+        <tbody>
+          <tr><td><code>{exp}_time_traces.png</code></td><td>Annotated: stim shading + setpoint marker + legend</td><td>Quick visual review of stim-aligned responses.</td></tr>
+          <tr><td><code>{exp}_corrected_traces.png</code></td><td>Clean: only the setpoint marker, no shading</td><td>Publication / supplementary figure.</td></tr>
+        </tbody>
+      </table>
+      <p style="color: var(--ink-soft);">Both: 6 inches per channel column wide × 5 inches tall, 100 dpi.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">What the cell biology says</div>
+      <h2>Expected trends · interpretation</h2>
+      <div class="grid grid-3">
+        <article class="card">
+          <h3>Healthy responder</h3>
+          <p>Trace rises (DMSO) or falls (acid) sharply during stim shading, then partially recovers between stims. Across the train, peaks may shrink (habituation) or grow (sensitization).</p>
+        </article>
+        <article class="card">
+          <h3>Non-responder</h3>
+          <p>Flat trace with noise comparable to baseline period. Possibly slow drift, but no obvious stim-locked feature. Often the majority of cells.</p>
+        </article>
+        <article class="card">
+          <h3>Tracking dropout</h3>
+          <p>Trace ends partway through the experiment, or has gaps. The cell exited the field of view, was lost by the tracker, or the segmentation failed.</p>
+        </article>
+        <article class="card">
+          <h3>Outlier trace</h3>
+          <p>One or two cells with luminosity 5–10× the rest. They auto-scale the y-axis, making the rest look flat. If real, these are very bright cells; if not, suspect a tracking ID error (two cells merged, or a saturated pixel cluster).</p>
+        </article>
+        <article class="card">
+          <h3>Real setpoint marker (NRK)</h3>
+          <p>A vertical dotted black line at the time the feedback controller switched to its second setpoint. The dynamics on either side may differ — pre-setpoint is initial stabilization, post-setpoint is steady-state.</p>
+        </article>
+        <article class="card">
+          <h3>Cross-channel similarity</h3>
+          <p>For C2C12 / NRK, compare adjacent panels: are the population-level features similar across channels? If not, channel-specific imaging conditions may be at play.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Watch out</div>
+      <h2>Pitfalls</h2>
+      <div class="callout">
+        <h3>What this figure hides</h3>
+        <p><strong>Y-axis auto-scaling.</strong> A single very-bright cell sets the upper bound, compressing all the others into a flat-looking band. This figure has no outlier suppression. If the population looks weirdly flat, check max trace value vs the rest.</p>
+        <p><strong>Color cycling.</strong> Many cells → the colormap reuses similar hues. Don't try to identify individual cells from color — it's purely decorative.</p>
+        <p><strong>Tracking discontinuity.</strong> When the upstream tracker loses a cell and re-acquires it as a new ID, the trace splits. This figure won't tell you that happened. <code>luminosity_complete.json</code> upstream is supposed to handle merging; verify if you see suspicious gaps.</p>
+        <p><strong>Stim shading depends on resolution.</strong> If <a href="03_stim_resolution.html">stim resolution</a> picked wrong frames, the shading misaligns with the real biological response. Cross-check with the cell traces — peaks should sit near the shading.</p>
+        <p><strong>NaN frames are interpolated for PC3.</strong> Dead-frame masking + linear fill smooths over what would otherwise be obvious artifacts. The traces look continuous even when the underlying frames were dropped. Check the bg_diagnostic col-4 trace for the original spikes.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">See also</div>
+      <h2>Related pages</h2>
+      <div class="crossref">
+        <a href="02_background_subtraction.html">02 · Background subtraction</a>
+        <a href="03_stim_resolution.html">03 · Stim resolution</a>
+        <a href="10_bg_diagnostic.html">10 · Background diagnostic</a>
+        <a href="12_dff.html">12 · dF/F0</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

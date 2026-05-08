@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stim Resolution · Preprint Figures Field Guide</title>
+  <style>
+    :root { --bg: #f5efe2; --paper: #fffaf0; --paper-2: #fbf3df; --ink: #1d2430; --ink-soft: #48515f; --rule: #d7ccb7; --accent: #9f3b24; --accent-2: #245f5a; --sans: system-ui, sans-serif; --serif: Georgia, serif; --mono: SFMono-Regular, Consolas, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { color: var(--accent-2); }
+    main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0; }
+    .topnav { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 24px; }
+    .topnav a { color: var(--ink-soft); border: none; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 32px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 36px; }
+    .eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent); font-size: 12px; margin-bottom: 16px; }
+    h1 { font-family: var(--serif); font-size: clamp(36px, 5.5vw, 64px); line-height: 1.05; margin: 0; }
+    h2 { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 32px); margin: 0 0 16px 0; line-height: 1.2; }
+    h3 { font-family: var(--serif); font-size: 19px; margin: 0 0 8px 0; color: var(--accent-2); }
+    .lede { font-family: var(--serif); font-size: clamp(18px, 1.8vw, 22px); color: var(--ink-soft); max-width: 760px; margin-top: 16px; }
+    .card, .callout { background: var(--paper); border: 1px solid var(--rule); padding: 22px; }
+    .callout { border-left: 4px solid var(--accent); background: var(--paper-2); }
+    .callout h3 { color: var(--accent); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .section { margin-top: 48px; }
+    .section-kicker { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+    ol, ul { padding-left: 22px; } li { margin: 4px 0; }
+    code, .mono { font-family: var(--mono); font-size: 0.9em; background: var(--paper-2); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--rule); }
+    pre { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent-2); padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+    pre code { background: none; padding: 0; border: none; }
+    table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--rule); }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; font-size: 14.5px; }
+    th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; background: var(--paper-2); color: var(--accent); }
+    tr:last-child td { border-bottom: none; }
+    .crossref { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .crossref a { background: var(--paper); border: 1px solid var(--rule); padding: 8px 14px; font-size: 14px; }
+    .crossref a:hover { background: var(--paper-2); }
+    @media (max-width: 800px) { .hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topnav"><a href="index.html">← Field Guide</a></div>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Foundations · 03 · Stim timing</div>
+        <h1>Stim frame resolution</h1>
+        <p class="lede">Three sources of truth for "when did the stim hit", with a strict precedence chain. Knowing which one your experiment uses explains why C2C12 has clean stim shading but NRK has many small pulses.</p>
+      </div>
+      <aside class="card">
+        <h3>How to study this</h3>
+        <ol>
+          <li>Read the precedence chain — only one source wins per channel.</li>
+          <li>Trace a real example for one experiment.</li>
+          <li>Note the dedup rule for NRK acid pulses.</li>
+          <li>Open <code>common/stim_resolve.py</code> in parallel.</li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Core idea</div>
+      <h2>One output, four possible sources</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>The output</h3>
+          <p><code>cfg["stim_frames"][ch] = list[int]</code> — frame indices (0-based) where the stim hit. Mutated in place by <code>resolve_all_stim_frames()</code>.</p>
+        </article>
+        <article class="card">
+          <h3>The strict order</h3>
+          <p><strong>1.</strong> <code>stim_logs[ch]</code> (NRK) → <strong>2.</strong> <code>stim_minutes</code> + <code>timestamps[ch]</code> (C2C12, PC3) → <strong>3.</strong> <code>stim_minutes</code> + file mtimes (PC3 fallback) → <strong>4.</strong> manual <code>stim_frames[ch]</code>. The first available source wins.</p>
+        </article>
+        <article class="card">
+          <h3>Why per-channel</h3>
+          <p>NRK runs each channel independently against its own monitoring log. Even when channels share a wall-clock, the pipeline never assumes alignment.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Source 1 · Hardware log</div>
+      <h2>NRK: parsing <code>monitoring.log</code></h2>
+      <p style="color: var(--ink-soft);">Used by <code>nrk_acid_13APR26</code>. Each acidic-media injection by the feedback controller writes a line.</p>
+      <pre><code>15234_channel1 : ... -> add acidic media     # frame 15234, channel 1
+15301_channel1 : ... -> add acidic media     # frame 15301, channel 1 (same train)
+...</code></pre>
+      <ol>
+        <li>Regex extracts <code>(frame_idx, channel_num)</code> from every line containing <code>add acidic media</code>.</li>
+        <li>Filter to the channel of interest.</li>
+        <li><strong>Deduplicate.</strong> Drop any frame within <code>PULSE_DEDUP_FRAMES = 10</code> of the previous kept frame. The controller fires multiple pulses per "decision" event; we want one event per biological stimulus.</li>
+        <li>Output: a sorted list of frame indices.</li>
+      </ol>
+      <p style="color: var(--ink-soft);">The log also records <em>setpoint changes</em>; the second one is treated as the "real setpoint" and stored separately in <code>state["real_setpoint_min"]</code>. The first is the initial stabilization period.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Source 2 · Per-channel CSV</div>
+      <h2>C2C12: stim minutes + timestamps</h2>
+      <p style="color: var(--ink-soft);">Used by <code>c2c12_dmso_09APR26</code>. The config carries <code>stim_minutes = [15, 25, 35, ...]</code>.</p>
+      <ol>
+        <li>For each channel, load <code>timestamps/&lt;ch&gt;.csv</code> with columns <code>filename, datetime, minutes</code>.</li>
+        <li>The acquisition's <em>perfusion start</em> is the earliest <code>datetime</code> across all channels (or an explicit <code>perfusion_start</code> if given).</li>
+        <li>For each <code>m</code> in <code>stim_minutes</code>: target wall-clock = <code>perfusion_start + m minutes</code>.</li>
+        <li>Pick the frame whose datetime is nearest to the target.</li>
+        <li>Output: <code>[frame_idx_for_each_stim_minute]</code>.</li>
+      </ol>
+      <p style="color: var(--ink-soft);">This handles channels with slightly offset frame rates without alignment hacks — each channel resolves to its own frame indices that happen to fall at the same wall-clock minute.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Source 3 · File mtimes</div>
+      <h2>PC3 fallback: from filesystem</h2>
+      <p style="color: var(--ink-soft);">Used when a single-channel-root experiment lacks a CSV. Less precise (file copies will reset mtimes), but workable.</p>
+      <ol>
+        <li>Take frame mtimes in order.</li>
+        <li><code>deltas = diff(mtimes)</code>, clamped to non-negative.</li>
+        <li><code>minutes = cumsum(deltas) / 60</code>.</li>
+        <li>For each <code>m</code> in <code>stim_minutes</code>, find the nearest-minute frame.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Source 4 · Manual</div>
+      <h2>Last resort: explicit frame list</h2>
+      <p>If <code>stim_frames</code> is set in the config (either as a list — broadcast to all channels — or a per-channel dict), it's used as-is. Lowest precedence: only used when nothing higher is available. Useful for ad-hoc experiments without timestamps.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">After resolution</div>
+      <h2>What the rest of the pipeline does with stim_frames</h2>
+      <ul>
+        <li><strong>F0 baseline</strong> (in <code>stim_helpers.py</code>) — per-cell mean of frames <code>[0, first_stim)</code>. So if <code>stim_frames[0] = 850</code>, F0 averages frames 0–849 for every cell.</li>
+        <li><strong>Response window</strong> — for each stim frame <code>p</code>, examine frames <code>[p + lo, p + hi)</code> where <code>(lo, hi) = cfg["response_window"]</code>. Compute max (or min for "decrease" experiments) minus baseline.</li>
+        <li><strong>Stim spans on plots</strong> — convert frames to minutes via <code>frames_to_min()</code>, build <code>(start_min, end_min)</code> for each stim, fill via <code>draw_stim_spans()</code> with red shading at α=0.18.</li>
+        <li><strong>Time-window clip</strong> — when <code>time_window_minutes</code> is set, stims past the window are dropped.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Worked examples</div>
+      <h2>What the printout looks like</h2>
+      <pre><code>c2c12_dmso_09APR26 / channel 1    → 15 stims  [903, 1505, 2107]...[12076, 12679, 13282]
+c2c12_dmso_09APR26 / channel 2    → 15 stims  [905, 1507, 2110]...[12080, 12683, 13286]
+pc3_dmso_23MAR26   / channel 1    → 15 stims  [612, 1224, 1836]...[10404, 11016, 11628]
+nrk_acid_13APR26   / channel 1 A  → 42 stims  [274, 485, 896]...[3847, 3952, 4061]   (after dedup)</code></pre>
+      <p style="color: var(--ink-soft);">C2C12 and PC3 hit a clean 15 stims because they're on a fixed protocol. NRK's stim count varies with how many feedback decisions the controller made.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Watch out</div>
+      <h2>Sanity checks</h2>
+      <div class="callout">
+        <h3>If stim shading looks wrong, this is where to look</h3>
+        <p><strong>Wall-clock vs frame timing.</strong> Source 2 (timestamps.csv) trusts the camera-recorded datetime. If that's wrong (e.g. system clock drift between channels), the resolved frame index will be off by however many frames ≈ that drift. The resulting stim shading will sit a few frames before/after the real event.</p>
+        <p><strong>Dedup window.</strong> <code>PULSE_DEDUP_FRAMES = 10</code> works for ~1 Hz acquisition. If frame rate changes, the threshold may merge distinct stims (too coarse) or fragment one stim into many (too fine).</p>
+        <p><strong>Channel alignment for pooling.</strong> Several analyses (<code>dff</code> mean-pooled-responders, <code>response_violins</code> pooled, <code>learning_scores</code>) require <code>stim_timing_aligned_across_channels</code>. C2C12 channels usually align; NRK channels often don't (each runs its own feedback). When alignment fails, those pooled figures are silently skipped.</p>
+        <p><strong>Manual override.</strong> If you set <code>stim_frames</code> manually for debugging, remove the higher-precedence sources or they'll win. The order is strict.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">See also</div>
+      <h2>Related pages</h2>
+      <div class="crossref">
+        <a href="00_pipeline_overview.html">00 · Pipeline overview</a>
+        <a href="01_experiments.html">01 · Experiments</a>
+        <a href="11_time_traces.html">11 · Time traces</a>
+        <a href="18_nrk_hardware_log.html">18 · NRK hardware log</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
