@@ -97,22 +97,22 @@
 
     <section class="section">
       <div class="section-kicker">Source 2 · Per-channel CSV</div>
-      <h2>C2C12: stim minutes + timestamps</h2>
-      <p style="color: var(--ink-soft);">Used by <code>c2c12_dmso_09APR26</code>. The config carries <code>stim_minutes = [15, 25, 35, ...]</code>.</p>
+      <h2>C2C12 and PC3: stim minutes + timestamps CSV</h2>
+      <p style="color: var(--ink-soft);">Used by both <code>c2c12_dmso_09APR26</code> and <code>pc3_dmso_23MAR26</code>. Each carries <code>stim_minutes</code> (e.g. <code>[15, 25, 35, ...]</code> for C2C12; <code>[10, 20, 30, ...]</code> for PC3) and a <code>timestamps</code> entry pointing to a per-channel CSV.</p>
       <ol>
-        <li>For each channel, load <code>timestamps/&lt;ch&gt;.csv</code> with columns <code>filename, datetime, minutes</code>.</li>
+        <li>For each channel, load the <code>timestamps</code> CSV with columns <code>filename, datetime, minutes</code>. PC3 keeps its CSV at <code>&lt;dir&gt;/PC3 DMSO pulses perfusion 23MAR26 timestamps.csv</code> (single-channel root); C2C12 uses one CSV per channel under <code>timestamps/</code>.</li>
         <li>The acquisition's <em>perfusion start</em> is the earliest <code>datetime</code> across all channels (or an explicit <code>perfusion_start</code> if given).</li>
         <li>For each <code>m</code> in <code>stim_minutes</code>: target wall-clock = <code>perfusion_start + m minutes</code>.</li>
         <li>Pick the frame whose datetime is nearest to the target.</li>
         <li>Output: <code>[frame_idx_for_each_stim_minute]</code>.</li>
       </ol>
-      <p style="color: var(--ink-soft);">This handles channels with slightly offset frame rates without alignment hacks — each channel resolves to its own frame indices that happen to fall at the same wall-clock minute.</p>
+      <p style="color: var(--ink-soft);"><strong>Confirmed:</strong> PC3 uses the CSV path, not file mtimes — same as C2C12. The mtime fallback below is only invoked when a single-channel-root experiment <em>lacks</em> a CSV; PC3 has a CSV, so source 3 never fires for it.</p>
     </section>
 
     <section class="section">
-      <div class="section-kicker">Source 3 · File mtimes</div>
-      <h2>PC3 fallback: from filesystem</h2>
-      <p style="color: var(--ink-soft);">Used when a single-channel-root experiment lacks a CSV. Less precise (file copies will reset mtimes), but workable.</p>
+      <div class="section-kicker">Source 3 · File mtimes (unused in current configs)</div>
+      <h2>Fallback for single-channel root without a CSV</h2>
+      <p style="color: var(--ink-soft);">Available for any single-channel-root experiment that lacks a <code>timestamps</code> CSV. None of the current configs trigger it (PC3 has a CSV).</p>
       <ol>
         <li>Take frame mtimes in order.</li>
         <li><code>deltas = diff(mtimes)</code>, clamped to non-negative.</li>

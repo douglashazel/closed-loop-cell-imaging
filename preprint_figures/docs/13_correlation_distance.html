@@ -83,12 +83,33 @@
       <ol>
         <li><strong>Mean cell positions.</strong> For each cell, average all (x, y) pairs across frames where both are defined. Cells with no valid coords are dropped.</li>
         <li><strong>Filter to cells with both luminosity and position.</strong> Need ≥ 2 cells; otherwise skip the channel ("insufficient data").</li>
-        <li><strong>Pairwise correlation.</strong> Transpose the dF/F0-like matrix (rows = frames, cols = cells), call <code>.corr()</code> for an N × N Pearson correlation matrix using the full corrected time series.</li>
+        <li><strong>Pairwise correlation — both Pearson and Spearman.</strong> Build <code>pearson_mat = pd.DataFrame(mat).T.corr(method="pearson")</code> and <code>spearman_mat = ...corr(method="spearman")</code> on the full corrected time series. Each panel layout draws Pearson on the top row and Spearman on the bottom row.</li>
         <li><strong>Pairwise distance.</strong> <code>scipy.pdist(positions, metric='euclidean')</code> → N × N symmetric distance matrix in pixels.</li>
         <li><strong>Upper triangle.</strong> Take indices <code>np.triu_indices(N, k=1)</code> to extract <code>N(N−1)/2</code> unique pairs.</li>
-        <li><strong>Linear regression.</strong> <code>scipy.stats.linregress(distance, correlation)</code> → slope, intercept, Pearson r of the fit, p-value, std-err. Compute R² = r² and a fitted-line confidence band: <code>±3 × SEM</code> at each x — captures ~99.7% of fitted-line variation under repeated sampling.</li>
-        <li><strong>Plot.</strong> Scatter (alpha 0.35, small dots) + fitted line (linewidth ~2) + confidence band (alpha 0.3).</li>
+        <li><strong>Linear regression.</strong> <code>scipy.stats.linregress(distance, correlation)</code> per subset → slope, intercept, Pearson r of the fit, p-value, std-err. Compute R² = r² and a fitted-line confidence band: <code>±3 × SEM</code> at each x — captures ~99.7% of fitted-line variation under repeated sampling.</li>
+        <li><strong>Plot.</strong> Scatter (alpha ≈ 0.30, small dots) + fitted line (linewidth ~2) + confidence band (alpha 0.10).</li>
       </ol>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Responder-pair split</div>
+      <h2>Splitting pairs by responder status</h2>
+      <p>Within each panel, every cell pair is classified using the per-channel responder mask (<code>compute_responder_thresholds(...)</code> + the standard peak-|dF/F0| comparison — same recipe as <a href="15_response_violins.html">response_violins.py</a>'s responder gate). The three subsets get distinct colours and independent regression lines:</p>
+      <div class="grid grid-3">
+        <article class="card">
+          <h3>RR — Responder × Responder</h3>
+          <p>Both members of the pair pass the responder threshold. Plotted in red (<code>#d62728</code>). Tight regression here means responder cells share temporal structure regardless of distance.</p>
+        </article>
+        <article class="card">
+          <h3>NN — Non × Non</h3>
+          <p>Both fail the responder threshold. Plotted in gray (<code>#7f7f7f</code>). Acts as the noise floor; expect a flat slope close to zero.</p>
+        </article>
+        <article class="card">
+          <h3>RN — Mixed</h3>
+          <p>One responder, one non-responder. Plotted in green (<code>#2ca02c</code>). Comparing RN to RR/NN tells you whether responder ↔ non-responder pairs sit between the two cleaner subsets.</p>
+        </article>
+      </div>
+      <p style="color: var(--ink-soft);">Subsets with <code>n &lt; 3</code> are silently skipped (no line drawn). When <code>compute_responder_thresholds</code> returns nothing for a channel — e.g. on an experiment without a usable responder threshold — the panel falls back to a single-cloud scatter with one regression line.</p>
     </section>
 
     <section class="section">
@@ -97,11 +118,12 @@
       <table>
         <thead><tr><th>File</th><th>Layout</th><th>What's plotted</th></tr></thead>
         <tbody>
-          <tr><td><code>{exp}_corr_vs_dist.png</code></td><td>1 row × N channels</td><td>One scatter + fit per channel. Shared y-axis. Each axis annotated with r, R², p-value.</td></tr>
-          <tr><td><code>{exp}_corr_vs_dist_combined.png</code></td><td>Single panel, all channels pooled</td><td>Scatter colored by channel (legend with cell count per channel) + a single fit on the pooled data.</td></tr>
+          <tr><td><code>{exp}_corr_vs_dist.png</code></td><td>2 rows × N channels (Pearson top, Spearman bottom)</td><td>Per-channel scatter + per-subset (RR / NN / RN) regression lines. Shared y-axis per row. Falls back to a single-cloud scatter if no responder threshold is available.</td></tr>
+          <tr><td><code>{exp}_corr_vs_dist_combined.png</code></td><td>2 stacked axes (Pearson + Spearman), all channels pooled</td><td>Scatter colored by channel (legend with cell count per channel) + per-pair-class pooled regression lines.</td></tr>
+          <tr><td><code>{ch}_corr_vs_dist_c{k}.png</code></td><td>2 stacked axes (Pearson + Spearman) per cluster</td><td>Within-cluster pairs only, one figure per (channel, cluster) when the cluster cache exists. Skips clusters with fewer than 5 cells.</td></tr>
         </tbody>
       </table>
-      <p style="color: var(--ink-soft);">Per-channel: 6 in × 6 in per channel column. Combined: 8 × 6 in. Both 100 dpi.</p>
+      <p style="color: var(--ink-soft);">Per-channel: 6 in × 11 in per channel column. Combined: 8 × 11 in. Per-cluster: 7 × 11 in. All 100 dpi.</p>
     </section>
 
     <section class="section">
@@ -141,8 +163,8 @@
       <div class="callout">
         <h3>What this figure quietly assumes</h3>
         <p><strong>Cells don't move much.</strong> "Mean position" averages (x, y) over all frames. If cells migrate substantially, the mean is a poor representation of where the cell was at any given time. Distances between mean positions become approximate.</p>
-        <p><strong>Correlation uses full traces.</strong> Cells that are mostly noise still get correlations near 0 with everything, contributing noise to the scatter without being downweighted. Filtering to responders (not done here) would tighten the picture.</p>
-        <p><strong>Pearson is linear.</strong> Two cells with similar response timing but different non-linear shapes get a lower r than they "should". Spearman would be more robust but isn't used in this figure.</p>
+        <p><strong>Per-cluster panels need <code>clustering.py</code> to have run first.</strong> <code>{ch}_corr_vs_dist_c{k}.png</code> reads <code>bg_cache/clusters/&lt;exp&gt;__&lt;ch&gt;.pkl</code>. If clustering hasn't run for that channel, only the per-channel and combined figures appear.</p>
+        <p><strong>Pearson and Spearman tell different stories.</strong> Spearman is robust to monotonic non-linearities; Pearson responds to amplitude alignment. If the two rows disagree on slope sign, the relationship is rank-driven rather than linear. Inspect both before drawing conclusions.</p>
         <p><strong>Pairwise NaN handling.</strong> <code>pandas .corr()</code> uses pairwise deletion by default. Cells with very different frame coverage produce r values based on different denominators, biasing the comparison.</p>
         <p><strong>SEM band width.</strong> ±3 SEM is a 99.7% confidence band on the <em>fitted line</em>, not on individual scatter points. Visually it can look tight even when the scatter is wide. R² (variance explained) is the truer measure of fit tightness.</p>
         <p><strong>Distance is in pixels.</strong> If you want micrometers, multiply by the scope's pixel-size calibration (not done here).</p>

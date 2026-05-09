@@ -93,7 +93,7 @@ for s in [1, 2, 3, 4]:
 # Total habituation score = sum across 3 trains.
 # Max = 3 × 4 = 12 (each subsequent stim is a new min)
 # Min = 0 (responses never decrease within a train)</code></pre>
-      <p style="color: var(--ink-soft);">Computed once for the height metric and again for the width metric. NaN responses are skipped (don't increment, don't update running min).</p>
+      <p style="color: var(--ink-soft);">Computed once for the height metric and again for the width metric. NaN responses are skipped (don't increment, don't update running min). <code>_score_running_extremum</code> now returns <code>(summed, per_train)</code> where <code>summed.shape == (n_cells,)</code>, <code>per_train.shape == (n_trains, n_cells)</code>, and <code>summed == per_train.sum(axis=0)</code>. The summed score still drives the canonical 0–12 distribution; the per-train array feeds the new per-train histograms.</p>
     </section>
 
     <section class="section">
@@ -106,7 +106,7 @@ for s in [1, 2, 3, 4]:
         running_max = response[stim s]
 
 # Same range: 0..12 total across 3 trains.</code></pre>
-      <p style="color: var(--ink-soft);">A cell with monotonically increasing responses scores 12. A cell with monotonically decreasing responses scores 0 here (and ~12 on habituation).</p>
+      <p style="color: var(--ink-soft);">A cell with monotonically increasing responses scores 12. A cell with monotonically decreasing responses scores 0 here (and ~12 on habituation). Like habituation, the helper now returns <code>(summed, per_train)</code> so the per-train histograms can re-use the same machinery.</p>
     </section>
 
     <section class="section">
@@ -124,24 +124,84 @@ for s in [1, 2, 3, 4]:
         </li>
         <li>Max = 3 (one per train).</li>
       </ol>
+      <p style="color: var(--ink-soft);"><code>_score_anticipation</code> returns <code>(pos, neg, pos_per_train, neg_per_train)</code>. <code>pos</code> / <code>neg</code> are the summed scores; the per-train arrays drive the new per-train anticipation overlay.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Per-train histograms</div>
+      <h2>Watching the score build up</h2>
+      <p><code>_plot_score_histogram_per_train</code> draws one panel per train (3 by default) sharing the y-axis, with integer-binned histograms of the per-train counts. Output suffix: <code>_per_train.png</code>. The anticipation per-train variant uses <code>_plot_anticipation_histogram_per_train</code> and overlays positive (green) and negative (red) bars per panel. The summed view still drives the canonical 0–12 distribution; the per-train view tells you whether the learning shows up early in the protocol or accumulates as more trains arrive.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Responder vs non-responder split</div>
+      <h2>Overlay on the same axes</h2>
+      <p><code>_plot_score_histogram_split</code> overlays two histograms: non-responders in gray (<code>#7f7f7f</code>, alpha 0.55) and responders in red (<code>#d62728</code>, alpha 0.65). The split uses the per-channel responder mask returned by <code>compute_responder_thresholds</code> via <code>_per_channel_responder_mask</code> — same recipe as <a href="15_response_violins.html">15 · response_violins</a>'s responder gate. Output suffix: <code>_split.png</code>. The anticipation variant <code>_plot_anticipation_histogram_split</code> is a 1 × 2 row (positive | negative) with the same gray/colored overlay.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Permutation null</div>
+      <h2>Is the learning more concentrated than chance?</h2>
+      <div class="grid grid-2">
+        <article class="card">
+          <h3>Helper module</h3>
+          <p><code>common/permutation_null.py</code> exposes:</p>
+          <ul>
+            <li><code>shuffle_per_stim_within_cell(rng, per_stim)</code> — independently permutes the stim axis per cell column.</li>
+            <li><code>shuffle_per_stim(rng, per_stim)</code> — single permutation across the stim axis.</li>
+            <li><code>permutation_null_distribution(score_fn, per_stim, n_perm=200, mode='per_cell'|'global')</code> — returns a <code>(n_perm, n_cells)</code> matrix of scores under the null.</li>
+            <li><code>pvalue_one_tailed(observed, null_mat)</code> — <code>(1 + sum(null ≥ observed)) / (1 + n_perm)</code>, per cell.</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Which mode for which score</h3>
+          <p><strong>Habituation / sensitization</strong> use <code>mode='per_cell'</code> — independent per-cell shuffles, since the running-extremum count is a per-cell statistic. <strong>Anticipation</strong> shuffles <code>stim_cols</code> instead of <code>per_stim</code>, so it has its own helper <code>_anticipation_null</code> in <code>learning_scores.py</code>; that returns <code>(pos_null, neg_null)</code> of shape <code>(n_perm, n_cells)</code>.</p>
+        </article>
+        <article class="card">
+          <h3>How it appears on the figure</h3>
+          <p><code>_plot_score_histogram(scores, null_dist=..., pvalues=..., alpha_p=0.01)</code> overlays the null as a back-layer histogram (<code>color="#9a9a9a"</code>, alpha 0.4, <code>weights=1/n_perm</code> so it is normalized to the same per-cell count as the observed) and adds a "<code>p&lt;0.01: K cells</code>" annotation. The anticipation overlay uses muted green (<code>#9bd9b6</code>) and pink (<code>#f5b3a8</code>) layers for the pos/neg nulls.</p>
+        </article>
+        <article class="card">
+          <h3>Toggling it</h3>
+          <p><code>compute_learning_scores(experiments, state, *, n_perm=200)</code> drives the null. Set <code>n_perm &lt;= 0</code> to skip null computation entirely. The output blob carries <code>{habituation,sensitization,anticipation_pos,anticipation_neg}_{null,pvalue}</code> arrays when the null ran.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Per-cluster scores</div>
+      <h2>Stratifying by trace cluster</h2>
+      <p><code>plot_learning_score_histograms_per_cluster</code> walks <code>(exp, ch, cluster_id)</code> using the per-channel cluster cache (see <a href="14_clustering.html">14 · clustering</a>), aligns labels to the score-blob's cell IDs, applies the cluster mask to each summed score array, and re-renders habituation / sensitization (single-distribution) and anticipation (overlay) per cluster. File naming: <code>learning_&lt;measure&gt;_&lt;metric&gt;_c{k}_&lt;ch_with_underscores&gt;.png</code>. Skipped silently when the per-channel cluster cache is missing or when the cluster has fewer than 3 cells.</p>
     </section>
 
     <section class="section">
       <div class="section-kicker">Outputs</div>
       <h2>Files produced</h2>
-      <table>
-        <thead><tr><th>File</th><th>Score type</th><th>Metric</th><th>Range</th></tr></thead>
-        <tbody>
-          <tr><td><code>learning_habituation_height.png</code></td><td>Habituation (running min)</td><td>Δ luminosity</td><td>0–12</td></tr>
-          <tr><td><code>learning_habituation_width.png</code></td><td>Habituation</td><td>Width (min)</td><td>0–12</td></tr>
-          <tr><td><code>learning_sensitization_height.png</code></td><td>Sensitization (running max)</td><td>Δ luminosity</td><td>0–12</td></tr>
-          <tr><td><code>learning_sensitization_width.png</code></td><td>Sensitization</td><td>Width (min)</td><td>0–12</td></tr>
-          <tr><td><code>learning_anticipation_height.png</code></td><td>Anticipation</td><td>Δ luminosity</td><td>±0–3</td></tr>
-          <tr><td><code>learning_anticipation_width.png</code></td><td>Anticipation</td><td>Width (min)</td><td>±0–3</td></tr>
-        </tbody>
-      </table>
-      <p style="color: var(--ink-soft);">Habituation/sensitization figures: single histogram, blue bars, x-axis = score 0–12, y-axis = cell count. Anticipation: two overlapping histograms, green = positive, red = negative, alpha 0.45.</p>
-      <p style="color: var(--ink-soft);">Cell counts pool across channels in the experiment: a printed line says "N cells pooled across M channels".</p>
+      <p>For every (measure × metric) combination the pipeline emits three figures (summed, per-train, responder split). With three measures (habituation / sensitization / anticipation) × two metrics (height / width) × three views, the script writes ~18 base figures, plus one per channel × cluster combination.</p>
+      <h3 style="margin-top: 20px;">Summed distribution (existing) — <code>learning_&lt;measure&gt;_&lt;metric&gt;.png</code></h3>
+      <ul>
+        <li><code>learning_habituation_height.png</code> · <code>learning_habituation_width.png</code></li>
+        <li><code>learning_sensitization_height.png</code> · <code>learning_sensitization_width.png</code></li>
+        <li><code>learning_anticipation_height.png</code> · <code>learning_anticipation_width.png</code></li>
+      </ul>
+      <p style="color: var(--ink-soft);">Habituation/sensitization range 0–12; anticipation 0–3 per direction. When <code>n_perm &gt; 0</code>, each one carries a permutation-null back layer plus a "p&lt;0.01: K cells" annotation.</p>
+      <h3 style="margin-top: 20px;">Per-train (new) — <code>..._per_train.png</code></h3>
+      <ul>
+        <li><code>learning_habituation_height_per_train.png</code> · <code>learning_habituation_width_per_train.png</code></li>
+        <li><code>learning_sensitization_height_per_train.png</code> · <code>learning_sensitization_width_per_train.png</code></li>
+        <li><code>learning_anticipation_height_per_train.png</code> · <code>learning_anticipation_width_per_train.png</code></li>
+      </ul>
+      <p style="color: var(--ink-soft);">One panel per train (3 by default), shared y-axis. Anticipation's per-train variant overlays pos (green) and neg (red) in each panel.</p>
+      <h3 style="margin-top: 20px;">Responder split (new) — <code>..._split.png</code></h3>
+      <ul>
+        <li><code>learning_habituation_height_split.png</code> · <code>learning_habituation_width_split.png</code></li>
+        <li><code>learning_sensitization_height_split.png</code> · <code>learning_sensitization_width_split.png</code></li>
+        <li><code>learning_anticipation_height_split.png</code> · <code>learning_anticipation_width_split.png</code></li>
+      </ul>
+      <p style="color: var(--ink-soft);">Responders in red, non-responders in gray (anticipation: 1×2 panel, pos / neg). Same per-channel responder mask as <a href="15_response_violins.html">response_violins</a>.</p>
+      <h3 style="margin-top: 20px;">Per-cluster (new) — <code>learning_&lt;measure&gt;_&lt;metric&gt;_c{k}_&lt;ch&gt;.png</code></h3>
+      <p>One file per (channel, cluster) per (measure, metric). Habituation/sensitization use the single-distribution histogram; anticipation re-runs the pos/neg overlay. Skipped when the cluster cache is missing or when the cluster has fewer than 3 cells.</p>
+      <p style="color: var(--ink-soft);">Cell counts pool across channels in the summed/split/per-train views: a printed line says "N cells (M responders) pooled across K channels". Per-cluster files are restricted to a single channel.</p>
     </section>
 
     <section class="section">
@@ -185,7 +245,7 @@ for s in [1, 2, 3, 4]:
         <p><strong>Train structure assumption.</strong> The script expects a multiple of 5 stims. If a stim is missed by stim resolution (e.g. clipped by <code>time_window_minutes</code>), the train alignment shifts and scores become meaningless.</p>
         <p><strong>Anticipation 10-min window is hard-coded.</strong> If the next train starts before 10 min, the anticipation window overlaps the next stim and detects the real stim, not anticipation. If trains are spaced more than 10 min apart, the window may be a quiet period that's too early to see anticipatory dynamics.</p>
         <p><strong>Baseline fluctuation is per-cell.</strong> Cells with very wide intrinsic noise have high thresholds and rarely score positive on anticipation, even if they have real but moderate-magnitude pre-emptive responses.</p>
-        <p><strong>No statistical test.</strong> The histograms are descriptive, not inferential. There's no null model for "what would scores look like by chance" — so a peak at score 3 isn't tested against random fluctuation. A future improvement would be a permutation test on scrambled stim labels.</p>
+        <p><strong>The permutation null is one-tailed.</strong> <code>pvalue_one_tailed</code> tests "score ≥ observed under shuffled stim labels" — i.e. it asks whether the observed score is at least this high under chance. It does not flag scores that are unusually low. <code>n_perm = 200</code> is fast but gives a coarse p-value floor of about <code>1/201 ≈ 0.005</code>; a single cell can't be flagged below that without raising <code>n_perm</code>.</p>
         <p><strong>DMSO-only.</strong> The script silently does the wrong thing (or crashes) on non-DMSO experiments. NRK acid is excluded by the response-direction check.</p>
       </div>
     </section>

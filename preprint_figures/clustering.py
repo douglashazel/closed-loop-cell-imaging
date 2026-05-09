@@ -22,6 +22,7 @@ from sklearn.metrics import silhouette_score
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
+from common.cluster_labels import save_cluster_labels
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
@@ -63,22 +64,27 @@ def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,
             [k for k in df_c.columns if str(k).startswith("f")],
             key=lambda k: int(str(k).lstrip("f")),
         )
-        per_channel_cols.append((df_c, cols_c))
-    n_common = min(len(cols_c) for _, cols_c in per_channel_cols)
-    if pooled and any(len(cols_c) != n_common for _, cols_c in per_channel_cols):
+        per_channel_cols.append((df_c, cols_c, c))
+    n_common = min(len(cols_c) for _, cols_c, _ in per_channel_cols)
+    if pooled and any(len(cols_c) != n_common for _, cols_c, _ in per_channel_cols):
         print(
             f"  {exp_name}: pooled clustering — channel frame counts "
-            f"{[len(cols_c) for _, cols_c in per_channel_cols]} differ; "
+            f"{[len(cols_c) for _, cols_c, _ in per_channel_cols]} differ; "
             f"truncating to common length {n_common}."
         )
         frame_nums = frame_nums[:n_common]
         frame_min = frame_min[:n_common]
     matrices = []
-    for df_c, cols_c in per_channel_cols:
+    cell_ids_initial = []
+    for df_c, cols_c, c in per_channel_cols:
         matrices.append(df_c[cols_c[:n_common]].values.astype(float))
+        cell_ids_initial.extend((c, cid) for cid in df_c.index.tolist())
     X_raw = np.vstack(matrices)
     row_all_nan = np.isnan(X_raw).all(axis=1)
     X_raw = X_raw[~row_all_nan]
+    cell_ids_after_nan = [
+        cid for cid, drop in zip(cell_ids_initial, row_all_nan) if not drop
+    ]
     if X_raw.shape[0] < 5:
         return None
     row_means = np.nanmean(X_raw, axis=1, keepdims=True)
@@ -90,6 +96,9 @@ def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,
     X_raw = X_raw[keep]
     mu = mu[keep]
     sd = sd[keep]
+    cell_ids_aligned = [
+        cid for cid, kept in zip(cell_ids_after_nan, keep.tolist()) if kept
+    ]
     X_z = (X_raw - mu) / sd
     X_z = np.nan_to_num(X_z, nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -121,6 +130,7 @@ def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,
         "n_pca": n_pca,
         "n_cells": n_cells,
         "ref_ch": ref_ch,
+        "cell_ids": cell_ids_aligned,
     }
 
 
@@ -170,12 +180,23 @@ def _render_trace_clustering(
     n_cells = emb["n_cells"]
     n_pca = emb["n_pca"]
     ref_ch = emb["ref_ch"]
+    cell_ids = emb["cell_ids"]
 
     ks, scores, best_k, best_score = _silhouette_sweep(
         pcs, k_min=k_min, k_max=k_max, random_state=random_state,
     )
     km = KMeans(n_clusters=best_k, n_init=10, random_state=random_state)
     labels = km.fit_predict(pcs)
+
+    cluster_cache_key = "__pooled__" if isinstance(ch_arg, (list, tuple)) else ch_arg
+    save_cluster_labels(
+        exp_name, cluster_cache_key,
+        cell_ids=cell_ids,
+        labels=labels,
+        best_k=best_k,
+        silhouette=float(best_score),
+        k_method="silhouette_2_to_8",
+    )
 
     cmap = plt.get_cmap("tab10")
     cluster_colors = [cmap(i % 10) for i in range(best_k)]

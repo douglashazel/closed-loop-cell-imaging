@@ -133,7 +133,7 @@
         <article class="card">
           <span class="label">Quirk</span>
           <h3>Dead frames are common</h3>
-          <p>The PC3 camera occasionally drops frames or produces dark snaps. <code>filter_dead_frames: True</code> is set: a 6 σ MAD test on the bg trace masks outliers, then linear interpolation fills them.</p>
+          <p>The PC3 camera occasionally drops frames or produces dark snaps. <code>filter_dead_frames: True</code> is set: a 6 σ MAD test on the bg trace masks outliers, then linear interpolation fills them. Because the dead-frame flag also gates in-cache BG-coef interpolation, PC3's BG cache is keyed separately at <code>bg_cache/pc3_dmso_23MAR26__filterdead.pkl</code> — clearing the cache should target that path, not the unsuffixed name.</p>
         </article>
       </div>
     </section>

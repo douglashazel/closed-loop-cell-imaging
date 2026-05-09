@@ -115,6 +115,9 @@ overall_peak[cell] = max over stims of |peak[cell, stim]|</code></pre>
 
       <h3 style="margin-top: 20px;">4. <code>{ch}_dff_response_breakdown.png</code> · C2C12 only diagnostic</h3>
       <p>Two panels. <strong>Top:</strong> all individual dF/F0 traces with mean, median, 75<sup>th</sup>, and 90<sup>th</sup> percentile traces overlaid (multi-color). <strong>Bottom:</strong> 60-bin histogram of per-cell peak |dF/F0| pooled across all stims. Vertical lines at three reference thresholds (0.02, 0.05, 0.10) annotated with the fraction of (cell × stim) pairs ≥ each threshold. Annotation: total n cells, percentage at each threshold.</p>
+
+      <h3 style="margin-top: 20px;">5. <code>{ch}_dff_mean_per_cluster.png</code> · per-cluster mean ± SEM</h3>
+      <p>Single panel per channel; one mean dF/F₀ ± SEM trace per cluster (tab10 colormap), restricted to clusters with ≥ 3 cells. Reads the per-channel cluster cache written by <a href="14_clustering.html">14 · clustering</a>; emitted only when that cache exists.</p>
     </section>
 
     <section class="section">

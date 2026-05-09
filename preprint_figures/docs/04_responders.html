@@ -132,7 +132,24 @@ is_responder = peak ≥ threshold</code></pre>
         <li><strong>dff.py</strong> — <code>dff_mean_pooled_responders.png</code> averages dF/F0 only over cells with peak |delta| ≥ threshold.</li>
         <li><strong>response_violins.py</strong> — <code>&lt;ch&gt;_response_violin_responders.png</code> filters violins to responders only. Shows the population minus the null-floor noise.</li>
         <li><strong>dff response breakdown</strong> — vertical lines on the histogram at common reference thresholds (0.02, 0.05, 0.10) and at the Bonferroni one.</li>
+        <li><strong>correlation_distance.py</strong> — pairs are split into RR / NN / RN classes (responder × responder, non × non, mixed) using the same per-channel threshold; each subset gets its own color and regression line on the distance × <em>r</em> scatter.</li>
+        <li><strong>learning_scores.py</strong> — <code>..._split.png</code> figures overlay responder vs non-responder histograms in red / gray, computed from <code>compute_responder_thresholds()</code> via <code>_per_channel_responder_mask()</code> (same recipe as response violins).</li>
       </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Empirical direction check</div>
+      <h2>Does the configured direction match the data?</h2>
+      <div class="grid grid-2">
+        <article class="card">
+          <h3>What it does</h3>
+          <p>After dead-frame fill, <code>prepare_state</code> calls <code>confirm_response_direction()</code> in <code>common/direction_check.py</code>. Per <code>(exp, ch)</code>, it pools <code>(max − base)</code> and <code>(min − base)</code> magnitudes across every cell × stim and compares <code>|mean(max−base)|</code> vs <code>|mean(min−base)|</code>. Whichever is larger is the empirical direction.</p>
+        </article>
+        <article class="card">
+          <h3>Diagnostic only</h3>
+          <p>The result is logged as <code>[OK]</code> when the empirical winner agrees with <code>cfg["response_direction"]</code> and <code>[WARN]</code> otherwise — config still wins, since the rest of the pipeline reads <code>cfg["response_direction"]</code>. The full per-channel result lands in <code>state["direction_check"]</code> as <code>{configured, empirical, agreement, abs_increase, abs_decrease}</code>.</p>
+        </article>
+      </div>
     </section>
 
     <section class="section">

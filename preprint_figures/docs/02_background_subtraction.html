@@ -147,16 +147,36 @@ for cell c at frame f:
 
     <section class="section">
       <div class="section-kicker">Dead-frame masking</div>
-      <h2>Catching dropouts and flashes</h2>
-      <p style="color: var(--ink-soft);">Optional, opt-in via <code>filter_dead_frames: True</code> per experiment. PC3 turns it on; C2C12 and NRK leave it off.</p>
-      <ol>
-        <li>Take the bg trace (mean intensity at sample points per frame).</li>
-        <li>Apply a rolling-median filter (window = 21 frames).</li>
-        <li>Compute MAD (median absolute deviation) of the residual; scale by 1.4826 to estimate σ.</li>
-        <li>Flag frames where |residual| &gt; 6 σ — both bright flashes and dark dropouts.</li>
-        <li>Set <code>corrected_lum</code> at those frames to NaN for every cell.</li>
-        <li>Linearly interpolate between valid neighbors to fill back in (so downstream code sees smooth traces).</li>
-      </ol>
+      <h2>Catching dropouts and flashes — two stages</h2>
+      <p style="color: var(--ink-soft);">Optional, opt-in via <code>filter_dead_frames: True</code> per experiment. PC3 turns it on; C2C12 and NRK leave it off. Both stages share <code>detect_dead_frame_indices()</code> in <code>common/pipeline.py</code> so the index sets always agree.</p>
+      <div class="grid grid-2">
+        <article class="card">
+          <h3>Stage 1 — fix the BG fit</h3>
+          <p>Inside <code>compute_background_correction()</code>, after the per-frame polynomial fit pass:</p>
+          <ol>
+            <li>Detect dead-frame indices on the sampled <code>bg_trace</code> (rolling-median, window = 21 frames; |residual| &gt; 6 σ where σ = 1.4826 × MAD).</li>
+            <li>For each dead frame, linearly interpolate every polynomial coefficient and the <code>bg_min</code> value across the surrounding non-dead frames (<code>_interpolate_bg_at_dead_frames</code>).</li>
+            <li>Per-cell correction loop now uses the interpolated coefs at dead frames, so anomalous frame fits don't leak into <code>corrected_lum</code> or the cached BG maps.</li>
+          </ol>
+        </article>
+        <article class="card">
+          <h3>Stage 2 — mask + fill the per-cell trace</h3>
+          <p>After <code>prepare_state</code> clipping, <code>mask_dead_frames()</code> and <code>fill_dead_frames()</code> still run:</p>
+          <ol>
+            <li><code>mask_dead_frames</code> sets <code>corrected_lum[exp][ch][cell][f"f{idx}"]</code> entries on dead frames to NaN — the cell's raw luminosity at those frames is still bad.</li>
+            <li><code>fill_dead_frames</code> linearly interpolates the per-cell trace across NaN entries, so downstream code sees smooth traces with no NaN handling.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Cache invalidation</div>
+      <h2>Why the cache filename has a suffix</h2>
+      <div class="callout">
+        <h3><code>__filterdead</code> in the pickle path</h3>
+        <p>When <code>cfg["filter_dead_frames"]</code> is <code>True</code>, the BG cache lives at <code>bg_cache/&lt;exp&gt;__filterdead.pkl</code>; otherwise at <code>bg_cache/&lt;exp&gt;.pkl</code>. Toggling the flag therefore changes the path — a stale cache from the other setting cannot be silently reused. The pickle also carries a <code>PIPELINE_VERSION</code> field (currently <code>2</code>); bumping it forces a recompute on next run, which is how you invalidate every cache after changing pipeline semantics that aren't expressed in <code>BG_FIT</code>.</p>
+      </div>
     </section>
 
     <section class="section">
@@ -167,7 +187,7 @@ for cell c at frame f:
         <p><strong>Sample points on cells.</strong> If a cell drifts into a sample point, that point's measured "background" includes cell signal. The fit gets pulled high → cells get over-subtracted → spurious negative dF/F0. Check the bg_diagnostic figure column 1 (sample-point overlay) and column 3 (corrected image): cells should appear as dim/dark patches, not as enhanced features.</p>
         <p><strong>Polynomial can't capture sharp features.</strong> Dust spots, sensor hot pixels, optical aberrations are not smooth and will leak into the corrected image as residuals. If your "corrected" image has visible halos or stripes, that's why.</p>
         <p><strong>The fit is sensitive to outlier sample points.</strong> The pseudoinverse is a least-squares solution; one wildly anomalous point can tilt the surface. There's no robust regression here.</p>
-        <p><strong>Cache + config drift.</strong> The cache only invalidates on <code>BG_FIT</code> changes. Changing <code>filter_dead_frames</code> or <code>time_window_minutes</code> won't trigger a rebuild. Force <code>--recompute-bg</code> after non-bg config edits.</p>
+        <p><strong>Cache + config drift.</strong> The cache invalidates on <code>BG_FIT</code> changes and on <code>PIPELINE_VERSION</code> mismatches; toggling <code>filter_dead_frames</code> changes the cache path, so the two settings keep separate pickles. Other config edits (e.g. <code>time_window_minutes</code>, <code>response_window</code>) don't trigger a rebuild — force <code>--recompute-bg</code> after those.</p>
       </div>
     </section>
 

@@ -117,6 +117,51 @@
 
       <h3 style="margin-top: 20px;">4. <code>{ch}_pca_umap_uncolored.png</code> · 1 × 2 manifold</h3>
       <p>Left: PCA scatter (PC1 vs PC2), one color. Right: UMAP scatter, one color. Lets you see intrinsic manifold structure before any cluster labels are imposed. If this looks like a single blob, KMeans's labels are forced onto a continuum.</p>
+
+      <h3 style="margin-top: 20px;">5. Per-cluster figures emitted by other scripts</h3>
+      <p>Once cluster labels are persisted (see below), four downstream scripts re-render their headline figures per (channel, cluster):</p>
+      <ul>
+        <li><code>{ch}_dff_mean_per_cluster.png</code> — <a href="12_dff.html">12 · dF/F0</a></li>
+        <li><code>{ch}_corr_vs_dist_c{k}.png</code> — <a href="13_correlation_distance.html">13 · Correlation vs distance</a></li>
+        <li><code>{ch}_response_violin[_width][_dff]_c{k}.png</code> — <a href="15_response_violins.html">15 · Response violins</a></li>
+        <li><code>learning_&lt;measure&gt;_&lt;metric&gt;_c{k}_&lt;ch&gt;.png</code> — <a href="16_learning_scores.html">16 · Learning scores</a></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Cluster labels are persisted</div>
+      <h2>The per-channel cluster cache</h2>
+      <div class="grid grid-2">
+        <article class="card">
+          <h3>Where it lives</h3>
+          <p><code>April28_preprint_results/bg_cache/clusters/&lt;exp&gt;__&lt;ch_or___pooled__&gt;.pkl</code>. One pickle per (experiment, channel) — the literal key <code>__pooled__</code> is used for the across-channel result. Producer: <code>_render_trace_clustering()</code> calls <code>save_cluster_labels(...)</code> from <code>common/cluster_labels.py</code>.</p>
+        </article>
+        <article class="card">
+          <h3>Pickle shape</h3>
+          <pre><code>{
+  "cell_ids":   [(ch, cid), ...],   # row-aligned
+  "labels":     int64 ndarray,
+  "best_k":     int,                # silhouette pick
+  "silhouette": float,
+  "k_method":   "silhouette_2_to_8",
+}</code></pre>
+        </article>
+        <article class="card">
+          <h3>Alignment helper</h3>
+          <p><code>align_labels_to_cells(blob, target_cell_ids)</code> returns a label array aligned to the caller's <code>(ch, cid)</code> ordering, with <code>-1</code> for any cell missing from the cache. <code>iter_clusters(blob, target)</code> yields <code>("all", None)</code> followed by one <code>(f"c{cid}", mask)</code> per cluster — clusters with fewer than 3 matching cells are skipped silently.</p>
+        </article>
+        <article class="card">
+          <h3>Consumers</h3>
+          <p>Four downstream scripts read this cache:</p>
+          <ul>
+            <li><code>dff.plot_dff_mean_per_cluster</code></li>
+            <li><code>correlation_distance.plot_correlation_vs_distance_per_cluster</code></li>
+            <li><code>response_violins.plot_per_stimulus_response_violins_per_cluster</code></li>
+            <li><code>learning_scores.plot_learning_score_histograms_per_cluster</code></li>
+          </ul>
+          <p style="color: var(--ink-soft);">Missing cache → those plots are silently skipped. Make sure <code>clustering.py</code> runs before any of them in <code>run_figures.sh</code>.</p>
+        </article>
+      </div>
     </section>
 
     <section class="section">

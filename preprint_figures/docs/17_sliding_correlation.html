@@ -48,7 +48,7 @@
       <div>
         <div class="eyebrow">Population structure · 17 · sliding_correlation.py</div>
         <h1>Sliding correlation</h1>
-        <p class="lede">Filter to non-trivially-correlated pairs, then walk a window across the experiment computing Pearson and Spearman in real-time. Reveals when the population synchronizes (rises) or desynchronizes (falls). Slow; off in <code>run_figures.sh</code> by default.</p>
+        <p class="lede">Filter to non-trivially-correlated pairs, then walk a window across the experiment computing Pearson and Spearman in real-time. Reveals when the population synchronizes (rises) or desynchronizes (falls). Slow but enabled by default in <code>run_figures.sh</code> — drop it from <code>ANALYSES</code> to skip.</p>
       </div>
       <aside class="card">
         <h3>How to read this figure</h3>
@@ -65,7 +65,7 @@
       <div class="section-kicker">Purpose</div>
       <h2>How does synchronization evolve over time?</h2>
       <p>Two cells responding to the same stimulus tend to be correlated <em>during</em> the response and uncorrelated outside it. By computing pairwise correlation in a sliding window, we can watch synchronization rise and fall across the experiment. Peaks at stims = stim-driven sync. Persistent positive correlation between stims = ongoing coupling. A drift toward zero = the population is becoming independent.</p>
-      <p style="color: var(--ink-soft);">Computational note: this is the slowest analysis in the pipeline. The orchestrator <code>run_figures.sh</code> excludes it from <code>"all"</code> by default; enable explicitly with <code>ANALYSES="sliding_correlation ..."</code>.</p>
+      <p style="color: var(--ink-soft);">Computational note: this is still the slowest analysis in the pipeline, but it now runs by default — <code>sliding_correlation</code> is part of the <code>ALL_ANALYSES</code> list in <code>run_figures.sh</code>. To skip it, drop it from <code>ANALYSES</code> in the config block. The aggregator picks <code>{ch}_sliding_corr.png</code> up automatically via the registered <code>sliding_corr</code> per-channel category.</p>
     </section>
 
     <section class="section">

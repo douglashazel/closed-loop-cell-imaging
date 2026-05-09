@@ -90,11 +90,12 @@
       <p style="color: var(--ink-soft); max-width: 720px;">Six phases run in order inside <code>prepare_state()</code>. Each produces a layer of the state dict.</p>
       <ol>
         <li><strong>Stim resolution</strong> — <code>resolve_all_stim_frames()</code> turns minutes (or log entries) into frame indices per channel. Mutates <code>cfg["stim_frames"]</code> in place. <a href="03_stim_resolution.html">Details →</a></li>
-        <li><strong>Background correction</strong> — <code>compute_background_correction()</code> fits a degree-4 polynomial to cell-free pixels per frame, evaluates it at each cell's <code>(x, y)</code>, subtracts. Cache hit short-circuits this. <a href="02_background_subtraction.html">Details →</a></li>
+        <li><strong>Background correction</strong> — <code>compute_background_correction()</code> fits a degree-4 polynomial to cell-free pixels per frame. When <code>filter_dead_frames=True</code>, dead-frame indices are detected on the sampled <code>bg_trace</code> via <code>detect_dead_frame_indices()</code> and the per-frame polynomial coefs (and <code>bg_min</code>) at those indices are <em>linearly interpolated</em> from the nearest non-dead frames (<code>_interpolate_bg_at_dead_frames()</code>) <em>before</em> the per-cell correction loop runs, so the per-cell pass sees a clean BG estimate. Cache hit short-circuits this. <a href="02_background_subtraction.html">Details →</a></li>
         <li><strong>Time axis</strong> — <code>build_frame_to_minutes_lookups()</code> builds <code>(known_frames, known_minutes)</code> arrays per channel by parsing <code>monitoring.log</code> / <code>timestamps.csv</code> / file mtimes. Also extracts NRK <em>real setpoint</em> time.</li>
         <li><strong>Time-window clip</strong> — if <code>cfg["time_window_minutes"]</code> is set (NRK = 30 min), trim <code>corrected_lum</code>, <code>bg_trace</code>, <code>stim_frames</code> to that window.</li>
-        <li><strong>Dead-frame mask</strong> — opt-in (<code>filter_dead_frames: True</code>, used by PC3). Rolling MAD on the bg trace; outliers above 6 σ get NaN'd.</li>
+        <li><strong>Dead-frame mask</strong> — opt-in (<code>filter_dead_frames: True</code>, used by PC3). Rolling MAD on the bg trace; outliers above 6 σ get NaN'd in <code>corrected_lum</code>. Same <code>detect_dead_frame_indices()</code> as phase 2 — both passes agree on the index set.</li>
         <li><strong>Dead-frame fill</strong> — linear interpolation between valid neighbors so downstream code doesn't need to handle NaNs.</li>
+        <li><strong>Direction sanity check</strong> — <code>confirm_response_direction()</code> in <a href="04_responders.html">04 · Responders</a> pools <code>(max−base)</code> and <code>(min−base)</code> magnitudes across every cell × stim per <code>(exp, ch)</code> and prints an <code>[OK]</code> / <code>[WARN]</code> line. Diagnostic only — <code>cfg["response_direction"]</code> still drives the rest of the pipeline.</li>
       </ol>
     </section>
 
@@ -114,6 +115,8 @@
     "bg_min_by_ch":   {exp: {ch: per-frame surface minimum}},
     "bg_sampler_by_exp": {exp: sampler dict (re-evaluatable at arbitrary points)},
     "bg_sample_points_exp": {exp: list of (x, y) cell-free points},
+    "direction_check": {(exp, ch): {"configured", "empirical", "agreement",
+                                    "abs_increase", "abs_decrease"}},
 }</code></pre>
       <p style="color: var(--ink-soft);">Frame-number keys in <code>corrected_lum</code> are <em>strings</em> like <code>"f0"</code>, <code>"f1"</code>; trajectory keys come in <code>x0/y0/x1/y1/...</code> pairs. Many helpers convert these to dataframes via <code>lum_dict_to_df()</code>.</p>
     </section>
@@ -124,11 +127,30 @@
       <div class="grid grid-2">
         <article class="card">
           <h3>Where it lives</h3>
-          <p><code>April28_preprint_results/bg_cache/&lt;exp_name&gt;.pkl</code>. One pickle per experiment, ~100 MB each.</p>
+          <p><code>April28_preprint_results/bg_cache/&lt;exp_name&gt;.pkl</code> for experiments without dead-frame filtering, and <code>&lt;exp_name&gt;__filterdead.pkl</code> when <code>cfg["filter_dead_frames"]=True</code> (PC3). Suffixed paths mean toggling the flag never silently reuses a stale cache. ~100 MB each.</p>
         </article>
         <article class="card">
           <h3>What invalidates it</h3>
-          <p>If the cached <code>BG_FIT</code> config differs from the current one, the cache is rebuilt automatically. Add <code>--recompute-bg</code> on the CLI to force a rebuild. Re-running the same analysis script after the first build is essentially instant.</p>
+          <p>The pickle carries a <code>PIPELINE_VERSION</code> field; mismatched versions trigger a recompute. A different cached <code>BG_FIT</code> config also rebuilds automatically. Add <code>--recompute-bg</code> on the CLI to force a rebuild. Re-running the same analysis script after the first build is essentially instant.</p>
+        </article>
+        <article class="card">
+          <h3>Cluster cache</h3>
+          <p>Cluster labels persist alongside the bg cache at <code>bg_cache/clusters/&lt;exp&gt;__&lt;ch_or___pooled__&gt;.pkl</code> (written by <code>common/cluster_labels.py</code>). Read by four downstream scripts — <code>dff</code>, <code>correlation_distance</code>, <code>response_violins</code>, <code>learning_scores</code> — for stratified per-cluster figures. Missing cache → those figures are silently skipped.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Script ordering</div>
+      <h2>Why <code>clustering</code> runs first</h2>
+      <div class="grid grid-2">
+        <article class="card">
+          <h3>Order in <code>run_figures.sh</code></h3>
+          <p><code>clustering</code> runs before <code>dff</code>, <code>correlation_distance</code>, <code>response_violins</code>, and <code>learning_scores</code> so that those scripts can read the per-channel cluster labels and emit per-cluster panels. Without the cache they fall back gracefully — but you lose the stratified figures.</p>
+        </article>
+        <article class="card">
+          <h3>Sliding correlation</h3>
+          <p><code>sliding_correlation</code> is now part of the default <code>ALL_ANALYSES</code> list. It is still the slowest analysis; remove it from <code>ANALYSES</code> in <code>run_figures.sh</code> to skip.</p>
         </article>
       </div>
     </section>
@@ -139,7 +161,8 @@
       <table>
         <thead><tr><th>Phase</th><th>Reads</th><th>Writes</th></tr></thead>
         <tbody>
-          <tr><td>Bg correction</td><td><code>&lt;dir&gt;/&lt;ch&gt;/frames/*.png</code>, <code>masks/*.npy</code>, <code>analysis/luminosity_complete.json</code>, <code>trajectories_complete.json</code></td><td><code>bg_cache/&lt;exp&gt;.pkl</code></td></tr>
+          <tr><td>Bg correction</td><td><code>&lt;dir&gt;/&lt;ch&gt;/frames/*.png</code>, <code>masks/*.npy</code>, <code>analysis/luminosity_complete.json</code>, <code>trajectories_complete.json</code></td><td><code>bg_cache/&lt;exp&gt;[__filterdead].pkl</code></td></tr>
+          <tr><td>Clustering</td><td>state dict</td><td><code>bg_cache/clusters/&lt;exp&gt;__&lt;ch&gt;.pkl</code></td></tr>
           <tr><td>Time axis</td><td><code>monitoring.log</code> (NRK), <code>timestamps/*.csv</code> (C2C12, PC3), or file mtimes</td><td>(in-memory)</td></tr>
           <tr><td>Analysis scripts</td><td>state dict</td><td><code>April28_preprint_results/&lt;exp&gt;/*.png</code></td></tr>
           <tr><td>PDF aggregator</td><td>all generated PNGs</td><td><code>April28_preprint_figures.pdf</code></td></tr>

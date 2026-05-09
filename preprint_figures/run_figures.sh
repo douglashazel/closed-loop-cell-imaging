@@ -15,7 +15,8 @@ set -euo pipefail
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
 # Set to "all" or a space-separated subset of analyses.
-ANALYSES="all"
+# ANALYSES="all"
+ANALYSES="bg_diagnostic time_traces clustering dff correlation_distance response_violins learning_scores nrk_hardware_log"
 # Available:
 #   bg_diagnostic        — background-correction diagnostic per experiment
 #   time_traces          — per-cell luminosity traces (with + without stim shading)
@@ -41,17 +42,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# sliding_correlation is excluded from "all" by default because it is slow and
-# is currently disabled in april28_final_figures.py main(). Add it explicitly
-# (ANALYSES="sliding_correlation ..." or "all sliding_correlation") to run it.
+# sliding_correlation is run by default but is the slowest analysis (computes
+# pairwise rolling Pearson + Spearman over the full time series). To skip it,
+# set ANALYSES to a space-separated subset that excludes it.
 ALL_ANALYSES=(
     bg_diagnostic
     time_traces
+    clustering
     dff
     correlation_distance
-    clustering
     response_violins
     learning_scores
+    sliding_correlation
     nrk_hardware_log
 )
 

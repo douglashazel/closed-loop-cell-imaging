@@ -94,6 +94,22 @@
     </section>
 
     <section class="section">
+      <div class="section-kicker">Recent updates</div>
+      <h2>What's new in this revision</h2>
+      <div class="card" style="margin-top: 18px;">
+        <ul style="margin: 0;">
+          <li>BG fits now interpolate per-frame polynomial coefs across dead frames before the per-cell correction loop. Cache key gains a <span style="font-family: var(--mono);">__filterdead</span> suffix when the flag is on (<a href="00_pipeline_overview.html">00 · Pipeline</a>, <a href="02_background_subtraction.html">02 · Background</a>).</li>
+          <li>An empirical response-direction sanity check runs at <span style="font-family: var(--mono);">prepare_state</span> time and warns when configured ≠ empirical (<a href="04_responders.html">04 · Responders</a>).</li>
+          <li><a href="13_correlation_distance.html">13 · Correlation vs distance</a> is now a 2-row figure (Pearson + Spearman) with responder pair-class subsets (RR / NN / RN) and per-cluster panels.</li>
+          <li><a href="15_response_violins.html">15 · Response violins</a> gain dF/F₀ variants, an amplitude × width scatter, an NRK 1×3 width-baseline comparison, and per-cluster panels.</li>
+          <li><a href="16_learning_scores.html">16 · Learning scores</a> gain per-train histograms, responder-vs-non-responder splits, per-cluster panels, and a permutation null overlay on the summed histograms.</li>
+          <li><a href="14_clustering.html">14 · Trace clustering</a> persists labels to <span style="font-family: var(--mono);">bg_cache/clusters/</span> for downstream stratified figures.</li>
+          <li><a href="17_sliding_correlation.html">17 · Sliding correlation</a> now runs by default in <span style="font-family: var(--mono);">run_figures.sh</span>; <span style="font-family: var(--mono);">clustering</span> runs ahead of its consumers so per-cluster figures appear automatically.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
       <div class="section-kicker">Foundations · Read first</div>
       <h2>The shared machinery</h2>
       <p style="max-width: 720px; color: var(--ink-soft);">Every analysis script consumes a single <span class="mono" style="font-family: var(--mono);">state</span> dict produced by <span style="font-family: var(--mono);">prepare_state()</span>. These pages explain what's in it.</p>
@@ -177,7 +193,7 @@
         <article class="card">
           <span class="tag">17 · Sync</span>
           <a class="cardlink" href="17_sliding_correlation.html"><h3>Sliding correlation</h3></a>
-          <p>Pre-filter pairs by global Pearson, then sliding-window Pearson + Spearman across the experiment. Slow, off by default. Detects population-level synchronization changes.</p>
+          <p>Pre-filter pairs by global Pearson, then sliding-window Pearson + Spearman across the experiment. Slow but on by default. Detects population-level synchronization changes.</p>
         </article>
       </div>
     </section>

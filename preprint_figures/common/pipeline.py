@@ -17,6 +17,7 @@ import sys
 
 import numpy as np
 from PIL import Image
+from scipy.ndimage import median_filter
 from tqdm.auto import tqdm
 
 from common.bg_fit import (
@@ -37,12 +38,79 @@ sys.path.insert(0, "SCRIPTS")
 from io_utils import load_msgpack  # noqa: E402
 
 
+# Bump when the cache pickle layout or pipeline semantics change (e.g. when
+# ``filter_dead_frames`` started gating in-cache BG-coef interpolation).
+PIPELINE_VERSION = 2
+
+
+def detect_dead_frame_indices(bg_trace, *, mad_k=6.0, window=21):
+    """Return frame indices where ``bg_trace`` diverges from rolling median.
+
+    Uses a robust median-absolute-deviation test against a rolling median over
+    ``window`` frames. Same threshold logic used inside ``mask_dead_frames``;
+    factored out so the BG-fit pass can interpolate over the same indices
+    before per-cell correction runs.
+    """
+    bg = np.asarray(bg_trace, dtype=np.float64)
+    if bg.size < 3:
+        return np.array([], dtype=np.int64)
+    med = median_filter(bg, size=window, mode="nearest")
+    delta = bg - med
+    mad = float(np.median(np.abs(delta - np.median(delta))))
+    scale = 1.4826 * mad if mad > 0 else 0.0
+    if scale == 0.0:
+        return np.array([], dtype=np.int64)
+    return np.where(np.abs(delta) > mad_k * scale)[0]
+
+
+def _interpolate_bg_at_dead_frames(coefs_by_frame, bg_min_by_frame, dead_idx):
+    """Replace per-frame BG coefs/min at ``dead_idx`` with neighbor-interpolated values.
+
+    Each frame's polynomial fit is computed against that frame's image. Dead
+    frames (dropouts/flashes) produce anomalous polynomial coefficients that
+    would feed bad bg_val estimates into the per-cell correction loop. After
+    detecting the dead-frame indices from ``bg_trace``, interpolate every
+    polynomial coefficient (and ``bg_min``) linearly across the surrounding
+    non-dead frames so the per-cell pass uses a clean BG estimate at those
+    indices. ``corrected_lum`` entries on dead frames are still NaN-masked
+    later in ``mask_dead_frames`` (the cell's raw luminosity is still bad).
+    """
+    n_frames = coefs_by_frame.shape[0]
+    if dead_idx.size == 0 or dead_idx.size >= n_frames:
+        return
+    good = np.ones(n_frames, dtype=bool)
+    good[dead_idx] = False
+    good_idx = np.where(good)[0]
+    for k in range(coefs_by_frame.shape[1]):
+        coefs_by_frame[dead_idx, k] = np.interp(
+            dead_idx, good_idx, coefs_by_frame[good_idx, k]
+        )
+    bg_min_by_frame[dead_idx] = np.interp(
+        dead_idx, good_idx, bg_min_by_frame[good_idx]
+    )
+
+
+def _bg_cache_path(exp_name, cfg):
+    """Cache path keyed by whether dead-frame interpolation is enabled.
+
+    Experiments with ``filter_dead_frames=False`` (or unset) keep the legacy
+    unsuffixed path so existing caches stay valid. PC3 (and any future
+    experiment that opts in) gets a separate ``__filterdead`` pickle so
+    toggling the flag never silently reuses a stale cache.
+    """
+    suffix = "__filterdead" if cfg.get("filter_dead_frames") else ""
+    return os.path.join(CACHE_DIR, f"{exp_name}{suffix}.pkl")
+
+
 def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
     """Run per-frame sampled polynomial background correction for every experiment.
 
-    Caches per-experiment results to ``CACHE_DIR/<exp>.pkl`` and reuses them
-    unless ``recompute`` is True or ``BG_FIT`` has changed since the cache
-    was written.
+    Caches per-experiment results to ``CACHE_DIR/<exp>[__filterdead].pkl`` and
+    reuses them unless ``recompute`` is True or ``BG_FIT`` has changed since
+    the cache was written. When ``cfg["filter_dead_frames"]`` is True, the
+    per-frame polynomial coefficients are detected-and-interpolated across
+    dead frames before the per-cell correction loop runs, so anomalous frame
+    fits don't leak into ``corrected_lum`` or the cached BG maps.
     """
     state = {
         "corrected_lum": {},
@@ -58,7 +126,7 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
     }
 
     for exp_name, cfg in experiments.items():
-        cache_path = os.path.join(CACHE_DIR, f"{exp_name}.pkl")
+        cache_path = _bg_cache_path(exp_name, cfg)
 
         if not recompute and os.path.exists(cache_path):
             with open(cache_path, "rb") as f:
@@ -66,6 +134,12 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
             if blob.get("BG_FIT") != BG_FIT:
                 print(
                     f"=== {exp_name} === cached BG_FIT differs from current — recomputing."
+                )
+            elif blob.get("PIPELINE_VERSION") != PIPELINE_VERSION:
+                print(
+                    f"=== {exp_name} === cached PIPELINE_VERSION="
+                    f"{blob.get('PIPELINE_VERSION')} differs from "
+                    f"{PIPELINE_VERSION} — recomputing."
                 )
             else:
                 state["corrected_lum"][exp_name] = blob["corrected_lum"]
@@ -148,6 +222,24 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
                         coefs, bg_min, (H, W), sampler["degree"]
                     )
 
+            if cfg.get("filter_dead_frames"):
+                dead_idx = detect_dead_frame_indices(sampled_bg_mean)
+                if dead_idx.size:
+                    _interpolate_bg_at_dead_frames(
+                        coefs_by_frame, bg_min_by_frame, dead_idx
+                    )
+                    print(
+                        f"  {ch}: interpolated BG coefs at "
+                        f"{dead_idx.size} dead frames during fit pass"
+                    )
+                    if probe_idx in dead_idx:
+                        probe_bg = eval_background_image(
+                            coefs_by_frame[probe_idx],
+                            bg_min_by_frame[probe_idx],
+                            (H, W),
+                            sampler["degree"],
+                        )
+
             lum = load_msgpack(os.path.join(adir, "luminosity_complete.json"))
             traj = load_msgpack(os.path.join(adir, "trajectories_complete.json"))
 
@@ -211,7 +303,9 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
             )
 
         blob = {
+            "PIPELINE_VERSION": PIPELINE_VERSION,
             "BG_FIT": BG_FIT.copy(),
+            "filter_dead_frames": bool(cfg.get("filter_dead_frames")),
             "sampler": sampler,
             "corrected_lum": state["corrected_lum"][exp_name],
             "bg_trace": state["bg_trace"][exp_name],
@@ -250,8 +344,6 @@ def mask_dead_frames(experiments, state, *, mad_k=6.0, window=21):
 
     Opt-in per experiment via ``cfg["filter_dead_frames"] = True``.
     """
-    from scipy.ndimage import median_filter
-
     for exp_name, cfg in experiments.items():
         if not cfg.get("filter_dead_frames"):
             continue
@@ -259,21 +351,13 @@ def mask_dead_frames(experiments, state, *, mad_k=6.0, window=21):
             bg = np.asarray(
                 state["bg_trace"][exp_name][ch], dtype=np.float64
             )
-            if bg.size < 3:
-                continue
-            med = median_filter(bg, size=window, mode="nearest")
-            delta = bg - med
-            mad = float(np.median(np.abs(delta - np.median(delta))))
-            scale = 1.4826 * mad if mad > 0 else 0.0
-            if scale == 0.0:
-                continue
-            dead_idx = np.where(np.abs(delta) > mad_k * scale)[0]
+            dead_idx = detect_dead_frame_indices(bg, mad_k=mad_k, window=window)
             if dead_idx.size == 0:
                 print(
-                    f"  {exp_name} / {ch}: no dead frames detected "
-                    f"(MAD scale={scale:.3f})"
+                    f"  {exp_name} / {ch}: no dead frames detected"
                 )
                 continue
+            delta = bg - median_filter(bg, size=window, mode="nearest")
             n_neg = int(np.sum(delta[dead_idx] < 0))
             n_pos = int(np.sum(delta[dead_idx] > 0))
             dead_set = {f"f{int(i)}" for i in dead_idx}
@@ -340,12 +424,17 @@ def fill_dead_frames(experiments, state):
                 )
 
 
-def prepare_state(experiments, *, recompute_bg=False):
+def prepare_state(experiments, *, recompute_bg=False, check_direction=True):
     """Run the prep steps and return the populated state dict.
 
     Mirrors the prep block in april28_final_figures.py:main() — same
     operations, same order, identical resulting state — plus an opt-in
     dead-frame filter for experiments that set ``filter_dead_frames``.
+
+    When ``check_direction`` is True (default), runs an empirical
+    response-direction sanity check after dead-frame fill and logs a warning
+    per (exp, ch) if the empirical sign disagrees with
+    ``cfg["response_direction"]``. Diagnostic only — config still wins.
     """
     resolve_all_stim_frames(experiments)
     state = compute_background_correction(experiments, recompute=recompute_bg)
@@ -353,4 +442,7 @@ def prepare_state(experiments, *, recompute_bg=False):
     clip_experiments_to_time_window(experiments, state)
     mask_dead_frames(experiments, state)
     fill_dead_frames(experiments, state)
+    if check_direction:
+        from common.direction_check import confirm_response_direction
+        state["direction_check"] = confirm_response_direction(experiments, state)
     return state

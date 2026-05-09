@@ -19,6 +19,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
+from common.cluster_labels import align_labels_to_cells, load_cluster_labels
 from common.config import PEAK_OFFSET
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
@@ -558,6 +559,101 @@ def plot_dff_response_diagnostic(experiments, state, only_experiments=("c2c12_dm
             plt.close(fig)
 
 
+def plot_dff_mean_per_cluster(experiments, state):
+    """Per (exp, ch): mean ± SEM dF/F0 trace per PCA cluster.
+
+    Reads cluster labels written by ``clustering.py``. Skips silently when no
+    cluster cache exists (e.g. before clustering has run).
+    """
+    cmap = plt.get_cmap("tab10")
+    for exp_name, cfg in experiments.items():
+        for ch in cfg["channels"]:
+            blob = load_cluster_labels(exp_name, ch)
+            if blob is None:
+                continue
+            df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
+            frame_cols = sorted(
+                [c for c in df.columns if str(c).startswith("f")],
+                key=lambda c: int(str(c).lstrip("f")),
+            )
+            if not frame_cols:
+                continue
+            frame_nums = np.array([int(str(c).lstrip("f")) for c in frame_cols])
+            frame_min = frames_to_min(state, exp_name, ch, frame_nums)
+            mat = df[frame_cols].values
+
+            F0, _, first_stim = compute_f0_baseline(state, exp_name, ch, cfg)
+            F0_safe = np.where(F0 == 0, np.nan, F0)
+            dff_mat = (mat - F0) / F0_safe
+
+            target_ids = [(ch, cid) for cid in df.index]
+            cluster_labels = align_labels_to_cells(blob, target_ids)
+            best_k = int(blob["best_k"])
+
+            fig, ax = plt.subplots(
+                figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+            )
+            ax.spines[["top", "right"]].set_visible(False)
+            ax.tick_params(top=False, right=False)
+            for cid in range(best_k):
+                mask = cluster_labels == cid
+                n_in = int(mask.sum())
+                if n_in < 3:
+                    continue
+                cluster_dff = dff_mat[mask]
+                mean_trace = np.nanmean(cluster_dff, axis=0)
+                n_per_col = np.sum(~np.isnan(cluster_dff), axis=0).astype(float)
+                sem_trace = np.nanstd(cluster_dff, axis=0) / np.sqrt(
+                    np.maximum(n_per_col, 1)
+                )
+                color = cmap(cid % 10)
+                ax.fill_between(
+                    frame_min, mean_trace - sem_trace, mean_trace + sem_trace,
+                    color=color, alpha=0.18, linewidth=0,
+                )
+                ax.plot(
+                    frame_min, mean_trace,
+                    color=color,
+                    linewidth=PLOT_PARAMS["mean_lw"],
+                    label=f"Cluster {cid} (n={n_in})",
+                )
+
+            spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
+            draw_stim_spans(
+                ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
+            )
+            base_lo = frames_to_min(state, exp_name, ch, [0])[0]
+            base_hi = frames_to_min(
+                state, exp_name, ch, [max(first_stim - 1, 0)]
+            )[0]
+            ax.axvspan(
+                base_lo, base_hi,
+                color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
+                label=(
+                    f"F₀ baseline (frames 0–{first_stim - 1})"
+                    if first_stim > 1 else "F₀ baseline (frame 0)"
+                ),
+            )
+            ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
+            ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            ax.set_ylabel(
+                "Mean dF/F₀ ± 1 SEM",
+                fontsize=PLOT_PARAMS["axis_label_fontsize"],
+            )
+            ax.set_title(
+                f"{exp_name} / {ch} — mean dF/F₀ per cluster (k={best_k})",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+            ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+            plt.tight_layout()
+            fig.savefig(
+                fig_path(exp_name, f"{ch}_dff_mean_per_cluster"),
+                dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            )
+            plt.close(fig)
+
+
 def main():
     experiments, recompute_bg = parse_args()
     state = prepare_state(experiments, recompute_bg=recompute_bg)
@@ -568,6 +664,7 @@ def main():
     plot_dff_mean_pooled(
         experiments, state, thresholds=thresholds, only_responders=True,
     )
+    plot_dff_mean_per_cluster(experiments, state)
 
 
 if __name__ == "__main__":

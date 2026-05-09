@@ -112,16 +112,61 @@ height[c, stim] = extremum − baseline</code></pre>
     </section>
 
     <section class="section">
+      <div class="section-kicker">Signal axis</div>
+      <h2>lum vs dF/F0</h2>
+      <p><code>plot_per_stimulus_response_violins</code> and <code>plot_amplitude_width_scatter</code> both take a <code>signal in {"lum", "dff"}</code> argument. <code>_build_signal_matrix</code> returns either the raw corrected luminosity matrix or <code>(mat − F0) / F0_safe</code>; both flow through the same <code>per_cell_response_delta</code> machinery so the metric definitions are unchanged. When <code>signal="dff"</code> the width search threshold is the dF/F0 value at the stim frame (≈ 0). Filenames append <code>_dff</code> so both variants coexist (e.g. <code>{ch}_response_violin_width_dff.png</code>).</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Joint distribution</div>
+      <h2>Amplitude × width scatter</h2>
+      <p><code>plot_amplitude_width_scatter</code> emits one figure per <code>(exp, ch, signal)</code> with a roughly-square grid of stims, each panel showing per-cell <code>(amplitude, width)</code> pairs. Per-cell pairs stay aligned (no independent NaN dropping) — only cells where both metrics are defined are plotted. When a stim has more than 200 valid cells the scatter falls back to a <code>hexbin</code> with a viridis colour-bar so density stays legible; otherwise it draws individual points. Output: <code>{ch}_amplitude_width_scatter_lum.png</code> and <code>{ch}_amplitude_width_scatter_dff.png</code>.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">NRK width baselines</div>
+      <h2>Three baselines, side by side</h2>
+      <p><code>plot_nrk_width_baseline_comparison</code> (NRK only) emits a single 1 × 3 figure per channel comparing three definitions of the response baseline used in the width measurement:</p>
+      <div class="grid grid-3">
+        <article class="card">
+          <h3>stim_value</h3>
+          <p>Value at the stim frame — the current default behaviour. Same as <code>{ch}_response_violin_width.png</code>.</p>
+        </article>
+        <article class="card">
+          <h3>prestim_window</h3>
+          <p>Mean of <code>n_pre = 5</code> frames immediately before the stim (<code>prestim_baseline_values</code> in <a href="#">common/baseline_window.py</a>). Robust to instantaneous noise at the stim frame.</p>
+        </article>
+        <article class="card">
+          <h3>nrk_setpoint</h3>
+          <p>NRK hardware feedback setpoint active at the stim frame, parsed via <code>nrk_setpoint_at_frame()</code> from <code>luminosity_log_channel&lt;N&gt;.json</code>. Width measures how long the cell sits below the setpoint.</p>
+        </article>
+      </div>
+      <p style="color: var(--ink-soft);">Output: <code>{ch}_response_violin_width_baselines.png</code>. The existing <code>{ch}_response_violin_width.png</code> is unchanged (it still uses <code>stim_value</code>) so existing figures remain comparable.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-kicker">Per-cluster violins</div>
+      <h2>Stratifying by trace cluster</h2>
+      <p><code>plot_per_stimulus_response_violins_per_cluster</code> reads the per-channel cluster cache (<a href="14_clustering.html">14 · clustering</a>), aligns labels to the channel's cell IDs via <code>align_labels_to_cells</code>, and re-renders the height/width violin restricted to each cluster's mask. Clusters with fewer than 3 matching cells are skipped silently. Same <code>signal</code> switch applies. Output: <code>{ch}_response_violin[_width][_dff]_c{k}.png</code>. Skipped silently when no cluster cache exists for the channel.</p>
+    </section>
+
+    <section class="section">
       <div class="section-kicker">Outputs</div>
       <h2>Files produced</h2>
       <table>
-        <thead><tr><th>File</th><th>Metric</th><th>Subset</th></tr></thead>
+        <thead><tr><th>File</th><th>Metric</th><th>Subset / signal</th></tr></thead>
         <tbody>
-          <tr><td><code>{ch}_response_violin.png</code></td><td>Height (Δ luminosity)</td><td>All cells</td></tr>
-          <tr><td><code>{ch}_response_violin_width.png</code></td><td>Width (duration, min)</td><td>All cells</td></tr>
-          <tr><td><code>{ch}_response_violin_responders.png</code></td><td>Height</td><td>Responders only</td></tr>
-          <tr><td><code>pooled_response_violin_height.png</code></td><td>Height</td><td>Pooled across channels</td></tr>
-          <tr><td><code>pooled_response_violin_width.png</code></td><td>Width</td><td>Pooled across channels</td></tr>
+          <tr><td><code>{ch}_response_violin.png</code></td><td>Height (Δ luminosity)</td><td>All cells, <code>signal=lum</code></td></tr>
+          <tr><td><code>{ch}_response_violin_dff.png</code></td><td>Height (dF/F₀)</td><td>All cells, <code>signal=dff</code></td></tr>
+          <tr><td><code>{ch}_response_violin_width.png</code></td><td>Width (duration, min)</td><td>All cells, <code>signal=lum</code></td></tr>
+          <tr><td><code>{ch}_response_violin_width_dff.png</code></td><td>Width (duration, min; dF/F₀ baseline)</td><td>All cells, <code>signal=dff</code></td></tr>
+          <tr><td><code>{ch}_response_violin_width_baselines.png</code></td><td>Width × {stim_value, prestim_window, nrk_setpoint}</td><td>NRK only, 1 × 3 panel</td></tr>
+          <tr><td><code>{ch}_amplitude_width_scatter_lum.png</code></td><td>Amplitude × width per stim</td><td>All cells, lum (hexbin if <code>n &gt; 200</code>)</td></tr>
+          <tr><td><code>{ch}_amplitude_width_scatter_dff.png</code></td><td>Amplitude × width per stim</td><td>All cells, dF/F₀</td></tr>
+          <tr><td><code>{ch}_response_violin_responders.png</code></td><td>Height (Δ luminosity)</td><td>Responders only — unchanged</td></tr>
+          <tr><td><code>pooled_response_violin_height.png</code> / <code>_dff.png</code></td><td>Height</td><td>Pooled across channels (lum + dff)</td></tr>
+          <tr><td><code>pooled_response_violin_width.png</code> / <code>_dff.png</code></td><td>Width</td><td>Pooled across channels (lum + dff)</td></tr>
+          <tr><td><code>{ch}_response_violin[_width][_dff]_c{k}.png</code></td><td>Height or width</td><td>Per cluster (cluster cache required)</td></tr>
         </tbody>
       </table>
       <p style="color: var(--ink-soft);">X-axis on every variant: stimulus onset time (min). Y-axis: depends on metric.</p>
@@ -168,7 +213,8 @@ height[c, stim] = extremum − baseline</code></pre>
         <p><strong>Baseline drift.</strong> Heights are measured against baseline, which is a fixed pre-experiment estimate. If baseline drifts downward over the experiment, later stims appear to have larger heights even with identical biological responses.</p>
         <p><strong>Saturation.</strong> If cells saturate at the detector's max value, response heights underestimate true response. The violin's upper tail gets clipped to a hard ceiling. Look for unusual flat tops on early stims.</p>
         <p><strong>Pooling assumption.</strong> Pooled violins assume channels report the same biological process. Pooling across imaging channels with different reporters or different cell types is misleading. C2C12 / NRK channels are usually safe; cross-experiment pooling is not.</p>
-        <p><strong>Responders-only is in luminosity, not dF/F0.</strong> The responders-only variant plots Δ luminosity (raw counts). Comparing across experiments without normalizing back to dF/F0 is tricky.</p>
+        <p><strong>NRK setpoint can fall outside any region.</strong> <code>nrk_setpoint_at_frame</code> first looks for a region containing the stim frame; if none matches, it falls back to the nearest region by edge distance. The width measurement is still computed but is now anchored to a setpoint that wasn't actually active at the stim — flag any obviously-out-of-bounds stims rather than trusting the panel blindly.</p>
+        <p><strong>Per-cluster panels need the cluster cache.</strong> <code>{ch}_response_violin[_width][_dff]_c{k}.png</code> reads <code>bg_cache/clusters/&lt;exp&gt;__&lt;ch&gt;.pkl</code>. Run <code>clustering.py</code> first or these figures silently disappear.</p>
       </div>
     </section>
 
