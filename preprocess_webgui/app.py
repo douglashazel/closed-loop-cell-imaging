@@ -19,7 +19,10 @@ import threading
 import time
 
 import numpy as np
-from flask import Flask, abort, jsonify, render_template, request, send_file
+from flask import (
+    Flask, Response, abort, jsonify, render_template, request, send_file,
+    stream_with_context,
+)
 from PIL import Image
 
 from cellpose_worker import CellposeJob
@@ -259,7 +262,10 @@ def api_thumbnail_png(idx):
 def api_mask_preview_png():
     if session.temp_segmentation is None:
         abort(404)
-    alpha = int(request.args.get("alpha", 140))
+    # Default alpha is 255 (fully opaque colour fill); the browser applies the
+    # opacity slider via CSS, so we don't want to bake a fractional alpha into
+    # the PNG and end up multiplying it.
+    alpha = int(request.args.get("alpha", 255))
     cache = _cache_path("mask", session.temp_segmentation_version, alpha)
     if not os.path.isfile(cache):
         rgba = colorize_labels(session.temp_segmentation, alpha=alpha)
@@ -326,9 +332,9 @@ def api_cellpose_run():
         # Pre-render the default-alpha preview PNG so the first GET hits the
         # disk cache instead of paying the colorize + encode cost inline.
         try:
-            cache = _cache_path("mask", session.temp_segmentation_version, 140)
+            cache = _cache_path("mask", session.temp_segmentation_version, 255)
             if not os.path.isfile(cache):
-                rgba = colorize_labels(masks, alpha=140)
+                rgba = colorize_labels(masks, alpha=255)
                 _write_png_if_missing(cache, rgba, mode="RGBA")
         except Exception as e:
             print(f"[mask preview pre-render] {e}", flush=True)
@@ -343,15 +349,89 @@ def api_cellpose_run():
     return jsonify({"ok": True})
 
 
-@app.route("/api/cellpose/status", methods=["GET"])
-def api_cellpose_status():
+def _cellpose_status_snapshot() -> dict:
     with cellpose_job.lock:
         out = dict(cellpose_job.status)
+        out["status_version"] = cellpose_job.status_version
     out["has_mask"] = session.temp_segmentation is not None
     out["mask_version"] = session.temp_segmentation_version
     if session.temp_segmentation is not None:
         out["n_cells"] = int(session.temp_segmentation.max())
-    return jsonify(out)
+    return out
+
+
+@app.route("/api/cellpose/status", methods=["GET"])
+def api_cellpose_status():
+    return jsonify(_cellpose_status_snapshot())
+
+
+@app.route("/api/cellpose/stream", methods=["GET"])
+def api_cellpose_stream():
+    """Server-Sent Events stream of cellpose worker status.
+
+    Pushes a new event whenever the worker's status_version or the mask
+    version advance. Used by the frontend to react instantly to running →
+    done transitions without polling.
+    """
+    @stream_with_context
+    def gen():
+        last_status_version = -1
+        last_mask_version = -1
+        last_keepalive = time.time()
+        # Send an initial snapshot so the client doesn't have to GET /status.
+        snap = _cellpose_status_snapshot()
+        last_status_version = snap.get("status_version", 0)
+        last_mask_version = snap.get("mask_version", 0)
+        yield f"event: status\ndata: {json.dumps(snap)}\n\n"
+        while True:
+            with cellpose_job.lock:
+                sv = cellpose_job.status_version
+            mv = session.temp_segmentation_version
+            if sv != last_status_version or mv != last_mask_version:
+                last_status_version = sv
+                last_mask_version = mv
+                snap = _cellpose_status_snapshot()
+                yield f"event: status\ndata: {json.dumps(snap)}\n\n"
+                last_keepalive = time.time()
+            else:
+                now = time.time()
+                if now - last_keepalive > 15:
+                    yield ": keepalive\n\n"
+                    last_keepalive = now
+            time.sleep(0.15)
+
+    return Response(
+        gen(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.route("/api/cellpose/centroids", methods=["GET"])
+def api_cellpose_centroids():
+    """Return centroid coords for every cell in the current preview.
+
+    Used by the ROI tab to count cells inside the circle entirely
+    client-side — no per-drag server round trip.
+    """
+    seg = session.temp_segmentation
+    if seg is None:
+        return jsonify({"ok": False,
+                        "error": "Run Cellpose Preview first"}), 400
+    centroids = centroids_from_seg(seg)
+    h, w = seg.shape[:2]
+    items = [{"id": int(cid), "cx": float(rc[1]), "cy": float(rc[0])}
+             for cid, rc in centroids.items()]
+    return jsonify({
+        "ok": True,
+        "mask_version": session.temp_segmentation_version,
+        "image_size": [int(w), int(h)],
+        "centroids": items,
+    })
 
 
 @app.route("/api/cellpose/stats.png", methods=["GET"])
@@ -979,8 +1059,7 @@ def api_pipeline_stop():
         return jsonify({"ok": True})
 
 
-@app.route("/api/pipeline/status", methods=["GET"])
-def api_pipeline_status():
+def _pipeline_status_snapshot() -> dict:
     global pipeline_proc
     out = {
         "running": False, "pid": None, "exit_code": None,
@@ -989,14 +1068,154 @@ def api_pipeline_status():
         "uptime": (time.time() - pipeline_started_at) if pipeline_started_at else 0,
     }
     if pipeline_proc is None:
-        return jsonify(out)
+        out["stage"] = _infer_stage()
+        return out
     rc = pipeline_proc.poll()
     if rc is None:
         out.update({"running": True, "pid": pipeline_proc.pid})
     else:
         out.update({"pid": pipeline_proc.pid, "exit_code": rc})
     out["stage"] = _infer_stage()
-    return jsonify(out)
+    return out
+
+
+@app.route("/api/pipeline/status", methods=["GET"])
+def api_pipeline_status():
+    return jsonify(_pipeline_status_snapshot())
+
+
+def _pipeline_progress_snapshot() -> dict:
+    s = session.snapshot()
+    total = len(s.get("all_frames") or [])
+    masks_dir = s.get("masks_dir") or ""
+    save_path = s.get("save_path") or ""
+
+    n_masks = 0
+    if masks_dir and os.path.isdir(masks_dir):
+        n_masks = sum(1 for f in os.listdir(masks_dir) if f.endswith(".npy"))
+
+    traj_pct = 0.0
+    lumi_path = os.path.join(save_path, "luminosity.json")
+    if os.path.isfile(lumi_path):
+        traj_pct = 100.0
+    else:
+        lumi_partial = os.path.join(save_path, "luminosity_partial.json")
+        if os.path.isfile(lumi_partial):
+            traj_pct = 50.0
+
+    pre_done = os.path.isdir(os.path.join(save_path, "plots"))
+    post_done = os.path.isfile(os.path.join(save_path, "post_analysis_complete.txt"))
+    return {
+        "total_frames": total,
+        "segmentation": {
+            "done": n_masks, "total": total,
+            "pct": (100.0 * n_masks / total) if total else 0.0,
+        },
+        "trajectories": {"pct": traj_pct},
+        "pre_analysis": {"pct": 100.0 if pre_done else 0.0},
+        "post_analysis": {"pct": 100.0 if post_done else 0.0},
+    }
+
+
+@app.route("/api/pipeline/stream", methods=["GET"])
+def api_pipeline_stream():
+    """Combined SSE stream for pipeline status, log delta, and progress.
+
+    The browser opens this once at boot and consumes three event types:
+      - status   : process up/down/exit + inferred stage
+      - log      : new lines appended to pipeline.log since last event
+      - progress : segmentation/trajectories/pre/post percentages
+
+    We push only when something changes (or every 15s as keepalive), so the
+    UI no longer suffers the 1-second poll latency.
+    """
+    @stream_with_context
+    def gen():
+        last_status_key = None
+        last_log_pos = 0
+        last_progress = None
+        last_keepalive = time.time()
+
+        # Emit baselines so the client has state without a GET.
+        status = _pipeline_status_snapshot()
+        last_status_key = (status["running"], status["stage"],
+                            status["pid"], status["exit_code"])
+        yield f"event: status\ndata: {json.dumps(status)}\n\n"
+
+        if os.path.isfile(_PIPELINE_LOG):
+            try:
+                with open(_PIPELINE_LOG) as f:
+                    text = f.read()
+                    last_log_pos = f.tell()
+                if text:
+                    yield (
+                        f"event: log\n"
+                        f"data: {json.dumps({'text': text, 'pos': last_log_pos})}\n\n"
+                    )
+            except Exception:
+                pass
+
+        progress = _pipeline_progress_snapshot()
+        last_progress = json.dumps(progress, sort_keys=True)
+        yield f"event: progress\ndata: {last_progress}\n\n"
+
+        while True:
+            sent = False
+
+            status = _pipeline_status_snapshot()
+            key = (status["running"], status["stage"],
+                   status["pid"], status["exit_code"])
+            if key != last_status_key:
+                last_status_key = key
+                yield f"event: status\ndata: {json.dumps(status)}\n\n"
+                sent = True
+
+            if os.path.isfile(_PIPELINE_LOG):
+                try:
+                    size = os.path.getsize(_PIPELINE_LOG)
+                    if size < last_log_pos:
+                        # file was truncated (new run); restart
+                        last_log_pos = 0
+                    if size > last_log_pos:
+                        with open(_PIPELINE_LOG) as f:
+                            f.seek(last_log_pos)
+                            chunk = f.read()
+                            last_log_pos = f.tell()
+                        if chunk:
+                            yield (
+                                f"event: log\n"
+                                f"data: {json.dumps({'text': chunk, 'pos': last_log_pos})}\n\n"
+                            )
+                            sent = True
+                except Exception:
+                    pass
+
+            progress = _pipeline_progress_snapshot()
+            pkey = json.dumps(progress, sort_keys=True)
+            if pkey != last_progress:
+                last_progress = pkey
+                yield f"event: progress\ndata: {pkey}\n\n"
+                sent = True
+
+            now = time.time()
+            if sent:
+                last_keepalive = now
+            elif now - last_keepalive > 15:
+                yield ": keepalive\n\n"
+                last_keepalive = now
+
+            # Cadence: faster while running for snappy logs, slower when idle.
+            time.sleep(0.25 if status.get("running") else 1.0)
+
+    return Response(
+        gen(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 _STAGE_MARKERS = [
@@ -1049,38 +1268,7 @@ def api_pipeline_progress():
     now = time.time()
     if progress_cache["data"] is not None and now - progress_cache["ts"] < 1.5:
         return jsonify(progress_cache["data"])
-
-    s = session.snapshot()
-    total = len(s.get("all_frames") or [])
-    masks_dir = s.get("masks_dir") or ""
-    save_path = s.get("save_path") or ""
-
-    n_masks = 0
-    if masks_dir and os.path.isdir(masks_dir):
-        n_masks = sum(1 for f in os.listdir(masks_dir) if f.endswith(".npy"))
-
-    traj_pct = 0.0
-    lumi_path = os.path.join(save_path, "luminosity.json")
-    if os.path.isfile(lumi_path):
-        traj_pct = 100.0
-    else:
-        lumi_partial = os.path.join(save_path, "luminosity_partial.json")
-        if os.path.isfile(lumi_partial):
-            traj_pct = 50.0
-
-    pre_done = os.path.isdir(os.path.join(save_path, "plots"))
-    post_done = os.path.isfile(os.path.join(save_path, "post_analysis_complete.txt"))
-
-    data = {
-        "total_frames": total,
-        "segmentation": {
-            "done": n_masks, "total": total,
-            "pct": (100.0 * n_masks / total) if total else 0.0,
-        },
-        "trajectories": {"pct": traj_pct},
-        "pre_analysis": {"pct": 100.0 if pre_done else 0.0},
-        "post_analysis": {"pct": 100.0 if post_done else 0.0},
-    }
+    data = _pipeline_progress_snapshot()
     progress_cache.update({"ts": now, "data": data})
     return jsonify(data)
 

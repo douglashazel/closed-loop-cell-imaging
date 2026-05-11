@@ -44,6 +44,9 @@ class CellposeJob:
             "finished_at": None,
         }
         self.result: Optional[np.ndarray] = None  # last masks array
+        # Bumped any time `status` mutates. SSE listeners watch this counter
+        # and yield only when it advances, so we don't busy-poll the dict.
+        self.status_version = 0
 
     def is_running(self) -> bool:
         with self.lock:
@@ -64,6 +67,7 @@ class CellposeJob:
                 "started_at": time.time(),
                 "finished_at": None,
             }
+            self.status_version += 1
             self.thread = threading.Thread(
                 target=self._run,
                 args=(img, frame_idx, flow_threshold, cellprob_threshold,
@@ -79,6 +83,7 @@ class CellposeJob:
             model = get_model()
             with self.lock:
                 self.status["message"] = "Segmenting..."
+                self.status_version += 1
             masks, _, _ = model.eval(
                 [img],
                 flow_threshold=flow_threshold,
@@ -116,6 +121,7 @@ class CellposeJob:
                         "started_at": self.status["started_at"],
                         "finished_at": time.time(),
                     }
+                self.status_version += 1
         except Exception as e:
             with self.lock:
                 self.status = {
@@ -126,4 +132,5 @@ class CellposeJob:
                     "started_at": self.status.get("started_at"),
                     "finished_at": time.time(),
                 }
+                self.status_version += 1
             print(f"[cellpose_worker] error: {e}", flush=True)

@@ -190,9 +190,11 @@ async function loadExperiment(path) {
 
   syncFormsFromSession();
   refreshRail();
-  // Reset thumb + scrubber caches
+  // Reset thumb + scrubber + image caches for the new experiment
   thumbsLoadedFor = null;
   cpHasMask = false;
+  frameImageCache.clear();
+  roiCentroidsCache = null;
   refreshValidation();
 }
 
@@ -242,9 +244,29 @@ $("cp-frame").addEventListener("change", (e) => {
   highlightThumb(idx);
 });
 
+// Cache decoded Image objects across frame switches so the browser doesn't
+// rebuild the bitmap each time. Keyed by experiment to avoid leaking data
+// across loads.
+const frameImageCache = new Map();  // key: `${expVer}|${idx}` → HTMLImageElement
+function getFrameImage(idx) {
+  const key = `${currentExperimentVersion}|${idx}`;
+  let im = frameImageCache.get(key);
+  if (!im) {
+    im = new Image();
+    im.decoding = "async";
+    im.src = frameUrl(idx);
+    frameImageCache.set(key, im);
+  }
+  return im;
+}
+
 function loadCellposeFrame(idx) {
   const img = $("cp-img-raw");
-  img.src = frameUrl(idx);
+  const cached = getFrameImage(idx);
+  // If the bitmap is already decoded, switch instantly; otherwise let the
+  // browser keep showing the previous frame until the new src finishes
+  // loading (default <img> behaviour, no white flash).
+  img.src = cached.src;
   img.style.display = "block";
   $("cp-placeholder").style.display = "none";
   // Clear mask overlay (it was for a different frame)
@@ -254,11 +276,15 @@ function loadCellposeFrame(idx) {
 
 function preloadFrames(idx) {
   if (!session?.all_frames?.length) return;
-  [idx - 2, idx - 1, idx + 1, idx + 2].forEach((i) => {
-    if (i < 0 || i >= session.all_frames.length) return;
-    const im = new Image();
-    im.src = frameUrl(i);
-  });
+  // Widen the preload window from ±2 to ±5 so casual scrubbing hits the
+  // disk-cache → memory-cache pipeline most of the time.
+  const radius = 5;
+  for (let d = -radius; d <= radius; d++) {
+    if (d === 0) continue;
+    const i = idx + d;
+    if (i < 0 || i >= session.all_frames.length) continue;
+    getFrameImage(i);  // populates frameImageCache as a side effect
+  }
 }
 
 function loadThumbs() {
@@ -311,47 +337,96 @@ $("btn-run-cellpose").addEventListener("click", async () => {
   }
   $("btn-run-cellpose").disabled = true;
   $("cp-status").textContent = "Running Cellpose…";
-  cpMaskWaitAttempts = 0;
-  pollCellposeStatus();
+  startCellposeTimer();
 });
 
-let cpMaskWaitAttempts = 0;
-const CP_MASK_WAIT_MAX = 20;  // 20 × 250ms ≈ 5s
+// ── Live elapsed-time ticker while Cellpose is running ──────────────────
+// The model itself is opaque (no progress callback), so showing a ticking
+// counter is the cheapest way to make the 2–5s wait feel like work, not
+// like a hang.
+let cpTimerHandle = null;
+let cpTimerStart = 0;
+function startCellposeTimer() {
+  stopCellposeTimer();
+  cpTimerStart = performance.now();
+  const tick = () => {
+    const dt = (performance.now() - cpTimerStart) / 1000;
+    $("cp-status").textContent = `Running Cellpose · ${dt.toFixed(1)}s elapsed`;
+    cpTimerHandle = requestAnimationFrame(tick);
+  };
+  cpTimerHandle = requestAnimationFrame(tick);
+}
+function stopCellposeTimer() {
+  if (cpTimerHandle != null) {
+    cancelAnimationFrame(cpTimerHandle);
+    cpTimerHandle = null;
+  }
+}
 
-async function pollCellposeStatus() {
-  const st = await jget("/api/cellpose/status");
-  $("cp-status").textContent = st.message || "";
+// ── SSE: cellpose status stream ─────────────────────────────────────────
+// Replaces the previous setTimeout polling loop with a single long-lived
+// EventSource. Status updates push as soon as the worker thread mutates
+// its state — no 250-800ms polling latency between transitions.
+let cellposeES = null;
+function openCellposeStream() {
+  if (cellposeES) return;
+  cellposeES = new EventSource("/api/cellpose/stream");
+  cellposeES.addEventListener("status", (e) => {
+    let st;
+    try { st = JSON.parse(e.data); } catch { return; }
+    handleCellposeStatus(st);
+  });
+  cellposeES.onerror = () => {
+    // Browser auto-reconnects; nothing to do here.
+  };
+}
+
+function handleCellposeStatus(st) {
+  if (!st) return;
+  if (st.state === "running") {
+    // Server may report "Loading model..." then "Segmenting..."; keep our
+    // local timer running and show the worker's message instead of the
+    // generic "running" label.
+    if (st.message) $("cp-status").textContent = st.message;
+    if (cpTimerHandle == null) startCellposeTimer();
+    $("btn-run-cellpose").disabled = true;
+    return;
+  }
+  stopCellposeTimer();
   if (st.state === "done") {
     if (!st.has_mask) {
-      cpMaskWaitAttempts += 1;
-      if (cpMaskWaitAttempts >= CP_MASK_WAIT_MAX) {
-        cpMaskWaitAttempts = 0;
-        $("btn-run-cellpose").disabled = false;
-        $("cp-status").textContent =
-          "Segmentation finished, but the overlay never became available. Try Run Cellpose again.";
-        return;
-      }
-      setTimeout(pollCellposeStatus, 250);
+      // Race: the worker flipped to "done" a hair before the on_done hook
+      // committed temp_segmentation. The very next event will arrive
+      // within ~150ms and carry has_mask=true — just wait for it.
+      $("cp-status").textContent = st.message || "Finishing…";
       return;
     }
-    cpMaskWaitAttempts = 0;
     $("btn-run-cellpose").disabled = false;
     $("cp-cells").textContent = st.n_cells;
     $("rail-cells").textContent = st.n_cells;
+    $("cp-status").textContent = st.message || `Detected ${st.n_cells} cells`;
     const rt = (st.finished_at && st.started_at)
       ? `${(st.finished_at - st.started_at).toFixed(1)}s` : "—";
     $("cp-runtime").textContent = rt;
     cpHasMask = true;
-    currentMaskVersion = st.mask_version || Date.now();
-    reloadMaskOverlay();
-    await loadSession();
+    if (st.mask_version && st.mask_version !== currentMaskVersion) {
+      currentMaskVersion = st.mask_version;
+      reloadMaskOverlay();
+      // Drop the stale centroids cache; ROI tab will refetch on next open.
+      roiCentroidsCache = null;
+      // Refresh session so the rail picks up new preview metadata.
+      loadSession();
+    }
     return;
   }
   if (st.state === "error") {
     $("btn-run-cellpose").disabled = false;
+    $("cp-status").textContent = st.message || "Error";
     return;
   }
-  setTimeout(pollCellposeStatus, 800);
+  // idle / unknown
+  $("cp-status").textContent = st.message || "";
+  $("btn-run-cellpose").disabled = false;
 }
 
 function reloadMaskOverlay() {
@@ -499,15 +574,69 @@ function applyRoiClip(radius, xShift, yShift) {
   mask.style.clipPath = `circle(${r}px at ${cx}px ${cy}px)`;
 }
 
-const debouncedRoiCount = debounce(async (radius, xShift, yShift) => {
-  const res = await jpost("/api/roi/count", {
-    radius, y_shift: yShift, x_shift: xShift,
+// Centroids of every preview cell, fetched once per mask version. Used to
+// count "cells inside the ROI" locally so dragging the circle no longer
+// round-trips to the server on every move.
+let roiCentroidsCache = null;  // { mask_version, image_size:[w,h], centroids:[{id,cx,cy}] }
+
+async function ensureRoiCentroids() {
+  if (roiCentroidsCache && roiCentroidsCache.mask_version === currentMaskVersion) {
+    return roiCentroidsCache;
+  }
+  try {
+    const res = await jget("/api/cellpose/centroids");
+    if (!res.ok) return null;
+    roiCentroidsCache = {
+      mask_version: res.mask_version,
+      image_size: res.image_size,
+      centroids: res.centroids,
+    };
+    if (res.mask_version && res.mask_version !== currentMaskVersion) {
+      currentMaskVersion = res.mask_version;
+    }
+    return roiCentroidsCache;
+  } catch (e) {
+    return null;
+  }
+}
+
+function countCellsInRoiLocal(radius, xShift, yShift) {
+  if (!roiCentroidsCache) return null;
+  const [w, h] = roiCentroidsCache.image_size;
+  const cx = w / 2 + xShift;
+  const cy = h / 2 + yShift;
+  const r2 = radius * radius;
+  let n = 0;
+  for (const c of roiCentroidsCache.centroids) {
+    const dx = c.cx - cx;
+    const dy = c.cy - cy;
+    if (dx * dx + dy * dy <= r2) n += 1;
+  }
+  return n;
+}
+
+// Persist ROI params + last_roi_count to the session — debounced so the
+// session isn't slammed during a drag. The UI count itself is already
+// updated immediately by the local counter.
+const persistRoiToSession = debounce((radius, xShift, yShift, nInside) => {
+  patchSession({
+    radius, y_shift: yShift, x_shift: xShift, last_roi_count: nInside,
   });
-  if (!res.ok) { $("roi-count").textContent = "—"; return; }
-  $("roi-count").textContent = res.n_inside;
-  if (session) session.last_roi_count = res.n_inside;
-  refreshRail();
-}, 200);
+}, 250);
+
+function updateRoiCountLive(radius, xShift, yShift) {
+  const n = countCellsInRoiLocal(radius, xShift, yShift);
+  if (n == null) {
+    // Centroids haven't loaded yet — kick off a fetch and show a placeholder.
+    $("roi-count").textContent = "…";
+    ensureRoiCentroids().then(() => updateRoiCountLive(radius, xShift, yShift));
+    return;
+  }
+  $("roi-count").textContent = n;
+  if (session) session.last_roi_count = n;
+  $("rail-cells").textContent = n;
+  persistRoiToSession(radius, xShift, yShift, n);
+}
 
 function setRoiEnabledUi(enabled) {
   const wrap = $("roi-controls-wrap");
@@ -520,7 +649,7 @@ function setRoiEnabledUi(enabled) {
     const xs = parseInt($("roi-x").value, 10);
     const ys = parseInt($("roi-y").value, 10);
     applyRoiClip(r, xs, ys);
-    debouncedRoiCount(r, xs, ys);
+    updateRoiCountLive(r, xs, ys);
   } else {
     // Show every cell — no clipping
     $("roi-img-mask").style.clipPath = "none";
@@ -564,6 +693,9 @@ async function setupRoiTab() {
   RoiCanvas.setState(session.radius, session.x_shift, session.y_shift);
   $("roi-placeholder").style.display = "none";
   $("roi-enable").checked = session.roi_enabled !== false;
+  // Warm the centroids cache so the very first interaction renders an
+  // accurate count instantly instead of showing "…" while it fetches.
+  await ensureRoiCentroids();
   setRoiEnabledUi($("roi-enable").checked);
 }
 
@@ -582,7 +714,7 @@ $("roi-enable").addEventListener("change", async () => {
     const ys = parseInt($("roi-y").value, 10);
     RoiCanvas.setState(r, xs, ys);
     applyRoiClip(r, xs, ys);
-    debouncedRoiCount(r, xs, ys);
+    updateRoiCountLive(r, xs, ys);
   });
 });
 
@@ -711,53 +843,85 @@ $("btn-clear-log").addEventListener("click", () => {
   $("live-log").textContent = "";
 });
 
-// ── Pipeline polling (always on, every 1s) ─────────────────────────────
-async function pollPipeline() {
-  try {
-    const st = await jget("/api/pipeline/status");
-    const pill = $("top-pill");
-    const pillText = $("top-pill-text");
-    if (st.running) {
-      pill.className = "pill running";
-      pillText.textContent = `running · ${st.stage ?? "…"}`;
-      pipelineRunning = true;
-    } else {
-      pill.className = "pill " + (st.exit_code && st.exit_code !== 0 ? "error" : "stopped");
-      pillText.textContent = st.exit_code != null
-        ? `exit ${st.exit_code}`
-        : "idle";
-      if (pipelineRunning) {
-        // Just finished
-        pipelineRunning = false;
-        $("btn-stop-pipeline").disabled = true;
-        $("btn-run-pipeline").disabled = false;
-        refreshValidation();
-      }
-    }
-    $("rail-status").textContent = st.running ? "running" : "idle";
-    $("rail-stage").textContent  = st.stage || "—";
-    $("rail-uptime").textContent = st.running && st.uptime
-      ? formatUptime(st.uptime) : "—";
-    $("rail-pid").textContent    = st.pid || "—";
+// ── SSE: pipeline status/log/progress stream ────────────────────────────
+// One persistent EventSource replaces the previous 1s setInterval poll for
+// status + log + progress. The server pushes events only when something
+// changes, so the UI reacts as fast as the subprocess actually moves.
+let pipelineES = null;
+let lastPipelinePid = null;
+let lastUptimeUpdateAt = 0;
+let lastUptimeSec = 0;
 
-    // Log tail
-    if (st.running || logPos === 0) {
-      const lg = await jget(`/api/pipeline/log?pos=${logPos}`);
-      if (lg.exists) {
-        logPos = lg.pos;
-        if (lg.text) appendLog(lg.text);
-      }
-    }
+function openPipelineStream() {
+  if (pipelineES) return;
+  pipelineES = new EventSource("/api/pipeline/stream");
+  pipelineES.addEventListener("status", (e) => {
+    let st; try { st = JSON.parse(e.data); } catch { return; }
+    handlePipelineStatus(st);
+  });
+  pipelineES.addEventListener("log", (e) => {
+    let lg; try { lg = JSON.parse(e.data); } catch { return; }
+    if (lg.pos != null) logPos = lg.pos;
+    if (lg.text) appendLog(lg.text);
+  });
+  pipelineES.addEventListener("progress", (e) => {
+    let pr; try { pr = JSON.parse(e.data); } catch { return; }
+    handlePipelineProgress(pr);
+  });
+  pipelineES.onerror = () => { /* browser auto-reconnects */ };
+}
 
-    // Progress
-    const pr = await jget("/api/pipeline/progress");
-    updateStage("seg", pr.segmentation.pct, `${pr.segmentation.done}/${pr.segmentation.total}`);
-    updateStage("traj", pr.trajectories.pct, pr.trajectories.pct === 100 ? "complete" : pr.trajectories.pct > 0 ? "in progress" : "—");
-    updateStage("pre", pr.pre_analysis.pct, pr.pre_analysis.pct === 100 ? "complete" : "—");
-    updateStage("post", pr.post_analysis.pct, pr.post_analysis.pct === 100 ? "complete" : "—");
-  } catch (e) {
-    // ignore transient errors
+function handlePipelineStatus(st) {
+  const pill = $("top-pill");
+  const pillText = $("top-pill-text");
+  if (st.running) {
+    pill.className = "pill running";
+    pillText.textContent = `running · ${st.stage ?? "…"}`;
+    pipelineRunning = true;
+    $("btn-stop-pipeline").disabled = false;
+    $("btn-run-pipeline").disabled = true;
+  } else {
+    pill.className = "pill " + (st.exit_code && st.exit_code !== 0 ? "error" : "stopped");
+    pillText.textContent = st.exit_code != null ? `exit ${st.exit_code}` : "idle";
+    if (pipelineRunning) {
+      pipelineRunning = false;
+      $("btn-stop-pipeline").disabled = true;
+      $("btn-run-pipeline").disabled = false;
+      refreshValidation();
+    }
   }
+  // If a new pid appeared (new run started), clear stale local log buffer
+  // so the streamed-from-zero content replaces it cleanly.
+  if (st.pid && st.pid !== lastPipelinePid) {
+    if (lastPipelinePid != null) {
+      $("live-log").textContent = "";
+      logPos = 0;
+    }
+    lastPipelinePid = st.pid;
+  }
+  $("rail-status").textContent = st.running ? "running" : "idle";
+  $("rail-stage").textContent  = st.stage || "—";
+  $("rail-pid").textContent    = st.pid || "—";
+  lastUptimeSec = (st.running && st.uptime) ? st.uptime : 0;
+  lastUptimeUpdateAt = performance.now();
+  $("rail-uptime").textContent = lastUptimeSec ? formatUptime(lastUptimeSec) : "—";
+}
+
+function handlePipelineProgress(pr) {
+  updateStage("seg", pr.segmentation.pct, `${pr.segmentation.done}/${pr.segmentation.total}`);
+  updateStage("traj", pr.trajectories.pct,
+              pr.trajectories.pct === 100 ? "complete"
+              : pr.trajectories.pct > 0 ? "in progress" : "—");
+  updateStage("pre", pr.pre_analysis.pct, pr.pre_analysis.pct === 100 ? "complete" : "—");
+  updateStage("post", pr.post_analysis.pct, pr.post_analysis.pct === 100 ? "complete" : "—");
+}
+
+// Tick uptime locally — the server only re-emits status on real changes,
+// but the user expects the seconds counter to tick continuously.
+function tickUptime() {
+  if (!pipelineRunning || !lastUptimeUpdateAt) return;
+  const delta = (performance.now() - lastUptimeUpdateAt) / 1000;
+  $("rail-uptime").textContent = formatUptime(lastUptimeSec + delta);
 }
 
 function formatUptime(sec) {
@@ -798,7 +962,9 @@ async function pollLuminosity() {
   await loadSession();
   await loadExperimentList();
   refreshSummary();
-  setInterval(pollPipeline, 1000);
+  openCellposeStream();
+  openPipelineStream();
+  setInterval(tickUptime, 1000);
   setInterval(pollLuminosity, 5000);
 })();
 
