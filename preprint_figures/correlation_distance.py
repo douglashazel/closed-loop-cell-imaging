@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Pairwise correlation vs spatial distance.
 
-Per experiment:
-    * corr_vs_dist.png            — per-channel scatter panels (2 rows: Pearson, Spearman)
-    * corr_vs_dist_combined.png   — pooled across channels (Pearson + Spearman, stacked)
+Per experiment, three time-window variants of each plot are produced — full
+time series, during-stim/train windows, and between-stim/train windows. The
+during/between variants are skipped silently when a channel has no stim
+onsets.
+
+    * corr_vs_dist[{_during,_between}].png         — per-channel scatter panels
+    * corr_vs_dist_combined[{_during,_between}].png — pooled across channels
+    * {ch}_corr_vs_dist_c{cid}[{_during,_between}].png — per-cluster panels
 
 Within each panel, pairs are coloured by responder-pair status (RR / NN / RN)
 when responder thresholds are available, with a separate regression line per
 subset. Falls back to a single-cloud scatter when no responder threshold
-applies for the channel.
+applies for the channel. Distances are reported in μm using the imaging
+calibration ``PIXELS_PER_UM``.
 """
 
 import os
@@ -25,17 +31,22 @@ from scipy.stats import linregress
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
 from common.cluster_labels import align_labels_to_cells, load_cluster_labels
-from common.config import PEAK_OFFSET
+from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_thresholds
 from common.stim_helpers import compute_f0_baseline, per_cell_response_delta
+from common.time_axis import frames_to_min
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 
+PIXELS_PER_UM = 180.1  # imaging calibration: 0.00555 μm/pixel
+RESPONSE_PAD_TRAIN_MIN = 10.0
+RESPONSE_PAD_STIM_MIN = 1.5
+MIN_FRAMES_FOR_CORR = 5
 PAIR_CLASS_COLORS = {
     "RR": "#d62728",   # red — both responders
     "NN": "#7f7f7f",   # gray — both non-responders
@@ -131,6 +142,64 @@ def _classify_pair_classes(responder_mask):
     }
 
 
+def _time_window_masks(cfg, ch, frame_nums, state, exp_name):
+    """Return ``[(key, label, mask_or_None), ...]`` describing time-axis windows.
+
+    Always emits the ``"full"`` window (mask is ``None`` → use every column).
+    When the channel has stim onsets, additionally emits ``"during"`` and
+    ``"between"`` windows. For experiments whose stim count is a positive
+    multiple of ``LEARNING_STIMS_PER_TRAIN`` the during-mask spans entire
+    trains (first-stim onset through ``RESPONSE_PAD_TRAIN_MIN`` minutes after
+    the last-stim onset). Otherwise each stim contributes its own window of
+    ``stim_duration_minutes + RESPONSE_PAD_STIM_MIN`` minutes.
+    """
+    full = ("full", "full time series", None)
+
+    stim_frames = cfg.get("stim_frames", {}).get(ch, []) or []
+    if not stim_frames:
+        return [full]
+
+    frame_to_col = {f: i for i, f in enumerate(frame_nums)}
+    stim_cols = [frame_to_col[p] for p in stim_frames if p in frame_to_col]
+    if not stim_cols:
+        return [full]
+
+    n_cols = len(frame_nums)
+    col_minutes = frames_to_min(state, exp_name, ch, np.array(frame_nums, dtype=float))
+    during = np.zeros(n_cols, dtype=bool)
+
+    is_trains = (
+        len(stim_cols) >= LEARNING_STIMS_PER_TRAIN
+        and len(stim_cols) % LEARNING_STIMS_PER_TRAIN == 0
+    )
+
+    if is_trains:
+        n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
+        for t in range(n_trains):
+            first_sc = stim_cols[t * LEARNING_STIMS_PER_TRAIN]
+            last_sc = stim_cols[(t + 1) * LEARNING_STIMS_PER_TRAIN - 1]
+            end_min = float(col_minutes[last_sc]) + RESPONSE_PAD_TRAIN_MIN
+            end_col = int(np.argmin(np.abs(col_minutes - end_min)))
+            during[first_sc:end_col + 1] = True
+        during_label = "during trains"
+        between_label = "between trains"
+    else:
+        stim_duration_min = float(cfg.get("stim_duration_minutes", 0.0) or 0.0)
+        pad = stim_duration_min + RESPONSE_PAD_STIM_MIN
+        for sc in stim_cols:
+            end_min = float(col_minutes[sc]) + pad
+            end_col = int(np.argmin(np.abs(col_minutes - end_min)))
+            during[sc:end_col + 1] = True
+        during_label = "during stim"
+        between_label = "between stim"
+
+    return [
+        full,
+        ("during", during_label, during),
+        ("between", between_label, ~during),
+    ]
+
+
 def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix):
     """Fit a line on (dists, corrs); plot scatter + line + ±3 SEM band.
 
@@ -223,7 +292,10 @@ def _scatter_corr_vs_dist(
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
 
 
-def _plot_corr_vs_dist_combined(exp_name, per_channel_pairs):
+def _plot_corr_vs_dist_combined(
+    exp_name, per_channel_pairs, *, window_label="full corrected time series",
+    suffix="",
+):
     """Two stacked axes (Pearson on top, Spearman below) pooling across channels."""
     if not per_channel_pairs:
         return
@@ -286,16 +358,16 @@ def _plot_corr_vs_dist_combined(exp_name, per_channel_pairs):
             )
 
         ax.set_xlabel(
-            "Pairwise distance (px)",
+            "Pairwise distance (μm)",
             fontsize=PLOT_PARAMS["axis_label_fontsize"],
         )
         ax.set_ylabel(
-            f"{METHOD_LABEL[method]} (full corrected time series)",
+            f"{METHOD_LABEL[method]} ({window_label})",
             fontsize=PLOT_PARAMS["axis_label_fontsize"],
         )
         ax.set_title(
             f"{exp_name} — pairwise {METHOD_LABEL[method]} vs distance "
-            f"(all channels combined)",
+            f"({window_label}, all channels combined)",
             fontsize=PLOT_PARAMS["title_fontsize"],
             fontweight=PLOT_PARAMS["title_fontweight"],
         )
@@ -303,7 +375,7 @@ def _plot_corr_vs_dist_combined(exp_name, per_channel_pairs):
 
     plt.tight_layout()
     fig.savefig(
-        fig_path(exp_name, "corr_vs_dist_combined"),
+        fig_path(exp_name, f"corr_vs_dist_combined{suffix}"),
         dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
@@ -314,28 +386,25 @@ def plot_correlation_vs_distance(experiments, state):
 
     Two-row figure with Pearson on row 0 and Spearman on row 1, one column
     per channel. Pairs are colored by responder-pair class when responder
-    thresholds are available.
+    thresholds are available. Three figures are produced per experiment:
+    full time series, during-stim/train windows, and between-stim/train
+    windows. The latter two are skipped silently when no channel has stim
+    onsets.
     """
     thresholds = compute_responder_thresholds(experiments, state)
 
     for exp_name, cfg in experiments.items():
         channels = cfg["channels"]
-        fig, axes = plt.subplots(
-            2, len(channels),
-            figsize=(6 * len(channels), 11),
-            dpi=PLOT_PARAMS["dpi"], sharey="row",
-        )
-        if len(channels) == 1:
-            axes = axes.reshape(2, 1)
 
-        per_channel_pairs = []
-
-        for col, ch in enumerate(channels):
+        # Build per-channel context once (window-independent).
+        per_channel_ctx = {}
+        for ch in channels:
             df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
             frame_cols = sorted(
                 [c for c in df.columns if str(c).startswith("f")],
                 key=lambda c: int(str(c).lstrip("f")),
             )
+            frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
             mat = df[frame_cols].values
             cell_ids_int = list(df.index)
 
@@ -343,7 +412,6 @@ def plot_correlation_vs_distance(experiments, state):
                 state["traj_by_channel"][exp_name][ch],
                 state["frame_counts"][exp_name][ch],
             )
-
             keep_rows, pos_xy = [], []
             for r, cid_int in enumerate(cell_ids_int):
                 for key in (str(cid_int), cid_int):
@@ -351,26 +419,16 @@ def plot_correlation_vs_distance(experiments, state):
                         keep_rows.append(r)
                         pos_xy.append(positions[key])
                         break
-            mat_k = mat[keep_rows]
             pos_xy = np.array(pos_xy, dtype=float)
 
             if len(pos_xy) < 2:
-                for row in range(2):
-                    axes[row, col].set_title(
-                        f"{ch}: insufficient data",
-                        fontsize=PLOT_PARAMS["title_fontsize"],
-                    )
+                per_channel_ctx[ch] = None
                 continue
 
-            pearson_mat = pd.DataFrame(mat_k).T.corr(method="pearson").values
-            spearman_mat = pd.DataFrame(mat_k).T.corr(method="spearman").values
+            mat_k = mat[keep_rows]
             dist_mat = squareform(pdist(pos_xy, metric="euclidean"))
-            iu = np.triu_indices(pearson_mat.shape[0], k=1)
-            pw_dist = dist_mat[iu]
-            pw_corr_by_method = {
-                "pearson": pearson_mat[iu],
-                "spearman": spearman_mat[iu],
-            }
+            iu = np.triu_indices(len(pos_xy), k=1)
+            pw_dist = dist_mat[iu] / PIXELS_PER_UM
 
             pair_classes = None
             thr = thresholds.get((exp_name, ch))
@@ -385,46 +443,129 @@ def plot_correlation_vs_distance(experiments, state):
                 )
                 pair_classes = _classify_pair_classes(row_mask)
 
-            per_channel_pairs.append({
-                "ch": ch,
-                "n_cells": len(keep_rows),
+            per_channel_ctx[ch] = {
+                "mat_k": mat_k,
                 "pw_dist": pw_dist,
-                "pw_corr_by_method": pw_corr_by_method,
+                "iu": iu,
+                "n_cells": len(keep_rows),
                 "pair_classes": pair_classes,
-            })
+                "windows": {
+                    w_key: (w_label, w_mask)
+                    for w_key, w_label, w_mask in _time_window_masks(
+                        cfg, ch, frame_nums, state, exp_name,
+                    )
+                },
+            }
 
-            for row, method in enumerate(("pearson", "spearman")):
-                _scatter_corr_vs_dist(
-                    axes[row, col],
-                    pw_dist, pw_corr_by_method[method],
-                    pair_classes=pair_classes,
-                    corr_method=method,
-                    title=f"{ch}  ({len(keep_rows)} cells, {METHOD_LABEL[method]})",
-                )
-                axes[row, col].set_xlabel(
-                    "Pairwise distance (px)",
-                    fontsize=PLOT_PARAMS["axis_label_fontsize"],
-                )
-                if col == 0:
-                    axes[row, col].set_ylabel(
-                        f"{METHOD_LABEL[method]} (full corrected time series)",
+        # Collect every window key that appears in any channel.
+        ordered_keys = ["full", "during", "between"]
+        active_keys = [
+            k for k in ordered_keys
+            if any(
+                ctx is not None and k in ctx["windows"]
+                for ctx in per_channel_ctx.values()
+            )
+        ]
+
+        for w_key in active_keys:
+            suffix = "" if w_key == "full" else f"_{w_key}"
+            fig, axes = plt.subplots(
+                2, len(channels),
+                figsize=(6 * len(channels), 11),
+                dpi=PLOT_PARAMS["dpi"], sharey="row",
+            )
+            if len(channels) == 1:
+                axes = axes.reshape(2, 1)
+
+            per_channel_pairs = []
+            window_label_for_fig = None
+
+            for col, ch in enumerate(channels):
+                ctx = per_channel_ctx.get(ch)
+                if ctx is None:
+                    for row in range(2):
+                        axes[row, col].set_title(
+                            f"{ch}: insufficient data",
+                            fontsize=PLOT_PARAMS["title_fontsize"],
+                        )
+                    continue
+
+                window_entry = ctx["windows"].get(w_key)
+                if window_entry is None:
+                    for row in range(2):
+                        axes[row, col].set_title(
+                            f"{ch}: no stim windows",
+                            fontsize=PLOT_PARAMS["title_fontsize"],
+                        )
+                    continue
+
+                window_label, time_mask = window_entry
+                if window_label_for_fig is None:
+                    window_label_for_fig = window_label
+
+                mat_k = ctx["mat_k"]
+                mat_k_w = mat_k if time_mask is None else mat_k[:, time_mask]
+                if mat_k_w.shape[1] < MIN_FRAMES_FOR_CORR:
+                    for row in range(2):
+                        axes[row, col].set_title(
+                            f"{ch}: insufficient {window_label} samples",
+                            fontsize=PLOT_PARAMS["title_fontsize"],
+                        )
+                    continue
+
+                pearson_mat = pd.DataFrame(mat_k_w).T.corr(method="pearson").values
+                spearman_mat = pd.DataFrame(mat_k_w).T.corr(method="spearman").values
+                iu = ctx["iu"]
+                pw_corr_by_method = {
+                    "pearson": pearson_mat[iu],
+                    "spearman": spearman_mat[iu],
+                }
+
+                per_channel_pairs.append({
+                    "ch": ch,
+                    "n_cells": ctx["n_cells"],
+                    "pw_dist": ctx["pw_dist"],
+                    "pw_corr_by_method": pw_corr_by_method,
+                    "pair_classes": ctx["pair_classes"],
+                })
+
+                for row, method in enumerate(("pearson", "spearman")):
+                    _scatter_corr_vs_dist(
+                        axes[row, col],
+                        ctx["pw_dist"], pw_corr_by_method[method],
+                        pair_classes=ctx["pair_classes"],
+                        corr_method=method,
+                        title=f"{ch}  ({ctx['n_cells']} cells, {METHOD_LABEL[method]})",
+                    )
+                    axes[row, col].set_xlabel(
+                        "Pairwise distance (μm)",
                         fontsize=PLOT_PARAMS["axis_label_fontsize"],
                     )
+                    if col == 0:
+                        axes[row, col].set_ylabel(
+                            f"{METHOD_LABEL[method]} ({window_label})",
+                            fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                        )
 
-        fig.suptitle(
-            f"{exp_name} — pairwise correlation vs pairwise distance "
-            f"(Pearson top, Spearman bottom)",
-            fontsize=PLOT_PARAMS["title_fontsize"] + 1,
-            fontweight="bold", y=1.01,
-        )
-        plt.tight_layout()
-        fig.savefig(
-            fig_path(exp_name, "corr_vs_dist"),
-            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
-        )
-        plt.close(fig)
+            if window_label_for_fig is None:
+                window_label_for_fig = w_key
+            fig.suptitle(
+                f"{exp_name} — pairwise correlation vs pairwise distance "
+                f"({window_label_for_fig}, Pearson top, Spearman bottom)",
+                fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+                fontweight="bold", y=1.01,
+            )
+            plt.tight_layout()
+            fig.savefig(
+                fig_path(exp_name, f"corr_vs_dist{suffix}"),
+                dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            )
+            plt.close(fig)
 
-        _plot_corr_vs_dist_combined(exp_name, per_channel_pairs)
+            _plot_corr_vs_dist_combined(
+                exp_name, per_channel_pairs,
+                window_label=window_label_for_fig, suffix=suffix,
+            )
 
 
 def plot_correlation_vs_distance_per_cluster(experiments, state):
@@ -443,6 +584,7 @@ def plot_correlation_vs_distance_per_cluster(experiments, state):
                 [c for c in df.columns if str(c).startswith("f")],
                 key=lambda c: int(str(c).lstrip("f")),
             )
+            frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
             mat = df[frame_cols].values
             cell_ids_int = list(df.index)
             target_ids = [(ch, cid) for cid in cell_ids_int]
@@ -466,61 +608,70 @@ def plot_correlation_vs_distance_per_cluster(experiments, state):
             cluster_labels_k = cluster_labels[keep_rows]
             best_k = int(blob["best_k"])
 
+            windows = _time_window_masks(cfg, ch, frame_nums, state, exp_name)
+
             for cid in range(best_k):
                 in_cluster = cluster_labels_k == cid
                 if int(in_cluster.sum()) < 5:
                     continue
                 sub_mat = mat_k[in_cluster]
                 sub_pos = pos_xy[in_cluster]
-                pearson_mat = pd.DataFrame(sub_mat).T.corr(method="pearson").values
-                spearman_mat = pd.DataFrame(sub_mat).T.corr(method="spearman").values
                 dist_mat = squareform(pdist(sub_pos, metric="euclidean"))
-                iu = np.triu_indices(pearson_mat.shape[0], k=1)
-                pw_dist = dist_mat[iu]
-                pw_corr_pearson = pearson_mat[iu]
-                pw_corr_spearman = spearman_mat[iu]
+                iu = np.triu_indices(sub_mat.shape[0], k=1)
+                pw_dist = dist_mat[iu] / PIXELS_PER_UM
 
-                fig, axes = plt.subplots(
-                    2, 1, figsize=(7, 11), dpi=PLOT_PARAMS["dpi"],
-                )
-                _scatter_corr_vs_dist(
-                    axes[0], pw_dist, pw_corr_pearson,
-                    pair_classes=None, corr_method="pearson",
-                    title=f"Pearson  (n={int(in_cluster.sum())} cells in cluster)",
-                )
-                axes[0].set_xlabel(
-                    "Pairwise distance (px)",
-                    fontsize=PLOT_PARAMS["axis_label_fontsize"],
-                )
-                axes[0].set_ylabel(
-                    "Pearson r",
-                    fontsize=PLOT_PARAMS["axis_label_fontsize"],
-                )
-                _scatter_corr_vs_dist(
-                    axes[1], pw_dist, pw_corr_spearman,
-                    pair_classes=None, corr_method="spearman",
-                    title=f"Spearman  (n={int(in_cluster.sum())} cells in cluster)",
-                )
-                axes[1].set_xlabel(
-                    "Pairwise distance (px)",
-                    fontsize=PLOT_PARAMS["axis_label_fontsize"],
-                )
-                axes[1].set_ylabel(
-                    "Spearman ρ",
-                    fontsize=PLOT_PARAMS["axis_label_fontsize"],
-                )
-                fig.suptitle(
-                    f"{exp_name} / {ch} — cluster {cid} — "
-                    f"pairwise correlation vs distance",
-                    fontsize=PLOT_PARAMS["title_fontsize"] + 1,
-                    fontweight="bold", y=1.01,
-                )
-                plt.tight_layout()
-                fig.savefig(
-                    fig_path(exp_name, f"{ch}_corr_vs_dist_c{cid}"),
-                    dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
-                )
-                plt.close(fig)
+                for w_key, w_label, w_mask in windows:
+                    suffix = "" if w_key == "full" else f"_{w_key}"
+                    sub_mat_w = sub_mat if w_mask is None else sub_mat[:, w_mask]
+                    if sub_mat_w.shape[1] < MIN_FRAMES_FOR_CORR:
+                        continue
+
+                    pearson_mat = pd.DataFrame(sub_mat_w).T.corr(method="pearson").values
+                    spearman_mat = pd.DataFrame(sub_mat_w).T.corr(method="spearman").values
+                    pw_corr_pearson = pearson_mat[iu]
+                    pw_corr_spearman = spearman_mat[iu]
+
+                    fig, axes = plt.subplots(
+                        2, 1, figsize=(7, 11), dpi=PLOT_PARAMS["dpi"],
+                    )
+                    _scatter_corr_vs_dist(
+                        axes[0], pw_dist, pw_corr_pearson,
+                        pair_classes=None, corr_method="pearson",
+                        title=f"Pearson  (n={int(in_cluster.sum())} cells in cluster)",
+                    )
+                    axes[0].set_xlabel(
+                        "Pairwise distance (μm)",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    axes[0].set_ylabel(
+                        f"Pearson r ({w_label})",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    _scatter_corr_vs_dist(
+                        axes[1], pw_dist, pw_corr_spearman,
+                        pair_classes=None, corr_method="spearman",
+                        title=f"Spearman  (n={int(in_cluster.sum())} cells in cluster)",
+                    )
+                    axes[1].set_xlabel(
+                        "Pairwise distance (μm)",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    axes[1].set_ylabel(
+                        f"Spearman ρ ({w_label})",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    fig.suptitle(
+                        f"{exp_name} / {ch} — cluster {cid} — "
+                        f"pairwise correlation vs distance ({w_label})",
+                        fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+                        fontweight="bold", y=1.01,
+                    )
+                    plt.tight_layout()
+                    fig.savefig(
+                        fig_path(exp_name, f"{ch}_corr_vs_dist_c{cid}{suffix}"),
+                        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+                    )
+                    plt.close(fig)
 
 
 def main():
