@@ -27,13 +27,11 @@ from scipy.stats import linregress
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.config import PEAK_OFFSET
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
-from common.responders import compute_responder_thresholds
+from common.responders import compute_responder_masks
 from common.stats import inferential_caveat, mantel_test, one_sample_t_dz
-from common.stim_helpers import compute_f0_baseline, per_cell_response_delta
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
@@ -70,49 +68,6 @@ def mean_cell_positions(traj, n_frames):
         if xs:
             positions[cid] = (float(np.mean(xs)), float(np.mean(ys)))
     return positions
-
-
-def _per_cell_responder_mask(state, exp_name, ch, cfg, threshold):
-    """Boolean responder mask aligned to ``df.index`` ordering of corrected_lum.
-
-    Recipe matches response_violins.py — peak |Δ dF/F0| over the union of
-    response windows (one per stim) compared against the Bonferroni threshold.
-    """
-    df_indexed = lum_dict_to_df(
-        state["corrected_lum"][exp_name][ch]
-    ).set_index("CellID")
-    frame_cols = sorted(
-        [c for c in df_indexed.columns if str(c).startswith("f")],
-        key=lambda c: int(str(c).lstrip("f")),
-    )
-    frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
-    mat = df_indexed[frame_cols].values
-
-    F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
-    F0_safe = np.where(F0 == 0, np.nan, F0)
-    dff_mat = (mat - F0) / F0_safe
-
-    direction = cfg.get("response_direction", "increase")
-    window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
-    sign = -1.0 if direction == "decrease" else 1.0
-    signed_threshold = sign * float(threshold)
-
-    stim_frames = cfg["stim_frames"].get(ch, [])
-    frame_to_col = {f: i for i, f in enumerate(frame_nums)}
-    stim_cols = [frame_to_col[p] for p in stim_frames if p in frame_to_col]
-    if not stim_cols:
-        return np.zeros(dff_mat.shape[0], dtype=bool), list(df_indexed.index)
-
-    per_stim = np.vstack(
-        [per_cell_response_delta(dff_mat, int(sc), direction, window) for sc in stim_cols]
-    )
-    if direction == "decrease":
-        per_cell_peak = np.nanmin(per_stim, axis=0)
-        mask = per_cell_peak <= signed_threshold
-    else:
-        per_cell_peak = np.nanmax(per_stim, axis=0)
-        mask = per_cell_peak >= signed_threshold
-    return mask, list(df_indexed.index)
 
 
 def _classify_pair_classes(responder_mask):
@@ -406,7 +361,7 @@ def plot_correlation_vs_distance(experiments, state):
     per channel, computed over the full corrected time series. Pairs are
     colored by responder-pair class when responder thresholds are available.
     """
-    thresholds = compute_responder_thresholds(experiments, state)
+    responder_masks = compute_responder_masks(experiments, state)
     window_label = "full corrected time series"
 
     for exp_name, cfg in experiments.items():
@@ -448,14 +403,12 @@ def plot_correlation_vs_distance(experiments, state):
 
             pair_classes = None
             row_mask = None
-            thr = thresholds.get((exp_name, ch))
-            if thr is not None:
-                full_mask, full_ids = _per_cell_responder_mask(
-                    state, exp_name, ch, cfg, thr,
-                )
-                id_to_mask = dict(zip(full_ids, full_mask))
+            # ``compute_responder_masks`` rows follow the corrected-lum
+            # CellID order, i.e. the same order as ``cell_ids_int``.
+            full_mask = responder_masks.get((exp_name, ch))
+            if full_mask is not None:
                 row_mask = np.array(
-                    [bool(id_to_mask.get(cell_ids_int[r], False)) for r in keep_rows],
+                    [bool(full_mask[r]) for r in keep_rows],
                     dtype=bool,
                 )
                 pair_classes = _classify_pair_classes(row_mask)

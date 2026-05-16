@@ -2,7 +2,9 @@
 """dF/F0 normalization figures.
 
 Per (experiment, channel):
-    * <ch>_dff.png                         — raw + dF/F0 stacked
+    * <ch>_dff.png                         — raw + dF/F0 stacked, all cells
+    * <ch>_dff_responders.png              — raw + dF/F0 stacked, responders only
+    * <ch>_dff_non_responders.png          — raw + dF/F0 stacked, non-responders only
 Per experiment:
     * dff_mean_pooled_responders.png       — pooled mean ± SEM, responders only
 """
@@ -17,15 +19,13 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.config import PEAK_OFFSET
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
-from common.responders import compute_responder_thresholds
+from common.responders import compute_responder_masks
 from common.stim_helpers import (
     compute_f0_baseline,
     draw_stim_spans,
-    per_cell_response_delta,
     stim_spans_min,
     stim_timing_aligned_across_channels,
 )
@@ -35,8 +35,16 @@ sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 
-def plot_dff(experiments, state):
-    """One figure per (experiment, channel): raw corrected + dF/F0 stacked."""
+def plot_dff(experiments, state, *, responder_masks=None, select=None):
+    """One figure per (experiment, channel): raw corrected + dF/F0 stacked.
+
+    With ``responder_masks`` (the dict from ``compute_responder_masks``),
+    ``select`` restricts which cells are plotted: ``"responders"`` keeps only
+    responder cells, ``"non_responders"`` keeps only the rest, and the figure
+    filename gains a matching ``_responders`` / ``_non_responders`` suffix.
+    When ``select`` is None every cell is shown.
+    """
+    subset = select if responder_masks is not None else None
     for exp_name, cfg in experiments.items():
         for ch in cfg["channels"]:
             stim_frames = cfg["stim_frames"][ch]
@@ -54,6 +62,25 @@ def plot_dff(experiments, state):
             )
             F0_safe = np.where(F0 == 0, np.nan, F0)
             dff_mat = (mat - F0) / F0_safe
+
+            n_all = mat.shape[0]
+            if subset is not None:
+                mask = responder_masks.get((exp_name, ch))
+                mask = (
+                    np.zeros(n_all, dtype=bool)
+                    if mask is None
+                    else np.asarray(mask, dtype=bool)
+                )
+                if subset == "non_responders":
+                    mask = ~mask
+                if not mask.any():
+                    print(
+                        f"  {exp_name} / {ch}: no {subset.replace('_', '-')} "
+                        f"— skipping {subset.replace('_', '-')} dF/F₀ stack."
+                    )
+                    continue
+                mat = mat[mask]
+                dff_mat = dff_mat[mask]
 
             spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
             rsp = state["real_setpoint_min"][exp_name].get(ch)
@@ -117,30 +144,39 @@ def plot_dff(experiments, state):
                 )
 
             axes[-1].set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            if subset == "responders":
+                cell_str = f"{mat.shape[0]}/{n_all} responder cells"
+            elif subset == "non_responders":
+                cell_str = f"{mat.shape[0]}/{n_all} non-responder cells"
+            else:
+                cell_str = f"{mat.shape[0]} cells"
             fig.suptitle(
-                f"{exp_name} / {ch} — {mat.shape[0]} cells, {len(stim_frames)} stims",
+                f"{exp_name} / {ch} — {cell_str}, {len(stim_frames)} stims",
                 fontsize=PLOT_PARAMS["title_fontsize"] + 1,
                 fontweight="bold", y=1.01,
             )
             plt.tight_layout()
+            name_suffix = {
+                "responders": "_dff_responders",
+                "non_responders": "_dff_non_responders",
+                None: "_dff",
+            }[subset]
             fig.savefig(
-                fig_path(exp_name, f"{ch}_dff"),
+                fig_path(exp_name, f"{ch}{name_suffix}"),
                 dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
             )
             plt.close(fig)
 
 
-def plot_dff_mean_pooled(experiments, state, *, thresholds=None, only_responders=True):
+def plot_dff_mean_pooled(experiments, state, *, responder_masks=None, only_responders=True):
     """Pool dF/F0 across channels and plot the mean ± SEM."""
-    if only_responders and thresholds is None:
-        thresholds = compute_responder_thresholds(experiments, state)
+    if only_responders and responder_masks is None:
+        responder_masks = compute_responder_masks(experiments, state)
 
     for exp_name, cfg in experiments.items():
         channels = cfg["channels"]
         if not channels:
             continue
-        direction = cfg.get("response_direction", "increase")
-        sign = -1.0 if direction == "decrease" else 1.0
 
         ref_ch = channels[0]
         df_ref = lum_dict_to_df(state["corrected_lum"][exp_name][ref_ch]).set_index("CellID")
@@ -181,34 +217,8 @@ def plot_dff_mean_pooled(experiments, state, *, thresholds=None, only_responders
             dff_mat = (mat - F0) / F0_safe
 
             if only_responders:
-                stim_frames = cfg["stim_frames"][ch]
-                frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
-                frame_to_col = {f: i for i, f in enumerate(frame_nums)}
-                window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
-                per_stim = []
-                for p in stim_frames:
-                    if p not in frame_to_col:
-                        continue
-                    per_stim.append(
-                        per_cell_response_delta(
-                            dff_mat, frame_to_col[p], direction, window
-                        )
-                    )
-                if not per_stim:
-                    continue
-                stacked = np.vstack(per_stim)
-                if direction == "decrease":
-                    per_cell_peak = np.nanmin(stacked, axis=0)
-                else:
-                    per_cell_peak = np.nanmax(stacked, axis=0)
-                t = float(thresholds.get((exp_name, ch), 0.10))
-                signed_t = sign * t
-                if direction == "decrease":
-                    mask = per_cell_peak <= signed_t
-                else:
-                    mask = per_cell_peak >= signed_t
-                mask = mask & ~np.isnan(per_cell_peak)
-                if not mask.any():
+                mask = responder_masks.get((exp_name, ch))
+                if mask is None or not mask.any():
                     continue
                 pooled_rows.append(dff_mat[mask])
                 per_channel_counts.append((ch, int(mask.sum()), int(mat.shape[0])))
@@ -279,9 +289,18 @@ def main():
     experiments, recompute_bg = parse_args()
     state = prepare_state(experiments, recompute_bg=recompute_bg)
     plot_dff(experiments, state)
-    thresholds = compute_responder_thresholds(experiments, state, alpha=0.01)
+    responder_masks = compute_responder_masks(experiments, state)
+    plot_dff(
+        experiments, state, responder_masks=responder_masks,
+        select="responders",
+    )
+    plot_dff(
+        experiments, state, responder_masks=responder_masks,
+        select="non_responders",
+    )
     plot_dff_mean_pooled(
-        experiments, state, thresholds=thresholds, only_responders=True,
+        experiments, state, responder_masks=responder_masks,
+        only_responders=True,
     )
 
 

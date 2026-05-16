@@ -37,6 +37,8 @@ PLOT_PARAMS = {
     "scatter_color": "#222222",
     "scatter_alpha": 0.5,
     "scatter_size": 12,
+    "responder_color": "#e3000f",     # red — responder scatter highlight
+    "responder_edge": "#5a0000",      # dark red — responder marker edge
     "jitter_strength": 0.08,
     "fit_color": "#363fe9",
     "pooled_mean_color": "#4a235a",   # dark purple — pooled mean line

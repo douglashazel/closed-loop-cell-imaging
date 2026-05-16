@@ -25,6 +25,7 @@ from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
+from common.responders import compute_responder_masks
 from common.stats import friedman_with_posthoc, inferential_caveat, one_sample_t_dz
 from common.stim_helpers import (
     compute_f0_baseline,
@@ -115,7 +116,7 @@ def _draw_replicate_train_inset(ax_, chan_means, train_p):
 def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_path,
                                 x_axis_label="Peak frame",
                                 stats_text=None, chan_means=None, caveat=None,
-                                train_p=None):
+                                train_p=None, responder_data=None):
     """Render the asymmetric violin/box composite for one figure and save it.
 
     ``stats_text`` (the train-level repeated-measures result) is drawn as an
@@ -123,6 +124,10 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
     as an upper-right inset of each biological replicate's per-train mean, with
     ``train_p`` driving the inset's significance annotation; ``caveat`` is the
     figure footnote naming the unit of inference.
+
+    ``responder_data``, when given, is a per-category list of boolean arrays
+    aligned to ``violin_data`` — scatter points whose cell is a responder are
+    drawn in red on top of the (greyed-back) non-responder cloud.
     """
     n_cat = len(violin_data)
     non_empty_idx = [i for i, v in enumerate(violin_data) if len(v) > 0]
@@ -140,18 +145,34 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
     box_data = [violin_data[i] for i in non_empty_idx]
 
     rng = np.random.default_rng(42)
+    resp_label_used = False
     for col_idx, bx in zip(non_empty_idx, box_x):
         vd = violin_data[col_idx]
         xs = bx + rng.uniform(
             -_VIOLIN_SCATTER_JITTER, _VIOLIN_SCATTER_JITTER, size=len(vd)
         )
+        if responder_data is not None:
+            rmask = np.asarray(responder_data[col_idx], dtype=bool)
+        else:
+            rmask = np.zeros(len(vd), dtype=bool)
         ax_.scatter(
-            xs, vd,
+            xs[~rmask], vd[~rmask],
             color=PLOT_PARAMS["scatter_color"],
             alpha=PLOT_PARAMS["scatter_alpha"],
             s=PLOT_PARAMS["scatter_size"],
             zorder=2, linewidths=0,
         )
+        if rmask.any():
+            ax_.scatter(
+                xs[rmask], vd[rmask],
+                color=PLOT_PARAMS["responder_color"],
+                edgecolors=PLOT_PARAMS["responder_edge"],
+                alpha=0.9,
+                s=PLOT_PARAMS["scatter_size"] * 1.7,
+                linewidths=0.5, zorder=5,
+                label=None if resp_label_used else "Responder",
+            )
+            resp_label_used = True
 
     bp = ax_.boxplot(
         box_data,
@@ -267,12 +288,16 @@ def _build_signal_matrix(state, exp_name, ch, cfg, *, signal):
 
 
 def _per_channel_stim_response_arrays(
-    state, exp_name, ch, cfg, *, metric, signal="lum",
+    state, exp_name, ch, cfg, *, metric, signal="lum", responder_mask=None,
 ):
-    """Return ``(violin_data, base_min, n_total)`` for one (exp, channel).
+    """Return ``(violin_data, responder_data, base_min, n_total)`` for one (exp, channel).
 
     ``signal`` selects between raw luminosity (default) and dF/F0; both produce
     the same return shapes so the caller can swap freely.
+
+    ``responder_data`` mirrors ``violin_data`` — for each stimulus a boolean
+    array marking which of the (NaN-dropped) per-cell values belong to a
+    responder cell. When ``responder_mask`` is None every entry is False.
     """
     direction = cfg.get("response_direction", "increase")
     window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
@@ -300,9 +325,11 @@ def _per_channel_stim_response_arrays(
         return frames_to_min(state, exp_name, ch, frames)
 
     violin_data = []
+    responder_data = []
     for p in stim_frames:
         if p not in frame_to_col:
             violin_data.append(np.array([]))
+            responder_data.append(np.array([], dtype=bool))
             continue
         col = frame_to_col[p]
         if metric == "width":
@@ -312,14 +339,20 @@ def _per_channel_stim_response_arrays(
                 cap_col=cap_for_col[col],
                 frame_to_min_fn=_f2m,
             )
-            vals = widths[~np.isnan(widths)]
+            finite = ~np.isnan(widths)
+            vals = widths[finite]
         else:
             deltas = per_cell_response_delta(values, col, direction, window)
-            vals = deltas[~np.isnan(deltas)]
+            finite = ~np.isnan(deltas)
+            vals = deltas[finite]
         violin_data.append(vals)
+        if responder_mask is not None:
+            responder_data.append(np.asarray(responder_mask, dtype=bool)[finite])
+        else:
+            responder_data.append(np.zeros(vals.shape, dtype=bool))
 
     base_min = list(frames_to_min(state, exp_name, ch, stim_frames)) if stim_frames else []
-    return violin_data, base_min, n_cells
+    return violin_data, responder_data, base_min, n_cells
 
 
 def _per_train_cell_means(state, exp_name, ch, cfg, *, metric, signal,
@@ -461,13 +494,18 @@ def _train_level_stats(per_channel_means, *, metric, n_trains):
 
 
 def plot_per_stimulus_response_violins(
-    experiments, state, *, metric="height", signal="dff",
+    experiments, state, *, metric="height", signal="dff", responder_masks=None,
 ):
     """Pooled-across-channels violin of per-cell response per stim.
 
     ``signal`` selects ``"lum"`` (raw corrected luminosity) or ``"dff"``
     (dF/F0, default). When ``signal == "dff"`` the saved filenames append a
     ``_dff`` suffix.
+
+    When ``responder_masks`` (the dict from ``compute_responder_masks``) is
+    supplied, a second ``..._responders`` figure is also written per
+    experiment — identical to the pooled violin but with each responder cell's
+    scatter point highlighted in red.
     """
     suffix = "_dff" if signal == "dff" else ""
     signal_label = "dF/F₀" if signal == "dff" else "Δ luminosity"
@@ -496,13 +534,17 @@ def plot_per_stimulus_response_violins(
             continue
         n_stims = stim_counts[0]
         pooled = [[] for _ in range(n_stims)]
+        pooled_resp = [[] for _ in range(n_stims)]
         ref_base_min = None
         total_cells = 0
+        total_responders = 0
         per_channel_train_means = []
         train_n = 0
         for ch in channels:
-            vd, base_min, n_cells = _per_channel_stim_response_arrays(
+            ch_mask = responder_masks.get((exp_name, ch)) if responder_masks else None
+            vd, rd, base_min, n_cells = _per_channel_stim_response_arrays(
                 state, exp_name, ch, cfg, metric=metric, signal=signal,
+                responder_mask=ch_mask,
             )
             ctm, n_tr = _per_train_cell_means(
                 state, exp_name, ch, cfg, metric=metric, signal=signal,
@@ -512,11 +554,18 @@ def plot_per_stimulus_response_violins(
             if ref_base_min is None:
                 ref_base_min = base_min
             total_cells += n_cells
+            if ch_mask is not None:
+                total_responders += int(np.asarray(ch_mask, dtype=bool).sum())
             for i, arr in enumerate(vd):
                 if arr.size:
                     pooled[i].append(arr)
+                    pooled_resp[i].append(rd[i])
         violin_data = [
             np.concatenate(p) if p else np.array([]) for p in pooled
+        ]
+        responder_data = [
+            np.concatenate(p) if p else np.array([], dtype=bool)
+            for p in pooled_resp
         ]
         x_labels = [f"{bm:.1f}" for bm in (ref_base_min or [])]
         n_complete = sum(len(v) > 0 for v in violin_data)
@@ -555,15 +604,50 @@ def plot_per_stimulus_response_violins(
                 "no non-empty data; skipped."
             )
 
+        # Responder-highlighted twin: same violins, responder cells in red.
+        if responder_masks is not None:
+            print(
+                f"{exp_name}: pooled response violin ({metric}, responders) — "
+                f"{total_responders}/{total_cells} cells flagged as responders."
+            )
+            _draw_half_violin_with_box(
+                ax=None,
+                violin_data=violin_data,
+                x_label=x_labels,
+                y_label=y_label,
+                title=(
+                    f"{exp_name} — pooled per-stimulus {metric} "
+                    f"({extremum_label} over {window_str} − baseline; "
+                    f"{total_cells} cells, {len(channels)} channels)\n"
+                    f"responders highlighted — "
+                    f"{total_responders}/{total_cells} cells "
+                    f"(Bonferroni |Δ dF/F₀| threshold)"
+                    f"{width_cap_note}"
+                ),
+                save_path=fig_path(
+                    exp_name,
+                    f"pooled_response_violin_{metric}{suffix}_responders",
+                ),
+                x_axis_label="Stimulus onset (min)",
+                stats_text=stats_text,
+                chan_means=chan_means,
+                caveat=caveat,
+                train_p=train_p,
+                responder_data=responder_data,
+            )
+
 
 def main():
     experiments, recompute_bg = parse_args()
     state = prepare_state(experiments, recompute_bg=recompute_bg)
+    responder_masks = compute_responder_masks(experiments, state)
     plot_per_stimulus_response_violins(
         experiments, state, metric="height", signal="dff",
+        responder_masks=responder_masks,
     )
     plot_per_stimulus_response_violins(
         experiments, state, metric="width", signal="dff",
+        responder_masks=responder_masks,
     )
 
 

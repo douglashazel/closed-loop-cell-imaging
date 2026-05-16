@@ -59,6 +59,8 @@ OVERVIEW_ORDER = [
 ]
 PER_CHANNEL_ORDER = [
     "dff",
+    "dff_responders",
+    "dff_non_responders",
     "dff_response_breakdown",
     "response_violin",
     "response_violin_responders",
@@ -76,6 +78,8 @@ CATEGORY_LABELS = {
     "corr_vs_dist": "Pairwise correlation vs. distance",
     "corr_vs_dist_combined": "Pairwise correlation vs. distance (combined)",
     "dff": "dF/F0 normalized traces",
+    "dff_responders": "dF/F0 normalized traces — responders only",
+    "dff_non_responders": "dF/F0 normalized traces — non-responders only",
     "dff_response_breakdown": "dF/F0 response breakdown (mean/median/percentile + per-cell peak histogram)",
     "response_violin": "Per-stimulus Δ luminosity (peak − baseline)",
     "response_violin_responders": "Per-stimulus Δ luminosity — responders only (|peak Δ dF/F0| ≥ 0.10)",
