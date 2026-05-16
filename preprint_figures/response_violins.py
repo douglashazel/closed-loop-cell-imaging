@@ -117,7 +117,7 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
         zorder=6, label="Mean",
     )
 
-    ax_.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="center right")
+    ax_.legend(fontsize=PLOT_PARAMS["legend_fontsize_large"], loc="center right")
 
     ax_.set_title(
         title,

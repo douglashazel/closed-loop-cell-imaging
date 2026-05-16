@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""Pairwise correlation vs spatial distance.
+"""Pairwise correlation vs spatial distance (full time series).
 
-Per experiment, three time-window variants of each plot are produced — full
-time series, during-stim/train windows, and between-stim/train windows. The
-during/between variants are skipped silently when a channel has no stim
-onsets.
+Per experiment:
+    * corr_vs_dist.png           — per-channel scatter panels
+    * corr_vs_dist_combined.png  — pooled across channels
 
-    * corr_vs_dist[{_during,_between}].png         — per-channel scatter panels
-    * corr_vs_dist_combined[{_during,_between}].png — pooled across channels
-
-Within each panel, pairs are coloured by responder-pair status (RR / NN / RN)
-when responder thresholds are available, with a separate regression line per
-subset. Falls back to a single-cloud scatter when no responder threshold
-applies for the channel. Distances are reported in μm using the imaging
-calibration ``PIXELS_PER_UM``.
+Both use the full corrected time series. Within each panel, pairs are coloured
+by responder-pair status (RR / NN / RN) when responder thresholds are
+available, with a separate regression line per subset. Falls back to a
+single-cloud scatter when no responder threshold applies for the channel.
+Distances are reported in μm using the imaging calibration ``PIXELS_PER_UM``.
 """
 
 import os
@@ -29,31 +25,26 @@ from scipy.stats import linregress
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
+from common.config import PEAK_OFFSET
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_thresholds
 from common.stim_helpers import compute_f0_baseline, per_cell_response_delta
-from common.time_axis import frames_to_min
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 
 PIXELS_PER_UM = 180.1  # imaging calibration: 0.00555 μm/pixel
-RESPONSE_PAD_TRAIN_MIN = 10.0
-RESPONSE_PAD_STIM_MIN = 1.5
 MIN_FRAMES_FOR_CORR = 5
 PAIR_CLASS_COLORS = {
-    "RR": "#d62728",   # red — both responders
-    "NN": "#7f7f7f",   # gray — both non-responders
-    "RN": "#2ca02c",   # green — mixed
+    "RR": PLOT_PARAMS["rr_color"],   # blue — both responders
+    "NN": "#7f7f7f",                 # gray — both non-responders
 }
 PAIR_CLASS_LABEL = {
     "RR": "Responder × Responder",
-    "NN": "Non × Non",
-    "RN": "Responder × Non",
+    "NN": "Non-responder pairs",
 }
 METHOD_LABEL = {"pearson": "Pearson r", "spearman": "Spearman ρ"}
 
@@ -140,64 +131,6 @@ def _classify_pair_classes(responder_mask):
     }
 
 
-def _time_window_masks(cfg, ch, frame_nums, state, exp_name):
-    """Return ``[(key, label, mask_or_None), ...]`` describing time-axis windows.
-
-    Always emits the ``"full"`` window (mask is ``None`` → use every column).
-    When the channel has stim onsets, additionally emits ``"during"`` and
-    ``"between"`` windows. For experiments whose stim count is a positive
-    multiple of ``LEARNING_STIMS_PER_TRAIN`` the during-mask spans entire
-    trains (first-stim onset through ``RESPONSE_PAD_TRAIN_MIN`` minutes after
-    the last-stim onset). Otherwise each stim contributes its own window of
-    ``stim_duration_minutes + RESPONSE_PAD_STIM_MIN`` minutes.
-    """
-    full = ("full", "full time series", None)
-
-    stim_frames = cfg.get("stim_frames", {}).get(ch, []) or []
-    if not stim_frames:
-        return [full]
-
-    frame_to_col = {f: i for i, f in enumerate(frame_nums)}
-    stim_cols = [frame_to_col[p] for p in stim_frames if p in frame_to_col]
-    if not stim_cols:
-        return [full]
-
-    n_cols = len(frame_nums)
-    col_minutes = frames_to_min(state, exp_name, ch, np.array(frame_nums, dtype=float))
-    during = np.zeros(n_cols, dtype=bool)
-
-    is_trains = (
-        len(stim_cols) >= LEARNING_STIMS_PER_TRAIN
-        and len(stim_cols) % LEARNING_STIMS_PER_TRAIN == 0
-    )
-
-    if is_trains:
-        n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
-        for t in range(n_trains):
-            first_sc = stim_cols[t * LEARNING_STIMS_PER_TRAIN]
-            last_sc = stim_cols[(t + 1) * LEARNING_STIMS_PER_TRAIN - 1]
-            end_min = float(col_minutes[last_sc]) + RESPONSE_PAD_TRAIN_MIN
-            end_col = int(np.argmin(np.abs(col_minutes - end_min)))
-            during[first_sc:end_col + 1] = True
-        during_label = "during trains"
-        between_label = "between trains"
-    else:
-        stim_duration_min = float(cfg.get("stim_duration_minutes", 0.0) or 0.0)
-        pad = stim_duration_min + RESPONSE_PAD_STIM_MIN
-        for sc in stim_cols:
-            end_min = float(col_minutes[sc]) + pad
-            end_col = int(np.argmin(np.abs(col_minutes - end_min)))
-            during[sc:end_col + 1] = True
-        during_label = "during stim"
-        between_label = "between stim"
-
-    return [
-        full,
-        ("during", during_label, during),
-        ("between", between_label, ~during),
-    ]
-
-
 def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix):
     """Fit a line on (dists, corrs); plot scatter + line + ±3 SEM band.
 
@@ -262,15 +195,27 @@ def _scatter_corr_vs_dist(
     ax.spines[["top", "right"]].set_visible(False)
     drew_any = False
     if pair_classes and any(m.any() for m in pair_classes.values()):
-        for tag in ("NN", "RN", "RR"):
-            mask = pair_classes.get(tag)
-            if mask is None or not mask.any():
-                continue
+        # Non-responder (NN) pairs: gray scatter only, no fit line.
+        nn_mask = pair_classes.get("NN")
+        if nn_mask is not None and nn_mask.any():
+            valid = nn_mask & ~np.isnan(pw_dist) & ~np.isnan(pw_corr)
+            n_nn = int(valid.sum())
+            if n_nn > 0:
+                ax.scatter(
+                    pw_dist[valid], pw_corr[valid],
+                    color=PAIR_CLASS_COLORS["NN"], alpha=0.30, s=8,
+                    edgecolors="none", zorder=1,
+                    label=f"{PAIR_CLASS_LABEL['NN']} (n={n_nn})",
+                )
+                drew_any = True
+        # Responder × responder (RR) pairs: blue scatter + fit line + band.
+        rr_mask = pair_classes.get("RR")
+        if rr_mask is not None and rr_mask.any():
             drew_any |= _fit_and_plot_subset(
                 ax,
-                pw_dist[mask], pw_corr[mask],
-                color=PAIR_CLASS_COLORS[tag],
-                label_prefix=PAIR_CLASS_LABEL[tag],
+                pw_dist[rr_mask], pw_corr[rr_mask],
+                color=PAIR_CLASS_COLORS["RR"],
+                label_prefix=PAIR_CLASS_LABEL["RR"],
             )
     else:
         drew_any = _fit_and_plot_subset(
@@ -292,7 +237,6 @@ def _scatter_corr_vs_dist(
 
 def _plot_corr_vs_dist_combined(
     exp_name, per_channel_pairs, *, window_label="full corrected time series",
-    suffix="",
 ):
     """Two stacked axes (Pearson on top, Spearman below) pooling across channels."""
     if not per_channel_pairs:
@@ -307,21 +251,11 @@ def _plot_corr_vs_dist_combined(
         all_dist = []
         all_corr = []
         all_classes = {"RR": [], "NN": [], "RN": []}
-        for col, entry in enumerate(per_channel_pairs):
-            ch = entry["ch"]
-            n_cells = entry["n_cells"]
+        for entry in per_channel_pairs:
             pw_dist = entry["pw_dist"]
             pw_corr = entry["pw_corr_by_method"][method]
             pair_classes = entry.get("pair_classes")
 
-            color = PLOT_PARAMS["corr_scatter_colors"][
-                col % len(PLOT_PARAMS["corr_scatter_colors"])
-            ]
-            ax.scatter(
-                pw_dist, pw_corr,
-                color=color, alpha=0.18, s=6, edgecolors="none", zorder=1,
-                label=f"{ch} ({n_cells} cells)",
-            )
             all_dist.append(np.asarray(pw_dist))
             all_corr.append(np.asarray(pw_corr))
             if pair_classes is not None:
@@ -337,15 +271,26 @@ def _plot_corr_vs_dist_combined(
         )
 
         if merged_classes is not None and any(m.any() for m in merged_classes.values()):
-            for tag in ("NN", "RN", "RR"):
-                mask = merged_classes.get(tag)
-                if mask is None or not mask.any():
-                    continue
+            # Non-responder (NN) pairs: gray scatter only, no fit line.
+            nn_mask = merged_classes.get("NN")
+            if nn_mask is not None and nn_mask.any():
+                valid = nn_mask & ~np.isnan(dists) & ~np.isnan(corrs)
+                n_nn = int(valid.sum())
+                if n_nn > 0:
+                    ax.scatter(
+                        dists[valid], corrs[valid],
+                        color=PAIR_CLASS_COLORS["NN"], alpha=0.20, s=6,
+                        edgecolors="none", zorder=1,
+                        label=f"{PAIR_CLASS_LABEL['NN']} (pooled, n={n_nn})",
+                    )
+            # Responder × responder (RR) pairs: blue scatter + fit line + band.
+            rr_mask = merged_classes.get("RR")
+            if rr_mask is not None and rr_mask.any():
                 _fit_and_plot_subset(
                     ax,
-                    dists[mask], corrs[mask],
-                    color=PAIR_CLASS_COLORS[tag],
-                    label_prefix=f"{PAIR_CLASS_LABEL[tag]} (pooled)",
+                    dists[rr_mask], corrs[rr_mask],
+                    color=PAIR_CLASS_COLORS["RR"],
+                    label_prefix=f"{PAIR_CLASS_LABEL['RR']} (pooled)",
                 )
         else:
             _fit_and_plot_subset(
@@ -373,7 +318,7 @@ def _plot_corr_vs_dist_combined(
 
     plt.tight_layout()
     fig.savefig(
-        fig_path(exp_name, f"corr_vs_dist_combined{suffix}"),
+        fig_path(exp_name, "corr_vs_dist_combined"),
         dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
@@ -383,18 +328,16 @@ def plot_correlation_vs_distance(experiments, state):
     """Per experiment: Pearson + Spearman correlation vs pairwise distance.
 
     Two-row figure with Pearson on row 0 and Spearman on row 1, one column
-    per channel. Pairs are colored by responder-pair class when responder
-    thresholds are available. Three figures are produced per experiment:
-    full time series, during-stim/train windows, and between-stim/train
-    windows. The latter two are skipped silently when no channel has stim
-    onsets.
+    per channel, computed over the full corrected time series. Pairs are
+    colored by responder-pair class when responder thresholds are available.
     """
     thresholds = compute_responder_thresholds(experiments, state)
+    window_label = "full corrected time series"
 
     for exp_name, cfg in experiments.items():
         channels = cfg["channels"]
 
-        # Build per-channel context once (window-independent).
+        # Build per-channel context.
         per_channel_ctx = {}
         for ch in channels:
             df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
@@ -402,7 +345,6 @@ def plot_correlation_vs_distance(experiments, state):
                 [c for c in df.columns if str(c).startswith("f")],
                 key=lambda c: int(str(c).lstrip("f")),
             )
-            frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
             mat = df[frame_cols].values
             cell_ids_int = list(df.index)
 
@@ -447,123 +389,87 @@ def plot_correlation_vs_distance(experiments, state):
                 "iu": iu,
                 "n_cells": len(keep_rows),
                 "pair_classes": pair_classes,
-                "windows": {
-                    w_key: (w_label, w_mask)
-                    for w_key, w_label, w_mask in _time_window_masks(
-                        cfg, ch, frame_nums, state, exp_name,
-                    )
-                },
             }
 
-        # Collect every window key that appears in any channel.
-        ordered_keys = ["full", "during", "between"]
-        active_keys = [
-            k for k in ordered_keys
-            if any(
-                ctx is not None and k in ctx["windows"]
-                for ctx in per_channel_ctx.values()
-            )
-        ]
+        fig, axes = plt.subplots(
+            2, len(channels),
+            figsize=(6 * len(channels), 11),
+            dpi=PLOT_PARAMS["dpi"], sharey="row",
+        )
+        if len(channels) == 1:
+            axes = axes.reshape(2, 1)
 
-        for w_key in active_keys:
-            suffix = "" if w_key == "full" else f"_{w_key}"
-            fig, axes = plt.subplots(
-                2, len(channels),
-                figsize=(6 * len(channels), 11),
-                dpi=PLOT_PARAMS["dpi"], sharey="row",
-            )
-            if len(channels) == 1:
-                axes = axes.reshape(2, 1)
+        per_channel_pairs = []
 
-            per_channel_pairs = []
-            window_label_for_fig = None
-
-            for col, ch in enumerate(channels):
-                ctx = per_channel_ctx.get(ch)
-                if ctx is None:
-                    for row in range(2):
-                        axes[row, col].set_title(
-                            f"{ch}: insufficient data",
-                            fontsize=PLOT_PARAMS["title_fontsize"],
-                        )
-                    continue
-
-                window_entry = ctx["windows"].get(w_key)
-                if window_entry is None:
-                    for row in range(2):
-                        axes[row, col].set_title(
-                            f"{ch}: no stim windows",
-                            fontsize=PLOT_PARAMS["title_fontsize"],
-                        )
-                    continue
-
-                window_label, time_mask = window_entry
-                if window_label_for_fig is None:
-                    window_label_for_fig = window_label
-
-                mat_k = ctx["mat_k"]
-                mat_k_w = mat_k if time_mask is None else mat_k[:, time_mask]
-                if mat_k_w.shape[1] < MIN_FRAMES_FOR_CORR:
-                    for row in range(2):
-                        axes[row, col].set_title(
-                            f"{ch}: insufficient {window_label} samples",
-                            fontsize=PLOT_PARAMS["title_fontsize"],
-                        )
-                    continue
-
-                pearson_mat = pd.DataFrame(mat_k_w).T.corr(method="pearson").values
-                spearman_mat = pd.DataFrame(mat_k_w).T.corr(method="spearman").values
-                iu = ctx["iu"]
-                pw_corr_by_method = {
-                    "pearson": pearson_mat[iu],
-                    "spearman": spearman_mat[iu],
-                }
-
-                per_channel_pairs.append({
-                    "ch": ch,
-                    "n_cells": ctx["n_cells"],
-                    "pw_dist": ctx["pw_dist"],
-                    "pw_corr_by_method": pw_corr_by_method,
-                    "pair_classes": ctx["pair_classes"],
-                })
-
-                for row, method in enumerate(("pearson", "spearman")):
-                    _scatter_corr_vs_dist(
-                        axes[row, col],
-                        ctx["pw_dist"], pw_corr_by_method[method],
-                        pair_classes=ctx["pair_classes"],
-                        corr_method=method,
-                        title=f"{ch}  ({ctx['n_cells']} cells, {METHOD_LABEL[method]})",
+        for col, ch in enumerate(channels):
+            ctx = per_channel_ctx.get(ch)
+            if ctx is None:
+                for row in range(2):
+                    axes[row, col].set_title(
+                        f"{ch}: insufficient data",
+                        fontsize=PLOT_PARAMS["title_fontsize"],
                     )
-                    axes[row, col].set_xlabel(
-                        "Pairwise distance (μm)",
+                continue
+
+            mat_k = ctx["mat_k"]
+            if mat_k.shape[1] < MIN_FRAMES_FOR_CORR:
+                for row in range(2):
+                    axes[row, col].set_title(
+                        f"{ch}: insufficient samples",
+                        fontsize=PLOT_PARAMS["title_fontsize"],
+                    )
+                continue
+
+            pearson_mat = pd.DataFrame(mat_k).T.corr(method="pearson").values
+            spearman_mat = pd.DataFrame(mat_k).T.corr(method="spearman").values
+            iu = ctx["iu"]
+            pw_corr_by_method = {
+                "pearson": pearson_mat[iu],
+                "spearman": spearman_mat[iu],
+            }
+
+            per_channel_pairs.append({
+                "ch": ch,
+                "n_cells": ctx["n_cells"],
+                "pw_dist": ctx["pw_dist"],
+                "pw_corr_by_method": pw_corr_by_method,
+                "pair_classes": ctx["pair_classes"],
+            })
+
+            for row, method in enumerate(("pearson", "spearman")):
+                _scatter_corr_vs_dist(
+                    axes[row, col],
+                    ctx["pw_dist"], pw_corr_by_method[method],
+                    pair_classes=ctx["pair_classes"],
+                    corr_method=method,
+                    title=f"{ch}  ({ctx['n_cells']} cells, {METHOD_LABEL[method]})",
+                )
+                axes[row, col].set_xlabel(
+                    "Pairwise distance (μm)",
+                    fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                )
+                if col == 0:
+                    axes[row, col].set_ylabel(
+                        f"{METHOD_LABEL[method]} ({window_label})",
                         fontsize=PLOT_PARAMS["axis_label_fontsize"],
                     )
-                    if col == 0:
-                        axes[row, col].set_ylabel(
-                            f"{METHOD_LABEL[method]} ({window_label})",
-                            fontsize=PLOT_PARAMS["axis_label_fontsize"],
-                        )
 
-            if window_label_for_fig is None:
-                window_label_for_fig = w_key
-            fig.suptitle(
-                f"{exp_name} — pairwise correlation vs pairwise distance "
-                f"({window_label_for_fig}, Pearson top, Spearman bottom)",
-                fontsize=PLOT_PARAMS["title_fontsize"] + 1,
-                fontweight="bold", y=1.01,
-            )
-            plt.tight_layout()
-            fig.savefig(
-                fig_path(exp_name, f"corr_vs_dist{suffix}"),
-                dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
-            )
-            plt.close(fig)
+        fig.suptitle(
+            f"{exp_name} — pairwise correlation vs pairwise distance "
+            f"({window_label}, Pearson top, Spearman bottom)",
+            fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+            fontweight="bold", y=1.01,
+        )
+        plt.tight_layout()
+        fig.savefig(
+            fig_path(exp_name, "corr_vs_dist"),
+            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        )
+        plt.close(fig)
 
-            _plot_corr_vs_dist_combined(
-                exp_name, per_channel_pairs,
-                window_label=window_label_for_fig, suffix=suffix,
-            )
+        _plot_corr_vs_dist_combined(
+            exp_name, per_channel_pairs, window_label=window_label,
+        )
 
 
 def main():

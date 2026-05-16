@@ -39,8 +39,9 @@ from io_utils import load_msgpack  # noqa: E402
 
 
 # Bump when the cache pickle layout or pipeline semantics change (e.g. when
-# ``filter_dead_frames`` started gating in-cache BG-coef interpolation).
-PIPELINE_VERSION = 2
+# ``filter_dead_frames`` started gating in-cache BG-coef interpolation, or
+# when ``bad_frames_file`` replaced auto-detection for an experiment).
+PIPELINE_VERSION = 3
 
 
 def detect_dead_frame_indices(bg_trace, *, mad_k=6.0, window=21):
@@ -61,6 +62,44 @@ def detect_dead_frame_indices(bg_trace, *, mad_k=6.0, window=21):
     if scale == 0.0:
         return np.array([], dtype=np.int64)
     return np.where(np.abs(delta) > mad_k * scale)[0]
+
+
+def load_explicit_bad_frames(path):
+    """Parse a bad-frames txt file into a sorted, deduped int array of indices.
+
+    File format: a header line, then one line per bad frame whose first
+    whitespace-separated token is the 0-based frame index. Any trailing
+    columns (e.g. a ``light``/``dark`` label) are ignored — masking treats
+    flashes and dropouts identically. Non-numeric lines (the header) are
+    skipped.
+    """
+    idx = []
+    with open(path) as f:
+        for line in f:
+            tok = line.split()
+            if not tok:
+                continue
+            try:
+                idx.append(int(tok[0]))
+            except ValueError:
+                continue  # header or other non-numeric line
+    return np.array(sorted(set(idx)), dtype=np.int64)
+
+
+def resolve_dead_frame_indices(cfg, bg_trace, *, mad_k=6.0, window=21):
+    """Frame indices to treat as dead for ``cfg``'s experiment.
+
+    When ``cfg["bad_frames_file"]`` is set, the explicit frame list in that
+    file is used verbatim (clipped to the valid frame range) and no automatic
+    MAD-based detection runs. Otherwise the indices are auto-detected from
+    ``bg_trace`` via :func:`detect_dead_frame_indices`.
+    """
+    bad_file = cfg.get("bad_frames_file")
+    if bad_file:
+        idx = load_explicit_bad_frames(bad_file)
+        n = len(np.asarray(bg_trace))
+        return idx[(idx >= 0) & (idx < n)]
+    return detect_dead_frame_indices(bg_trace, mad_k=mad_k, window=window)
 
 
 def _interpolate_bg_at_dead_frames(coefs_by_frame, bg_min_by_frame, dead_idx):
@@ -223,7 +262,7 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
                     )
 
             if cfg.get("filter_dead_frames"):
-                dead_idx = detect_dead_frame_indices(sampled_bg_mean)
+                dead_idx = resolve_dead_frame_indices(cfg, sampled_bg_mean)
                 if dead_idx.size:
                     _interpolate_bg_at_dead_frames(
                         coefs_by_frame, bg_min_by_frame, dead_idx
@@ -334,13 +373,14 @@ def mask_dead_frames(experiments, state, *, mad_k=6.0, window=21):
     Some cameras occasionally emit dark/dropped frames or flash frames that
     show up as sharp spikes in the per-cell traces. Dropouts depress the
     sampled background; flashes elevate it (and via bg subtraction, depress
-    the corrected luminosity). We detect both directions on the per-frame
-    ``bg_trace`` using a robust rolling-MAD test, then mask spike frames to
-    NaN in ``state["corrected_lum"][exp][ch][cell]`` so that
-    ``fill_dead_frames()`` can reconstruct them via linear interpolation in
-    the next pipeline step. Frame keys are preserved so column indices in
-    any reconstructed cell-by-frame matrix continue to match actual frame
-    indices.
+    the corrected luminosity). The frame indices to mask come from
+    :func:`resolve_dead_frame_indices` — an explicit ``bad_frames_file`` list
+    when configured, otherwise a robust rolling-MAD test on the per-frame
+    ``bg_trace``. Masked frames are set to NaN in
+    ``state["corrected_lum"][exp][ch][cell]`` so that ``fill_dead_frames()``
+    can reconstruct them via linear interpolation in the next pipeline step.
+    Frame keys are preserved so column indices in any reconstructed
+    cell-by-frame matrix continue to match actual frame indices.
 
     Opt-in per experiment via ``cfg["filter_dead_frames"] = True``.
     """
@@ -351,7 +391,9 @@ def mask_dead_frames(experiments, state, *, mad_k=6.0, window=21):
             bg = np.asarray(
                 state["bg_trace"][exp_name][ch], dtype=np.float64
             )
-            dead_idx = detect_dead_frame_indices(bg, mad_k=mad_k, window=window)
+            dead_idx = resolve_dead_frame_indices(
+                cfg, bg, mad_k=mad_k, window=window
+            )
             if dead_idx.size == 0:
                 print(
                     f"  {exp_name} / {ch}: no dead frames detected"

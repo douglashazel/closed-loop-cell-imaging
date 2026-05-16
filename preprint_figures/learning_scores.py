@@ -2,7 +2,8 @@
 """Learning-score histograms (DMSO experiments only).
 
 Per DMSO experiment, the summed-distribution figures for habituation and
-sensitization × height/width:
+sensitization × height/width, each overlaid with a shuffled-stim-order
+permutation null and the per-cell p-value count:
     * learning_habituation_height.png
     * learning_habituation_width.png
     * learning_sensitization_height.png
@@ -21,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
 from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
 from common.io_paths import fig_path
+from common.permutation_null import permutation_null_distribution, pvalue_one_tailed
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.stim_helpers import compute_stim_caps, per_cell_response_delta
@@ -105,10 +107,12 @@ def _score_running_extremum(per_stim, *, mode, n_per_train=LEARNING_STIMS_PER_TR
     return per_train.sum(axis=0), per_train
 
 
-def compute_learning_scores(experiments, state):
+def compute_learning_scores(experiments, state, *, n_perm=200):
     """Compute habituation + sensitization scores per DMSO experiment.
 
-    Returns a nested dict ``out[exp][metric] = {"habituation", "sensitization"}``.
+    Returns a nested dict ``out[exp][metric]`` whose blob holds the observed
+    ``habituation`` / ``sensitization`` scores plus, when ``n_perm > 0``, the
+    shuffled-stim-order null distributions and one-tailed per-cell p-values.
     Experiments are filtered to ``response_direction == "increase"`` (DMSO).
     """
     out = {}
@@ -118,6 +122,7 @@ def compute_learning_scores(experiments, state):
         out[exp_name] = {}
         for metric in ("height", "width"):
             hab_chunks, sen_chunks = [], []
+            hab_null_chunks, sen_null_chunks = [], []
             for ch in cfg["channels"]:
                 inputs = _build_learning_inputs(
                     state, exp_name, ch, cfg, metric=metric,
@@ -129,6 +134,20 @@ def compute_learning_scores(experiments, state):
                 hab_chunks.append(hab)
                 sen_chunks.append(sen)
 
+                if n_perm and n_perm > 0:
+                    hab_null = permutation_null_distribution(
+                        lambda ps: _score_running_extremum(ps, mode="min")[0],
+                        inputs["per_stim"], n_perm=n_perm,
+                        rng_seed=42, mode="per_cell",
+                    )
+                    sen_null = permutation_null_distribution(
+                        lambda ps: _score_running_extremum(ps, mode="max")[0],
+                        inputs["per_stim"], n_perm=n_perm,
+                        rng_seed=43, mode="per_cell",
+                    )
+                    hab_null_chunks.append(hab_null)
+                    sen_null_chunks.append(sen_null)
+
             if not hab_chunks:
                 out[exp_name][metric] = None
                 continue
@@ -136,6 +155,15 @@ def compute_learning_scores(experiments, state):
                 "habituation": np.concatenate(hab_chunks),
                 "sensitization": np.concatenate(sen_chunks),
             }
+            if hab_null_chunks:
+                blob["habituation_null"] = np.concatenate(hab_null_chunks, axis=1)
+                blob["sensitization_null"] = np.concatenate(sen_null_chunks, axis=1)
+                blob["habituation_pvalue"] = pvalue_one_tailed(
+                    blob["habituation"], blob["habituation_null"],
+                )
+                blob["sensitization_pvalue"] = pvalue_one_tailed(
+                    blob["sensitization"], blob["sensitization_null"],
+                )
             out[exp_name][metric] = blob
             print(
                 f"  learning scores: {exp_name} ({metric}) — "
@@ -146,8 +174,15 @@ def compute_learning_scores(experiments, state):
 
 
 def _plot_score_histogram(scores, *, title, xlabel, save_path,
-                          bins=None, color=None):
-    """Single-distribution histogram of a learning score."""
+                          bins=None, color=None,
+                          null_dist=None, pvalues=None, alpha_p=0.01):
+    """Single-distribution histogram with optional permutation-null overlay.
+
+    When ``null_dist`` (shape ``(n_perm, n_cells)``) is provided, plot the
+    pooled null as a back-layer histogram normalized to the same total cell
+    count, and add the count of cells with p-value < ``alpha_p`` to the
+    legend (when ``pvalues`` is supplied).
+    """
     fig, ax = plt.subplots(
         figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
     )
@@ -155,7 +190,19 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     ax.tick_params(top=False, right=False)
     if bins is None:
         max_v = int(np.nanmax(scores)) if scores.size else 0
+        if null_dist is not None and null_dist.size:
+            max_v = max(max_v, int(np.nanmax(null_dist)))
         bins = np.arange(-0.5, max_v + 1.5, 1)
+    if null_dist is not None and null_dist.size:
+        n_perm = null_dist.shape[0]
+        ax.hist(
+            null_dist.ravel(), bins=bins,
+            color="#9a9a9a", alpha=0.4,
+            edgecolor="#555555", linewidth=0.4,
+            weights=np.full(null_dist.size, 1.0 / max(n_perm, 1)),
+            label=f"Shuffled null (mean over {n_perm} perms)",
+            zorder=1,
+        )
     ax.hist(
         scores, bins=bins,
         color=color or PLOT_PARAMS["fit_color"],
@@ -163,6 +210,16 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
         label=f"Observed (n={scores.size})",
         zorder=2,
     )
+    if pvalues is not None and pvalues.size:
+        n_sig = int(np.sum(pvalues < alpha_p))
+        ax.text(
+            0.98, 0.95,
+            f"p<{alpha_p}: {n_sig} cells",
+            ha="right", va="top",
+            transform=ax.transAxes,
+            fontsize=PLOT_PARAMS["legend_fontsize"],
+            bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
+        )
     ax.set_xlabel(xlabel, fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax.set_title(
@@ -170,6 +227,8 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
         fontsize=PLOT_PARAMS["title_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
+    if null_dist is not None and null_dist.size:
+        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
     plt.tight_layout()
     fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
@@ -178,7 +237,8 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
 def plot_learning_score_histograms(experiments, state, scores=None):
     """Emit summed habituation / sensitization histograms (DMSO only).
 
-    For each measure × metric: ``learning_<measure>_<metric>.png``.
+    For each measure × metric: ``learning_<measure>_<metric>.png``, with the
+    shuffled-stim-order null overlaid when it was computed.
     """
     if scores is None:
         scores = compute_learning_scores(experiments, state)
@@ -191,6 +251,8 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                 ("sensitization", "Sensitization"),
             ):
                 summed = blob[measure_key]
+                null = blob.get(f"{measure_key}_null")
+                pvals = blob.get(f"{measure_key}_pvalue")
                 _plot_score_histogram(
                     summed,
                     title=(
@@ -202,6 +264,8 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                     save_path=fig_path(
                         exp_name, f"learning_{measure_key}_{metric}",
                     ),
+                    null_dist=null,
+                    pvalues=pvals,
                 )
 
 

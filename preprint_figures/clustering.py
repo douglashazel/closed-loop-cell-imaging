@@ -150,7 +150,7 @@ def _render_pca_umap_uncolored(
     ax.scatter(
         pcs[:, 0], pcs[:, 1],
         s=PLOT_PARAMS["scatter_size"] * 1.4,
-        color=PLOT_PARAMS["scatter_color"],
+        color=PLOT_PARAMS["pca_scatter_color"],
         alpha=PLOT_PARAMS["scatter_alpha"],
         edgecolors="none",
     )
@@ -172,7 +172,7 @@ def _render_pca_umap_uncolored(
     ax.scatter(
         embedding[:, 0], embedding[:, 1],
         s=PLOT_PARAMS["scatter_size"] * 1.4,
-        color=PLOT_PARAMS["scatter_color"],
+        color=PLOT_PARAMS["pca_scatter_color"],
         alpha=PLOT_PARAMS["scatter_alpha"],
         edgecolors="none",
     )

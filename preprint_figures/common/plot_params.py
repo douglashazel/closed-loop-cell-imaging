@@ -9,6 +9,7 @@ PLOT_PARAMS = {
     "title_fontweight": "bold",
     "axis_label_fontsize": 13,
     "legend_fontsize": 10,
+    "legend_fontsize_large": 14,
     "colors": ["#e74c3c", "#363fe9", "#e67e22", "#1a9d51"],
     # Muted, low-pop palette for the corr-vs-distance scatter clouds.
     # Earth-tone desaturations: slate, taupe, sage, mauve.
@@ -38,6 +39,10 @@ PLOT_PARAMS = {
     "scatter_size": 12,
     "jitter_strength": 0.08,
     "fit_color": "#363fe9",
+    "pooled_mean_color": "#4a235a",   # dark purple — pooled mean line
+    "pooled_sem_color": "#8e44ad",    # purple — ±1 SEM band
+    "pca_scatter_color": "#1a5e1a",   # dark green — PCA/UMAP scatter
+    "rr_color": "#363fe9",            # blue — responder × responder pairs
 }
 
 # Used by: sliding-window correlation

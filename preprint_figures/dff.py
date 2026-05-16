@@ -57,15 +57,6 @@ def plot_dff(experiments, state):
 
             spans, stim_label = stim_spans_min(state, exp_name, ch, cfg)
             rsp = state["real_setpoint_min"][exp_name].get(ch)
-            baseline_lo_min = frames_to_min(state, exp_name, ch, [0])[0]
-            baseline_hi_min = frames_to_min(
-                state, exp_name, ch, [max(first_stim - 1, 0)]
-            )[0]
-            baseline_label = (
-                f"F₀ baseline (frames 0–{first_stim - 1})"
-                if first_stim > 1
-                else "F₀ baseline (frame 0)"
-            )
             f0_title_suffix = (
                 f"F₀ = mean of baseline (frames 0–{first_stim - 1})"
                 if first_stim > 1
@@ -106,12 +97,6 @@ def plot_dff(experiments, state):
                     ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18
                 )
 
-                ax.axvspan(
-                    baseline_lo_min, baseline_hi_min,
-                    color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
-                    label=baseline_label,
-                )
-
                 if rsp is not None:
                     ax.axvline(
                         rsp,
@@ -127,7 +112,9 @@ def plot_dff(experiments, state):
                     fontsize=PLOT_PARAMS["title_fontsize"],
                     fontweight=PLOT_PARAMS["title_fontweight"],
                 )
-                ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="upper right")
+                ax.legend(
+                    fontsize=PLOT_PARAMS["legend_fontsize_large"], loc="upper right"
+                )
 
             axes[-1].set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
             fig.suptitle(
@@ -245,12 +232,12 @@ def plot_dff_mean_pooled(experiments, state, *, thresholds=None, only_responders
         ax.tick_params(top=False, right=False)
         ax.fill_between(
             frame_min, mean_trace - sem_trace, mean_trace + sem_trace,
-            color=PLOT_PARAMS["mean_color"], alpha=0.18, linewidth=0,
+            color=PLOT_PARAMS["pooled_sem_color"], alpha=0.18, linewidth=0,
             label="±1 SEM",
         )
         ax.plot(
             frame_min, mean_trace,
-            color=PLOT_PARAMS["mean_color"],
+            color=PLOT_PARAMS["pooled_mean_color"],
             linewidth=PLOT_PARAMS["mean_lw"],
             label=f"Pooled mean ({n_total} cells)",
             zorder=3,
@@ -261,20 +248,6 @@ def plot_dff_mean_pooled(experiments, state, *, thresholds=None, only_responders
             draw_stim_spans(
                 ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
             )
-        _, _, ref_first_stim = compute_f0_baseline(state, exp_name, ref_ch, cfg)
-        base_lo = frames_to_min(state, exp_name, ref_ch, [0])[0]
-        base_hi = frames_to_min(
-            state, exp_name, ref_ch, [max(ref_first_stim - 1, 0)]
-        )[0]
-        ax.axvspan(
-            base_lo, base_hi,
-            color=PLOT_PARAMS["f0_color"], alpha=0.10, zorder=0,
-            label=(
-                f"F₀ baseline (frames 0–{ref_first_stim - 1})"
-                if ref_first_stim > 1
-                else "F₀ baseline (frame 0)"
-            ),
-        )
         ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
         ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
         ax.set_ylabel(

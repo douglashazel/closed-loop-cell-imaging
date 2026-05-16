@@ -128,10 +128,17 @@ EXPERIMENTS = {
         "stim_label": "DMSO pulse (2 min)",
         "response_direction": "increase",
         "response_window": (1, 8),
-        # The PC3 camera occasionally produces dark/dropped frames that show
-        # up as sharp downward spikes in the per-cell traces. Mask them out
-        # before any downstream analysis runs (see mask_dead_frames()).
+        # The PC3 camera occasionally produces dark/dropped (and flash)
+        # frames that corrupt the per-cell traces. Rather than auto-detecting
+        # them, the exact frames to mask are listed explicitly in
+        # ``bad_frames_file`` (0-based frame indices; the light/dark label
+        # column is informational only). mask_dead_frames() masks them to
+        # NaN and fill_dead_frames() linearly interpolates over them.
         "filter_dead_frames": True,
+        "bad_frames_file": (
+            "April28_preprint_results/pc3_dmso_23MAR26/"
+            "PC3 bad frames light and dark.txt"
+        ),
         "timestamps": {
             "channel 1": "PC3 DMSO pulses perfusion 23MAR26 timestamps.csv",
         },
