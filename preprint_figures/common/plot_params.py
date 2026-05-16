@@ -43,6 +43,8 @@ PLOT_PARAMS = {
     "pooled_sem_color": "#8e44ad",    # purple — ±1 SEM band
     "pca_scatter_color": "#1a5e1a",   # dark green — PCA/UMAP scatter
     "rr_color": "#363fe9",            # blue — responder × responder pairs
+    # Per-replicate (per-channel) train-mean inset — green ramp dark→light.
+    "replicate_greens": ["#1b5e20", "#43a047", "#a5d6a7"],
 }
 
 # Used by: sliding-window correlation

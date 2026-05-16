@@ -7,8 +7,10 @@ Per experiment:
 
 Both use the full corrected time series. Within each panel, pairs are coloured
 by responder-pair status (RR / NN / RN) when responder thresholds are
-available, with a separate regression line per subset. Falls back to a
-single-cloud scatter when no responder threshold applies for the channel.
+available, with a separate descriptive regression line per subset. Falls back
+to a single-cloud scatter when no responder threshold applies for the channel.
+Significance is a Mantel permutation test (per channel) — the regression
+p-value is invalid here because the ~N²/2 cell pairs are not independent.
 Distances are reported in μm using the imaging calibration ``PIXELS_PER_UM``.
 """
 
@@ -30,6 +32,7 @@ from common.io_paths import fig_path
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_thresholds
+from common.stats import inferential_caveat, mantel_test, one_sample_t_dz
 from common.stim_helpers import compute_f0_baseline, per_cell_response_delta
 
 sys.path.insert(0, "SCRIPTS")
@@ -131,8 +134,14 @@ def _classify_pair_classes(responder_mask):
     }
 
 
-def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix):
+def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None):
     """Fit a line on (dists, corrs); plot scatter + line + ±3 SEM band.
+
+    The slope and r of the least-squares fit are kept as *descriptive* effect
+    sizes only. Significance comes from ``mantel`` — a :func:`mantel_test`
+    result dict — because the pairs are not independent (each cell appears in
+    many pairs); the ordinary-regression p-value would be badly anti-
+    conservative. When ``mantel`` is None the line is labelled descriptive-only.
 
     Returns True if a line was drawn, False if too few valid points.
     """
@@ -170,14 +179,24 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix):
             color=color, alpha=0.10, zorder=1.5,
         )
 
+    if mantel is None:
+        stat_line = "descriptive fit only (no Mantel test)"
+    elif mantel.get("insufficient"):
+        stat_line = f"Mantel: n={mantel.get('n_cells', 0)} cells — too few"
+    else:
+        stat_line = (
+            f"Mantel p={mantel['p_value']:.3g}  "
+            f"({mantel['n_perm']} perms, {mantel['n_cells']} cells)"
+        )
+
     ax.plot(
         x_line, y_line,
         color=color,
         linewidth=PLOT_PARAMS["mean_lw"],
         label=(
-            f"{label_prefix} (n={n})\n"
-            f"slope={res.slope:.2e}  r={res.rvalue:.3f}  "
-            f"p={res.pvalue:.2e}"
+            f"{label_prefix} (n={n} pairs)\n"
+            f"slope={res.slope:.2e}  r={res.rvalue:.3f}  (descriptive)\n"
+            f"{stat_line}"
         ),
         zorder=3,
     )
@@ -186,11 +205,14 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix):
 
 def _scatter_corr_vs_dist(
     ax, pw_dist, pw_corr, *, pair_classes=None,
-    corr_method="pearson", title="",
+    corr_method="pearson", title="", mantel_all=None, mantel_rr=None,
 ):
     """Scatter pairwise (distance, correlation), optionally split by pair class.
 
     When ``pair_classes`` is None or all-empty, falls back to a single fit.
+    ``mantel_all`` / ``mantel_rr`` are :func:`mantel_test` results for the
+    full cell set and the responder sub-matrix respectively, used to label
+    each fit with a pseudoreplication-safe p-value.
     """
     ax.spines[["top", "right"]].set_visible(False)
     drew_any = False
@@ -216,6 +238,7 @@ def _scatter_corr_vs_dist(
                 pw_dist[rr_mask], pw_corr[rr_mask],
                 color=PAIR_CLASS_COLORS["RR"],
                 label_prefix=PAIR_CLASS_LABEL["RR"],
+                mantel=mantel_rr,
             )
     else:
         drew_any = _fit_and_plot_subset(
@@ -224,6 +247,7 @@ def _scatter_corr_vs_dist(
             np.asarray(pw_corr, dtype=float),
             color=PLOT_PARAMS["corr_fit_color"],
             label_prefix="All pairs",
+            mantel=mantel_all,
         )
 
     ax.set_title(
@@ -314,9 +338,60 @@ def _plot_corr_vs_dist_combined(
             fontsize=PLOT_PARAMS["title_fontsize"],
             fontweight=PLOT_PARAMS["title_fontweight"],
         )
-        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="lower right")
 
-    plt.tight_layout()
+        # A single pooled Mantel test would mix independent dishes and has no
+        # valid label permutation. Instead each channel gets its own cell-level
+        # Mantel test, and the per-replicate Mantel r values are combined with a
+        # one-sample t-test against 0 — the replicate-level biological test the
+        # rest of the pipeline treats as the unit of inference.
+        mantel_lines = []
+        r_per_channel = []
+        for entry in per_channel_pairs:
+            res = entry.get("mantel", {}).get(method, {}).get("all")
+            if res and not res.get("insufficient"):
+                mantel_lines.append(
+                    f"{entry['ch']}: r={res['r_obs']:+.3f}, p={res['p_value']:.3g}"
+                )
+                r_per_channel.append(res["r_obs"])
+        if mantel_lines:
+            combined = one_sample_t_dz(r_per_channel)
+            if combined["n"] >= 2 and np.isfinite(combined["p_value"]):
+                mantel_lines.append(
+                    f"combined ({combined['n']} replicates): "
+                    f"mean r={combined['mean']:+.3f}, "
+                    f"t={combined['t_stat']:+.2f}, p={combined['p_value']:.3g}, "
+                    f"dz={combined['cohen_dz']:+.2f}"
+                )
+            else:
+                mantel_lines.append(
+                    f"combined: n={combined['n']} replicate(s) — too few to test"
+                )
+            ax.text(
+                0.02, 0.97,
+                "Mantel test (cell-level per channel; combined =\n"
+                "one-sample t of per-channel Mantel r vs 0):\n"
+                + "\n".join(mantel_lines),
+                ha="left", va="top", transform=ax.transAxes,
+                fontsize=PLOT_PARAMS["legend_fontsize"] - 1,
+                family="monospace",
+                bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
+            )
+
+    n_channels = len(per_channel_pairs)
+    plt.tight_layout(rect=(0, 0.03, 1, 1));
+    fig.text(
+        0.5, 0.006,
+        inferential_caveat(
+            exp_name, n_channels, unit="cell pair",
+            extra="Pooled line is descriptive; significance = per-channel "
+                  "Mantel test combined across replicates by a one-sample "
+                  "t-test of the per-channel Mantel r against 0.",
+        ),
+        ha="center", va="bottom",
+        fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
+        style="italic", color="#555555",
+    )
     fig.savefig(
         fig_path(exp_name, "corr_vs_dist_combined"),
         dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
@@ -367,10 +442,12 @@ def plot_correlation_vs_distance(experiments, state):
 
             mat_k = mat[keep_rows]
             dist_mat = squareform(pdist(pos_xy, metric="euclidean"))
+            dist_sq = dist_mat / PIXELS_PER_UM
             iu = np.triu_indices(len(pos_xy), k=1)
-            pw_dist = dist_mat[iu] / PIXELS_PER_UM
+            pw_dist = dist_sq[iu]
 
             pair_classes = None
+            row_mask = None
             thr = thresholds.get((exp_name, ch))
             if thr is not None:
                 full_mask, full_ids = _per_cell_responder_mask(
@@ -386,9 +463,11 @@ def plot_correlation_vs_distance(experiments, state):
             per_channel_ctx[ch] = {
                 "mat_k": mat_k,
                 "pw_dist": pw_dist,
+                "dist_sq": dist_sq,
                 "iu": iu,
                 "n_cells": len(keep_rows),
                 "pair_classes": pair_classes,
+                "row_mask": row_mask,
             }
 
         fig, axes = plt.subplots(
@@ -428,12 +507,32 @@ def plot_correlation_vs_distance(experiments, state):
                 "spearman": spearman_mat[iu],
             }
 
+            # Mantel test per correlation method. Permuting cell labels makes
+            # the *cell* (not the pair) the unit of exchangeability, which is
+            # the pseudoreplication-safe significance test here. The responder
+            # sub-matrix gets its own Mantel when ≥4 responder cells exist.
+            dist_sq = ctx["dist_sq"]
+            row_mask = ctx["row_mask"]
+            mantel_by_method = {}
+            for mth, cmat in (("pearson", pearson_mat),
+                              ("spearman", spearman_mat)):
+                m_all = mantel_test(dist_sq, cmat, n_perm=999)
+                m_rr = None
+                if row_mask is not None and int(row_mask.sum()) >= 4:
+                    rr_idx = np.where(row_mask)[0]
+                    m_rr = mantel_test(
+                        dist_sq[np.ix_(rr_idx, rr_idx)],
+                        cmat[np.ix_(rr_idx, rr_idx)], n_perm=999,
+                    )
+                mantel_by_method[mth] = {"all": m_all, "RR": m_rr}
+
             per_channel_pairs.append({
                 "ch": ch,
                 "n_cells": ctx["n_cells"],
                 "pw_dist": ctx["pw_dist"],
                 "pw_corr_by_method": pw_corr_by_method,
                 "pair_classes": ctx["pair_classes"],
+                "mantel": mantel_by_method,
             })
 
             for row, method in enumerate(("pearson", "spearman")):
@@ -443,6 +542,8 @@ def plot_correlation_vs_distance(experiments, state):
                     pair_classes=ctx["pair_classes"],
                     corr_method=method,
                     title=f"{ch}  ({ctx['n_cells']} cells, {METHOD_LABEL[method]})",
+                    mantel_all=mantel_by_method[method]["all"],
+                    mantel_rr=mantel_by_method[method]["RR"],
                 )
                 axes[row, col].set_xlabel(
                     "Pairwise distance (μm)",
@@ -460,7 +561,18 @@ def plot_correlation_vs_distance(experiments, state):
             fontsize=PLOT_PARAMS["title_fontsize"] + 1,
             fontweight="bold", y=1.01,
         )
-        plt.tight_layout()
+        plt.tight_layout(rect=(0, 0.03, 1, 1));
+        fig.text(
+            0.5, 0.006,
+            inferential_caveat(
+                exp_name, len(channels), unit="cell pair",
+                extra="Significance: Mantel permutation test (per channel); "
+                      "slope/r are descriptive.",
+            ),
+            ha="center", va="bottom",
+            fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
+            style="italic", color="#555555",
+        )
         fig.savefig(
             fig_path(exp_name, "corr_vs_dist"),
             dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",

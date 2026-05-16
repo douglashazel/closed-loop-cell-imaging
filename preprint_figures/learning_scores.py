@@ -3,7 +3,9 @@
 
 Per DMSO experiment, the summed-distribution figures for habituation,
 sensitization and anticipation × height/width, each overlaid with a
-shuffled-stim-order permutation null and the per-cell p-value count:
+shuffled-stim-order permutation null and a stats box reporting the
+FDR-corrected per-cell hit count plus a population-level permutation test
+(pooled and per biological replicate):
     * learning_habituation_height.png
     * learning_habituation_width.png
     * learning_sensitization_height.png
@@ -27,6 +29,7 @@ from common.io_paths import fig_path
 from common.permutation_null import permutation_null_distribution, pvalue_one_tailed
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
+from common.stats import bh_fdr, inferential_caveat, population_permutation_pvalue
 from common.stim_helpers import compute_stim_caps, per_cell_response_delta
 from common.time_axis import frames_to_min
 
@@ -223,6 +226,36 @@ def _anticipation_null(inputs, *, metric, n_perm=200, rng_seed=44):
     return pos_null, neg_null
 
 
+def _add_population_stats(blob, channel_index, n_channels):
+    """Augment a learning blob with FDR q-values + population-level tests.
+
+    Per-cell permutation p-values answer "which cells learn" but, pooled over
+    hundreds of cells, need an FDR correction (``<measure>_qvalue``) before the
+    significant count means anything. The population-level question — "does the
+    cell *population* learn more than under shuffled stim order" — is answered
+    by comparing the observed mean score to the per-permutation mean of the
+    existing null (``<measure>_pop``), and again within each channel /
+    biological replicate (``<measure>_pop_by_channel``) so a single dish
+    driving the pooled result stays visible.
+    """
+    for m in ("habituation", "sensitization",
+              "anticipation_pos", "anticipation_neg"):
+        pvals = blob.get(f"{m}_pvalue")
+        null = blob.get(f"{m}_null")
+        if pvals is None or null is None:
+            continue
+        blob[f"{m}_qvalue"] = bh_fdr(pvals)
+        blob[f"{m}_pop"] = population_permutation_pvalue(blob[m], null)
+        per_channel = []
+        for ci in range(n_channels):
+            sel = channel_index == ci
+            per_channel.append(
+                population_permutation_pvalue(blob[m][sel], null[:, sel])
+                if np.any(sel) else None
+            )
+        blob[f"{m}_pop_by_channel"] = per_channel
+
+
 def compute_learning_scores(experiments, state, *, n_perm=200):
     """Compute habituation + sensitization + anticipation scores per DMSO expt.
 
@@ -242,12 +275,14 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
             pos_chunks, neg_chunks = [], []
             hab_null_chunks, sen_null_chunks = [], []
             pos_null_chunks, neg_null_chunks = [], []
+            used_channels = []
             for ch in cfg["channels"]:
                 inputs = _build_learning_inputs(
                     state, exp_name, ch, cfg, metric=metric,
                 )
                 if inputs is None:
                     continue
+                used_channels.append(ch)
                 hab, _ = _score_running_extremum(inputs["per_stim"], mode="min")
                 sen, _ = _score_running_extremum(inputs["per_stim"], mode="max")
                 pos, neg = _score_anticipation(inputs, metric=metric)
@@ -284,6 +319,15 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
                 "anticipation_pos": np.concatenate(pos_chunks),
                 "anticipation_neg": np.concatenate(neg_chunks),
             }
+            # Keep replicate identity: which channel each pooled cell came
+            # from (channels are biological replicates). Null matrices below
+            # are concatenated in the same channel order, so this one index
+            # aligns the score vectors and the null columns alike.
+            blob["channel_index"] = np.concatenate(
+                [np.full(len(c), ci, dtype=int)
+                 for ci, c in enumerate(hab_chunks)]
+            )
+            blob["channel_names"] = list(used_channels)
             if hab_null_chunks:
                 blob["habituation_null"] = np.concatenate(hab_null_chunks, axis=1)
                 blob["sensitization_null"] = np.concatenate(sen_null_chunks, axis=1)
@@ -305,6 +349,9 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
                 blob["anticipation_neg_pvalue"] = pvalue_one_tailed(
                     blob["anticipation_neg"], blob["anticipation_neg_null"],
                 )
+                _add_population_stats(
+                    blob, blob["channel_index"], len(used_channels),
+                )
             out[exp_name][metric] = blob
             print(
                 f"  learning scores: {exp_name} ({metric}) — "
@@ -314,16 +361,45 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
     return out
 
 
+def _format_score_stats(qvalues, pop_result, pop_by_channel, q_alpha=0.05):
+    """Compose the multi-line stats annotation for a learning histogram.
+
+    Reports the FDR-significant cell count (per-cell q-values), the
+    population-level permutation test (p + z effect size) and, when more than
+    one biological replicate is present, the per-replicate z so a single dish
+    driving the pooled result stays visible.
+    """
+    lines = []
+    if qvalues is not None and np.size(qvalues):
+        finite = np.isfinite(qvalues)
+        n_sig = int(np.sum(qvalues[finite] < q_alpha))
+        lines.append(f"FDR q<{q_alpha}: {n_sig}/{int(finite.sum())} cells")
+    if pop_result is not None:
+        lines.append(
+            f"population: p={pop_result['p_value']:.3g}, "
+            f"z={pop_result['z']:.2f}"
+        )
+    if pop_by_channel:
+        parts = [
+            f"c{ci + 1} z={res['z']:.1f}"
+            for ci, res in enumerate(pop_by_channel) if res is not None
+        ]
+        if len(parts) > 1:
+            lines.append("per replicate: " + "  ".join(parts))
+    return "\n".join(lines)
+
+
 def _plot_score_histogram(scores, *, title, xlabel, save_path,
-                          bins=None, color=None,
-                          null_dist=None, pvalues=None, alpha_p=0.01,
-                          x_max=None):
+                          bins=None, color=None, null_dist=None, x_max=None,
+                          qvalues=None, pop_result=None, pop_by_channel=None,
+                          caveat=None):
     """Single-distribution histogram with optional permutation-null overlay.
 
     When ``null_dist`` (shape ``(n_perm, n_cells)``) is provided, plot the
     pooled null as a back-layer histogram normalized to the same total cell
-    count, and add the count of cells with p-value < ``alpha_p`` to the
-    legend (when ``pvalues`` is supplied).
+    count. The stats box reports FDR-corrected per-cell hits plus the
+    population-level test (see :func:`_format_score_stats`); ``caveat`` is
+    drawn as a figure footnote naming the unit of inference.
 
     When ``x_max`` is given the score axis is fixed to the discrete whole
     numbers ``0..x_max``.
@@ -358,11 +434,10 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
         label=f"Observed (n={scores.size})",
         zorder=2,
     )
-    if pvalues is not None and pvalues.size:
-        n_sig = int(np.sum(pvalues < alpha_p))
+    stats_text = _format_score_stats(qvalues, pop_result, pop_by_channel)
+    if stats_text:
         ax.text(
-            0.98, 0.95,
-            f"p<{alpha_p}: {n_sig} cells",
+            0.98, 0.95, stats_text,
             ha="right", va="top",
             transform=ax.transAxes,
             fontsize=PLOT_PARAMS["legend_fontsize"],
@@ -379,21 +454,31 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     )
     if null_dist is not None and null_dist.size:
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-    plt.tight_layout()
+    plt.tight_layout(rect=(0, 0.035, 1, 1));
+    if caveat:
+        fig.text(
+            0.5, 0.008, caveat, ha="center", va="bottom",
+            fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
+            style="italic", color="#555555",
+        )
     fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
 
 
 def _plot_anticipation_histogram(pos, neg, *, title, save_path,
                                  pos_null=None, neg_null=None,
-                                 pos_pvalues=None, neg_pvalues=None,
-                                 alpha_p=0.01, n_trains=3):
+                                 pos_stats=None, neg_stats=None,
+                                 caveat=None, n_trains=3):
     """Side-by-side negative / positive anticipation histograms.
 
     Each cell contributes one negative-event count and one positive-event
     count, so the two panels hold the same set of cells. The left panel plots
     the negative counts on a discrete ``-n_trains..0`` axis, the right panel
     the positive counts on ``0..n_trains``; both panels share the y-axis.
+
+    ``pos_stats`` / ``neg_stats`` are ``(qvalues, pop_result, pop_by_channel)``
+    tuples rendered as the per-panel stats box; ``caveat`` is the figure
+    footnote naming the unit of inference.
     """
     fig, (ax_neg, ax_pos) = plt.subplots(
         1, 2, sharey=True,
@@ -444,18 +529,18 @@ def _plot_anticipation_histogram(pos, neg, *, title, save_path,
     ax_neg.set_xticks(np.arange(-n_trains, 1))
     ax_pos.set_xticks(np.arange(0, n_trains + 1))
 
-    if neg_pvalues is not None and neg_pvalues.size:
+    neg_text = _format_score_stats(*neg_stats) if neg_stats else ""
+    if neg_text:
         ax_neg.text(
-            0.02, 0.95,
-            f"p<{alpha_p}: {int(np.sum(neg_pvalues < alpha_p))} cells",
+            0.02, 0.95, neg_text,
             ha="left", va="top", transform=ax_neg.transAxes,
             fontsize=PLOT_PARAMS["legend_fontsize"],
             bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
         )
-    if pos_pvalues is not None and pos_pvalues.size:
+    pos_text = _format_score_stats(*pos_stats) if pos_stats else ""
+    if pos_text:
         ax_pos.text(
-            0.98, 0.95,
-            f"p<{alpha_p}: {int(np.sum(pos_pvalues < alpha_p))} cells",
+            0.98, 0.95, pos_text,
             ha="right", va="top", transform=ax_pos.transAxes,
             fontsize=PLOT_PARAMS["legend_fontsize"],
             bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
@@ -473,7 +558,13 @@ def _plot_anticipation_histogram(pos, neg, *, title, save_path,
         fontsize=PLOT_PARAMS["title_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
-    plt.tight_layout();
+    plt.tight_layout(rect=(0, 0.04, 1, 1));
+    if caveat:
+        fig.text(
+            0.5, 0.008, caveat, ha="center", va="bottom",
+            fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
+            style="italic", color="#555555",
+        )
     fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
 
@@ -490,13 +581,14 @@ def plot_learning_score_histograms(experiments, state, scores=None):
         for metric, blob in by_metric.items():
             if blob is None:
                 continue
+            n_ch = len(blob.get("channel_names", []))
+            caveat = inferential_caveat(exp_name, n_ch, unit="cell")
             for measure_key, label_word in (
                 ("habituation", "Habituation"),
                 ("sensitization", "Sensitization"),
             ):
                 summed = blob[measure_key]
                 null = blob.get(f"{measure_key}_null")
-                pvals = blob.get(f"{measure_key}_pvalue")
                 _plot_score_histogram(
                     summed,
                     title=(
@@ -509,7 +601,10 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                         exp_name, f"learning_{measure_key}_{metric}",
                     ),
                     null_dist=null,
-                    pvalues=pvals,
+                    qvalues=blob.get(f"{measure_key}_qvalue"),
+                    pop_result=blob.get(f"{measure_key}_pop"),
+                    pop_by_channel=blob.get(f"{measure_key}_pop_by_channel"),
+                    caveat=caveat,
                     x_max=12,
                 )
 
@@ -524,8 +619,17 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                 save_path=fig_path(exp_name, f"learning_anticipation_{metric}"),
                 pos_null=blob.get("anticipation_pos_null"),
                 neg_null=blob.get("anticipation_neg_null"),
-                pos_pvalues=blob.get("anticipation_pos_pvalue"),
-                neg_pvalues=blob.get("anticipation_neg_pvalue"),
+                pos_stats=(
+                    blob.get("anticipation_pos_qvalue"),
+                    blob.get("anticipation_pos_pop"),
+                    blob.get("anticipation_pos_pop_by_channel"),
+                ),
+                neg_stats=(
+                    blob.get("anticipation_neg_qvalue"),
+                    blob.get("anticipation_neg_pop"),
+                    blob.get("anticipation_neg_pop_by_channel"),
+                ),
+                caveat=caveat,
             )
 
 
