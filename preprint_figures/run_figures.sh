@@ -31,6 +31,7 @@ EXPERIMENTS="all"
 
 RECOMPUTE_BG=false        # force background-cache rebuild for selected experiments
 AGGREGATE_PDF=true        # rebuild April28_preprint_figures.pdf at the end
+PARALLEL=true             # run the 3 experiments concurrently (one worker each)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -54,32 +55,92 @@ else
     read -r -a ANALYSES_LIST <<< "$ANALYSES"
 fi
 
+# Resolve EXPERIMENTS to an explicit name list (expand "all" via the config).
 if [ "$EXPERIMENTS" = "all" ]; then
-    EXP_FLAG=(--experiments all)
+    read -r -a EXP_LIST <<< "$(
+        python3 -c "import sys; sys.path.insert(0, 'preprint_figures'); \
+from common.config import EXPERIMENTS; print(' '.join(EXPERIMENTS))"
+    )"
 else
     read -r -a EXP_LIST <<< "$EXPERIMENTS"
-    EXP_FLAG=(--experiments "${EXP_LIST[@]}")
 fi
 
-EXTRA_FLAGS=()
-[ "$RECOMPUTE_BG" = "true" ] && EXTRA_FLAGS+=(--recompute-bg)
+# Fail fast if any selected analysis script is missing.
+for a in "${ANALYSES_LIST[@]}"; do
+    if [ ! -f "preprint_figures/${a}.py" ]; then
+        echo "ERROR: missing preprint_figures/${a}.py"
+        exit 1
+    fi
+done
 
 echo "=== preprint_figures pipeline ==="
 echo "  analyses:    ${ANALYSES_LIST[*]}"
-echo "  experiments: ${EXPERIMENTS}"
-echo "  recompute_bg=${RECOMPUTE_BG}, aggregate_pdf=${AGGREGATE_PDF}"
+echo "  experiments: ${EXP_LIST[*]}"
+echo "  parallel=${PARALLEL}, recompute_bg=${RECOMPUTE_BG}, aggregate_pdf=${AGGREGATE_PDF}"
 echo
 
-for a in "${ANALYSES_LIST[@]}"; do
-    script="preprint_figures/${a}.py"
-    if [ ! -f "$script" ]; then
-        echo "ERROR: missing $script"
+# Run every selected analysis for ONE experiment, in order. The first analysis
+# carries --recompute-bg (if requested) so the background cache is rebuilt
+# once; later analyses for the same experiment hit the warm cache.
+run_experiment() {
+    local exp="$1"
+    local first=true
+    for a in "${ANALYSES_LIST[@]}"; do
+        local extra=()
+        if [ "$first" = "true" ] && [ "$RECOMPUTE_BG" = "true" ]; then
+            extra+=(--recompute-bg)
+        fi
+        first=false
+        echo ">>> [${exp}] Running ${a}"
+        python3 "preprint_figures/${a}.py" --experiments "$exp" "${extra[@]}"
+    done
+    echo ">>> [${exp}] done"
+}
+
+if [ "$PARALLEL" = "true" ] && [ "${#EXP_LIST[@]}" -gt 1 ]; then
+    # One concurrent worker per experiment. Cap each worker's BLAS/OpenMP
+    # thread pool so the 3 workers don't oversubscribe the CPU.
+    NWORKERS="${#EXP_LIST[@]}"
+    THREADS_PER_WORKER=$(( $(nproc) / NWORKERS ))
+    [ "$THREADS_PER_WORKER" -lt 1 ] && THREADS_PER_WORKER=1
+    export OMP_NUM_THREADS="$THREADS_PER_WORKER" \
+           OPENBLAS_NUM_THREADS="$THREADS_PER_WORKER" \
+           MKL_NUM_THREADS="$THREADS_PER_WORKER" \
+           NUMEXPR_NUM_THREADS="$THREADS_PER_WORKER"
+
+    LOG_DIR="April28_preprint_results/run_logs"
+    mkdir -p "$LOG_DIR"
+    echo ">>> Launching ${NWORKERS} workers (${THREADS_PER_WORKER} threads each); logs in ${LOG_DIR}/"
+
+    PIDS=()
+    for exp in "${EXP_LIST[@]}"; do
+        run_experiment "$exp" > "${LOG_DIR}/${exp}.log" 2>&1 &
+        PIDS+=("$!")
+    done
+
+    # Wait for all workers; replay each log; fail if any worker errored.
+    FAIL=0
+    for i in "${!PIDS[@]}"; do
+        rc=0
+        wait "${PIDS[i]}" || rc=$?
+        exp="${EXP_LIST[i]}"
+        echo
+        echo "───── ${exp} (exit ${rc}) ─────"
+        cat "${LOG_DIR}/${exp}.log"
+        [ "$rc" -ne 0 ] && FAIL=1
+    done
+    if [ "$FAIL" -ne 0 ]; then
+        echo
+        echo "ERROR: one or more experiment workers failed (see logs above)."
         exit 1
     fi
-    echo ">>> Running ${a}"
-    python3 "$script" "${EXP_FLAG[@]}" "${EXTRA_FLAGS[@]}"
-    echo
-done
+else
+    # Sequential fallback: one experiment at a time.
+    for exp in "${EXP_LIST[@]}"; do
+        run_experiment "$exp"
+        echo
+    done
+fi
 
 if [ "$AGGREGATE_PDF" = "true" ]; then
     if [ -f "aggregate_preprint_pdf.py" ]; then

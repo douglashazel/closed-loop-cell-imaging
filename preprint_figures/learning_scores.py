@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Learning-score histograms (DMSO experiments only).
 
-Per DMSO experiment, the summed-distribution figures for habituation and
-sensitization × height/width, each overlaid with a shuffled-stim-order
-permutation null and the per-cell p-value count:
+Per DMSO experiment, the summed-distribution figures for habituation,
+sensitization and anticipation × height/width, each overlaid with a
+shuffled-stim-order permutation null and the per-cell p-value count:
     * learning_habituation_height.png
     * learning_habituation_width.png
     * learning_sensitization_height.png
     * learning_sensitization_width.png
+    * learning_anticipation_height.png
+    * learning_anticipation_width.png
 """
 
 import os
@@ -70,8 +72,13 @@ def _build_learning_inputs(state, exp_name, ch, cfg, *, metric):
 
     per_stim = per_stim_width if metric == "width" else per_stim_height
     return {
+        "mat": mat,
+        "stim_cols": valid_stim_cols,
+        "frame_to_min_fn": f2m,
         "per_stim": per_stim,
         "n_cells": n_cells,
+        "direction": direction,
+        "window": window,
         "cell_ids": list(df_indexed.index),
     }
 
@@ -107,11 +114,121 @@ def _score_running_extremum(per_stim, *, mode, n_per_train=LEARNING_STIMS_PER_TR
     return per_train.sum(axis=0), per_train
 
 
+def _per_cell_typical_fluctuation(mat, stim_cols, frame_to_min_fn,
+                                  n_per_train=LEARNING_STIMS_PER_TRAIN,
+                                  rest_min=10.0):
+    """Per-cell std of frame-to-frame deltas in non-stim periods."""
+    n_cells, n_cols = mat.shape
+    n_trains = len(stim_cols) // n_per_train
+    non_stim = np.ones(n_cols, dtype=bool)
+    all_minutes = frame_to_min_fn(np.arange(n_cols))
+    for t in range(n_trains):
+        first_sc = stim_cols[t * n_per_train]
+        last_sc = stim_cols[t * n_per_train + n_per_train - 1]
+        end_min = float(frame_to_min_fn([last_sc])[0]) + rest_min
+        end_col = int(np.argmin(np.abs(all_minutes - end_min)))
+        non_stim[first_sc:end_col + 1] = False
+    deltas = np.diff(mat, axis=1)
+    keep = non_stim[:-1] & non_stim[1:]
+    if not keep.any():
+        return np.full(n_cells, np.nan)
+    return np.nanstd(deltas[:, keep], axis=1)
+
+
+def _score_anticipation(inputs, *, metric):
+    """Compute anticipation scores. Returns ``(pos, neg)`` summed across trains.
+
+    For each train, look 10 min after the median post-train response peak; a
+    cell scores a (signed) anticipation event when its response there exceeds
+    its typical non-stim fluctuation.
+    """
+    mat = inputs["mat"]
+    stim_cols = inputs["stim_cols"]
+    f2m = inputs["frame_to_min_fn"]
+    direction = inputs["direction"]
+    window = inputs["window"]
+    n_cells, n_cols = mat.shape
+    n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
+    sign = -1.0 if direction == "decrease" else 1.0
+
+    typical = _per_cell_typical_fluctuation(mat, stim_cols, f2m)
+
+    pos_per_train = np.zeros((n_trains, n_cells), dtype=int)
+    neg_per_train = np.zeros((n_trains, n_cells), dtype=int)
+    win_lo_off, win_hi_off = window
+    all_minutes = f2m(np.arange(n_cols))
+
+    for t in range(n_trains):
+        train = stim_cols[
+            t * LEARNING_STIMS_PER_TRAIN:(t + 1) * LEARNING_STIMS_PER_TRAIN
+        ]
+        last_sc = train[-1]
+        win_lo = max(0, last_sc + win_lo_off)
+        win_hi = min(n_cols, last_sc + win_hi_off)
+        if win_lo >= win_hi:
+            continue
+        seg = mat[:, win_lo:win_hi]
+        if direction == "decrease":
+            peak_offsets = np.argmin(
+                np.where(np.isnan(seg), np.inf, seg), axis=1,
+            )
+        else:
+            peak_offsets = np.argmax(
+                np.where(np.isnan(seg), -np.inf, seg), axis=1,
+            )
+        peak_cols = win_lo + peak_offsets
+        ref_peak_col = int(np.round(np.nanmedian(peak_cols)))
+        ref_peak_min = float(f2m([ref_peak_col])[0])
+        anticip_min = ref_peak_min + 10.0
+        if anticip_min > float(all_minutes[-1]):
+            continue
+        anticip_col = int(np.argmin(np.abs(all_minutes - anticip_min)))
+        if anticip_col + win_hi_off > n_cols:
+            continue
+
+        cap = compute_stim_caps([anticip_col], n_cols)[0]
+        height_resp, width_resp = per_cell_response_delta(
+            mat, anticip_col, direction, window,
+            return_width=True, cap_col=cap, frame_to_min_fn=f2m,
+        )
+        signed = sign * height_resp
+        significant = np.abs(height_resp) > typical
+        if metric == "width":
+            significant = significant & ~np.isnan(width_resp)
+        pos_per_train[t] = (significant & (signed > 0)).astype(int)
+        neg_per_train[t] = (significant & (signed < 0)).astype(int)
+
+    return pos_per_train.sum(axis=0), neg_per_train.sum(axis=0)
+
+
+def _anticipation_null(inputs, *, metric, n_perm=200, rng_seed=44):
+    """Per-cell null for anticipation scores under shuffled stim_cols order.
+
+    Each iteration permutes ``stim_cols`` globally, then re-runs the same
+    anticipation routine. Returns ``(pos_null, neg_null)`` of shape
+    ``(n_perm, n_cells)``.
+    """
+    rng = np.random.default_rng(rng_seed)
+    stim_cols = np.asarray(inputs["stim_cols"])
+    n_cells = inputs["mat"].shape[0]
+    pos_null = np.zeros((n_perm, n_cells), dtype=float)
+    neg_null = np.zeros((n_perm, n_cells), dtype=float)
+    for i in range(n_perm):
+        shuffled = stim_cols[rng.permutation(stim_cols.size)].tolist()
+        shuffled_inputs = dict(inputs)
+        shuffled_inputs["stim_cols"] = shuffled
+        pos, neg = _score_anticipation(shuffled_inputs, metric=metric)
+        pos_null[i] = pos
+        neg_null[i] = neg
+    return pos_null, neg_null
+
+
 def compute_learning_scores(experiments, state, *, n_perm=200):
-    """Compute habituation + sensitization scores per DMSO experiment.
+    """Compute habituation + sensitization + anticipation scores per DMSO expt.
 
     Returns a nested dict ``out[exp][metric]`` whose blob holds the observed
-    ``habituation`` / ``sensitization`` scores plus, when ``n_perm > 0``, the
+    ``habituation`` / ``sensitization`` / ``anticipation_pos`` /
+    ``anticipation_neg`` scores plus, when ``n_perm > 0``, the
     shuffled-stim-order null distributions and one-tailed per-cell p-values.
     Experiments are filtered to ``response_direction == "increase"`` (DMSO).
     """
@@ -122,7 +239,9 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
         out[exp_name] = {}
         for metric in ("height", "width"):
             hab_chunks, sen_chunks = [], []
+            pos_chunks, neg_chunks = [], []
             hab_null_chunks, sen_null_chunks = [], []
+            pos_null_chunks, neg_null_chunks = [], []
             for ch in cfg["channels"]:
                 inputs = _build_learning_inputs(
                     state, exp_name, ch, cfg, metric=metric,
@@ -131,8 +250,11 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
                     continue
                 hab, _ = _score_running_extremum(inputs["per_stim"], mode="min")
                 sen, _ = _score_running_extremum(inputs["per_stim"], mode="max")
+                pos, neg = _score_anticipation(inputs, metric=metric)
                 hab_chunks.append(hab)
                 sen_chunks.append(sen)
+                pos_chunks.append(pos)
+                neg_chunks.append(neg)
 
                 if n_perm and n_perm > 0:
                     hab_null = permutation_null_distribution(
@@ -145,8 +267,13 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
                         inputs["per_stim"], n_perm=n_perm,
                         rng_seed=43, mode="per_cell",
                     )
+                    pos_null, neg_null = _anticipation_null(
+                        inputs, metric=metric, n_perm=n_perm, rng_seed=44,
+                    )
                     hab_null_chunks.append(hab_null)
                     sen_null_chunks.append(sen_null)
+                    pos_null_chunks.append(pos_null)
+                    neg_null_chunks.append(neg_null)
 
             if not hab_chunks:
                 out[exp_name][metric] = None
@@ -154,15 +281,29 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
             blob = {
                 "habituation": np.concatenate(hab_chunks),
                 "sensitization": np.concatenate(sen_chunks),
+                "anticipation_pos": np.concatenate(pos_chunks),
+                "anticipation_neg": np.concatenate(neg_chunks),
             }
             if hab_null_chunks:
                 blob["habituation_null"] = np.concatenate(hab_null_chunks, axis=1)
                 blob["sensitization_null"] = np.concatenate(sen_null_chunks, axis=1)
+                blob["anticipation_pos_null"] = np.concatenate(
+                    pos_null_chunks, axis=1,
+                )
+                blob["anticipation_neg_null"] = np.concatenate(
+                    neg_null_chunks, axis=1,
+                )
                 blob["habituation_pvalue"] = pvalue_one_tailed(
                     blob["habituation"], blob["habituation_null"],
                 )
                 blob["sensitization_pvalue"] = pvalue_one_tailed(
                     blob["sensitization"], blob["sensitization_null"],
+                )
+                blob["anticipation_pos_pvalue"] = pvalue_one_tailed(
+                    blob["anticipation_pos"], blob["anticipation_pos_null"],
+                )
+                blob["anticipation_neg_pvalue"] = pvalue_one_tailed(
+                    blob["anticipation_neg"], blob["anticipation_neg_null"],
                 )
             out[exp_name][metric] = blob
             print(
@@ -175,13 +316,17 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
 
 def _plot_score_histogram(scores, *, title, xlabel, save_path,
                           bins=None, color=None,
-                          null_dist=None, pvalues=None, alpha_p=0.01):
+                          null_dist=None, pvalues=None, alpha_p=0.01,
+                          x_max=None):
     """Single-distribution histogram with optional permutation-null overlay.
 
     When ``null_dist`` (shape ``(n_perm, n_cells)``) is provided, plot the
     pooled null as a back-layer histogram normalized to the same total cell
     count, and add the count of cells with p-value < ``alpha_p`` to the
     legend (when ``pvalues`` is supplied).
+
+    When ``x_max`` is given the score axis is fixed to the discrete whole
+    numbers ``0..x_max``.
     """
     fig, ax = plt.subplots(
         figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
@@ -189,16 +334,19 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     ax.spines[["top", "right"]].set_visible(False)
     ax.tick_params(top=False, right=False)
     if bins is None:
-        max_v = int(np.nanmax(scores)) if scores.size else 0
-        if null_dist is not None and null_dist.size:
-            max_v = max(max_v, int(np.nanmax(null_dist)))
+        if x_max is not None:
+            max_v = int(x_max)
+        else:
+            max_v = int(np.nanmax(scores)) if scores.size else 0
+            if null_dist is not None and null_dist.size:
+                max_v = max(max_v, int(np.nanmax(null_dist)))
         bins = np.arange(-0.5, max_v + 1.5, 1)
     if null_dist is not None and null_dist.size:
         n_perm = null_dist.shape[0]
         ax.hist(
             null_dist.ravel(), bins=bins,
-            color="#9a9a9a", alpha=0.4,
-            edgecolor="#555555", linewidth=0.4,
+            color="#7a7a7a", alpha=0.55,
+            edgecolor="#444444", linewidth=0.4,
             weights=np.full(null_dist.size, 1.0 / max(n_perm, 1)),
             label=f"Shuffled null (mean over {n_perm} perms)",
             zorder=1,
@@ -206,7 +354,7 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     ax.hist(
         scores, bins=bins,
         color=color or PLOT_PARAMS["fit_color"],
-        alpha=0.85, edgecolor="#222222", linewidth=0.6,
+        alpha=0.55, edgecolor="#222222", linewidth=0.6,
         label=f"Observed (n={scores.size})",
         zorder=2,
     )
@@ -220,6 +368,8 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
             fontsize=PLOT_PARAMS["legend_fontsize"],
             bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
         )
+    if x_max is not None:
+        ax.set_xticks(np.arange(0, int(x_max) + 1))
     ax.set_xlabel(xlabel, fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax.set_title(
@@ -234,8 +384,102 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     plt.close(fig)
 
 
+def _plot_anticipation_histogram(pos, neg, *, title, save_path,
+                                 pos_null=None, neg_null=None,
+                                 pos_pvalues=None, neg_pvalues=None,
+                                 alpha_p=0.01, n_trains=3):
+    """Side-by-side negative / positive anticipation histograms.
+
+    Each cell contributes one negative-event count and one positive-event
+    count, so the two panels hold the same set of cells. The left panel plots
+    the negative counts on a discrete ``-n_trains..0`` axis, the right panel
+    the positive counts on ``0..n_trains``; both panels share the y-axis.
+    """
+    fig, (ax_neg, ax_pos) = plt.subplots(
+        1, 2, sharey=True,
+        figsize=(PLOT_PARAMS["figsize"][0] * 1.7, PLOT_PARAMS["figsize"][1]),
+        dpi=PLOT_PARAMS["dpi"],
+    )
+    for ax in (ax_neg, ax_pos):
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(top=False, right=False)
+
+    neg_bins = np.arange(-n_trains - 0.5, 1.5, 1)
+    pos_bins = np.arange(-0.5, n_trains + 1.5, 1)
+
+    if neg_null is not None and neg_null.size:
+        n_perm = neg_null.shape[0]
+        ax_neg.hist(
+            -neg_null.ravel(), bins=neg_bins,
+            color="#eda396", alpha=0.45,
+            edgecolor="#6e2418", linewidth=0.4,
+            weights=np.full(neg_null.size, 1.0 / max(n_perm, 1)),
+            label=f"null ({n_perm} perms)",
+            zorder=1,
+        )
+    ax_neg.hist(
+        -neg, bins=neg_bins, color="#e74c3c", alpha=0.55,
+        edgecolor="#7a1a12", linewidth=0.8,
+        label=f"negative (n={neg.size})",
+        zorder=2,
+    )
+
+    if pos_null is not None and pos_null.size:
+        n_perm = pos_null.shape[0]
+        ax_pos.hist(
+            pos_null.ravel(), bins=pos_bins,
+            color="#7fc8a0", alpha=0.45,
+            edgecolor="#2f6e49", linewidth=0.4,
+            weights=np.full(pos_null.size, 1.0 / max(n_perm, 1)),
+            label=f"null ({n_perm} perms)",
+            zorder=1,
+        )
+    ax_pos.hist(
+        pos, bins=pos_bins, color="#1a9d51", alpha=0.55,
+        edgecolor="#0d4f29", linewidth=0.8,
+        label=f"positive (n={pos.size})",
+        zorder=2,
+    )
+
+    ax_neg.set_xticks(np.arange(-n_trains, 1))
+    ax_pos.set_xticks(np.arange(0, n_trains + 1))
+
+    if neg_pvalues is not None and neg_pvalues.size:
+        ax_neg.text(
+            0.02, 0.95,
+            f"p<{alpha_p}: {int(np.sum(neg_pvalues < alpha_p))} cells",
+            ha="left", va="top", transform=ax_neg.transAxes,
+            fontsize=PLOT_PARAMS["legend_fontsize"],
+            bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
+        )
+    if pos_pvalues is not None and pos_pvalues.size:
+        ax_pos.text(
+            0.98, 0.95,
+            f"p<{alpha_p}: {int(np.sum(pos_pvalues < alpha_p))} cells",
+            ha="right", va="top", transform=ax_pos.transAxes,
+            fontsize=PLOT_PARAMS["legend_fontsize"],
+            bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
+        )
+
+    ax_neg.set_xlabel("Negative anticipation score (events / 3 trains)",
+                      fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax_pos.set_xlabel("Positive anticipation score (events / 3 trains)",
+                      fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax_neg.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax_neg.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
+    ax_pos.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
+    fig.suptitle(
+        title,
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    plt.tight_layout();
+    fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_learning_score_histograms(experiments, state, scores=None):
-    """Emit summed habituation / sensitization histograms (DMSO only).
+    """Emit summed habituation / sensitization / anticipation histograms (DMSO).
 
     For each measure × metric: ``learning_<measure>_<metric>.png``, with the
     shuffled-stim-order null overlaid when it was computed.
@@ -266,7 +510,23 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                     ),
                     null_dist=null,
                     pvalues=pvals,
+                    x_max=12,
                 )
+
+            _plot_anticipation_histogram(
+                blob["anticipation_pos"],
+                blob["anticipation_neg"],
+                title=(
+                    f"{exp_name} — anticipation score ({metric})\n"
+                    f"|response| > typical fluctuation, 10 min after last "
+                    f"train peak"
+                ),
+                save_path=fig_path(exp_name, f"learning_anticipation_{metric}"),
+                pos_null=blob.get("anticipation_pos_null"),
+                neg_null=blob.get("anticipation_neg_null"),
+                pos_pvalues=blob.get("anticipation_pos_pvalue"),
+                neg_pvalues=blob.get("anticipation_neg_pvalue"),
+            )
 
 
 def main():
