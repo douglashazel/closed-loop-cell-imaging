@@ -58,6 +58,8 @@ OVERVIEW_ORDER = [
     "learning_anticipation_width_split",
     "responder_distribution_diagnostic",
     "responder_stimlock_diagnostic",
+    "responder_artifact_diagnostic",
+    "responder_f0_diagnostic",
 ]
 PER_CHANNEL_ORDER = [
     "dff",
@@ -96,6 +98,12 @@ CATEGORY_LABELS = {
     ),
     "responder_stimlock_diagnostic": (
         "Responder diagnostic — stimulus-locked artifact check + open questions"
+    ),
+    "responder_artifact_diagnostic": (
+        "Responder diagnostic — dead-frame proximity + perfusion/optical artifact"
+    ),
+    "responder_f0_diagnostic": (
+        "Responder diagnostic — F0 dependence (1/F0 normalization check)"
     ),
 }
 
