@@ -23,7 +23,10 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 # invalidated automatically whenever ``BG_FIT`` differs from the cached values.
 RECOMPUTE_BG = False
 
-# Peak frame for a given stimulus is ``stim_frame + PEAK_OFFSET``.
+# Fallback peak window used only when an experiment defines neither
+# ``response_window_minutes`` nor ``response_window``: the response extremum
+# is searched in the single frame ``[stim+PEAK_OFFSET, stim+PEAK_OFFSET+1)``.
+# Every current experiment defines a window, so this is not exercised.
 PEAK_OFFSET = 2
 
 # Acidic-pulse dedup window. Any acidic-media request within this many frames
@@ -76,6 +79,16 @@ LEARNING_STIMS_PER_TRAIN = 5  # Each DMSO train is 5 pulses (3 trains/expt).
 #   frame whose absolute datetime is nearest to ``perfusion_start + stim_min``.
 #   ``perfusion_start`` defaults to the earliest frame-0 datetime across the
 #   channels listed in 'timestamps' (override with 'perfusion_start').
+#
+# response_window_minutes (optional):
+#   (lo_min, hi_min) — search interval for the response extremum, in minutes
+#   after stim onset. Converted to per-channel frame offsets via timestamps
+#   (common.time_axis.response_window_frames). Preferred over the frame-based
+#   'response_window' when frame rates differ across experiments.
+#
+# response_window (optional, frame-based fallback):
+#   (lo, hi) frame offsets — search [stim+lo, stim+hi). Used only when
+#   'response_window_minutes' is absent.
 EXPERIMENTS = {
     "c2c12_dmso_09APR26": {
         "dir": "EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26",
@@ -95,7 +108,11 @@ EXPERIMENTS = {
         "stim_label": "DMSO pulse (2 min)",
         # DMSO drives luminosity *up* — the response is the post-stim maximum.
         "response_direction": "increase",
-        "response_window": (1, 8),  # frames after stim: search for extremum in [stim+1, stim+8)
+        # Search for the response extremum 0.5–5.0 min after stim onset.
+        # Specified in physical time (not frames) and converted per channel
+        # via timestamps: C2C12 runs ~6x slower than PC3, so a fixed frame
+        # window would cover a different physical duration in each.
+        "response_window_minutes": (0.5, 5.0),
         "timestamps": {
             "channel 1": "timestamps/C2C12 DMSO perfusion 09APR26 channel 1 timestamps.csv",
             "channel 2": "timestamps/C2C12 DMSO perfusion 09APR26 channel 2 timestamps.csv",
@@ -127,7 +144,12 @@ EXPERIMENTS = {
         "stim_duration_minutes": 2.0,
         "stim_label": "DMSO pulse (2 min)",
         "response_direction": "increase",
-        "response_window": (1, 8),
+        # Same physical window as c2c12_dmso_09APR26 (0.5–5.0 min after stim
+        # onset). The PC3 camera runs ~7 s/frame, so the old frame-based
+        # (1, 8) ended only ~50 s post-stim — before the DMSO response had
+        # developed. Converting per channel via timestamps fixes that
+        # frame-rate mismatch.
+        "response_window_minutes": (0.5, 5.0),
         # The PC3 camera occasionally produces dark/dropped (and flash)
         # frames that corrupt the per-cell traces. Rather than auto-detecting
         # them, the exact frames to mask are listed explicitly in
@@ -154,6 +176,7 @@ EXPERIMENTS = {
         "stim_label": "Acid pulse (30 s)",
         # Acid drives luminosity *down* — the response is the post-stim minimum.
         "response_direction": "decrease",
+        # Short 30 s acid pulse: window kept frame-based (not minutes).
         "response_window": (1, 8),
         # Only the first 30 min of NRK data are analyzed; everything past
         # this is dropped from corrected_lum/bg_trace/stim_frames before any

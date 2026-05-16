@@ -24,14 +24,14 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
+from common.config import LEARNING_STIMS_PER_TRAIN
 from common.io_paths import fig_path
 from common.permutation_null import permutation_null_distribution, pvalue_one_tailed
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.stats import bh_fdr, inferential_caveat, population_permutation_pvalue
 from common.stim_helpers import compute_stim_caps, per_cell_response_delta
-from common.time_axis import frames_to_min
+from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
@@ -40,7 +40,7 @@ from io_utils import lum_dict_to_df  # noqa: E402
 def _build_learning_inputs(state, exp_name, ch, cfg, *, metric):
     """Per-channel inputs needed by every learning-score function."""
     direction = cfg.get("response_direction", "increase")
-    window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+    window = response_window_frames(state, exp_name, ch, cfg)
     stim_frames = cfg["stim_frames"][ch]
     df_indexed = lum_dict_to_df(
         state["corrected_lum"][exp_name][ch]

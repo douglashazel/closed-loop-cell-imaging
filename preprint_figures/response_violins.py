@@ -32,7 +32,7 @@ from common.stim_helpers import (
     compute_stim_caps,
     per_cell_response_delta,
 )
-from common.time_axis import frames_to_min
+from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
@@ -300,7 +300,7 @@ def _per_channel_stim_response_arrays(
     responder cell. When ``responder_mask`` is None every entry is False.
     """
     direction = cfg.get("response_direction", "increase")
-    window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+    window = response_window_frames(state, exp_name, ch, cfg)
 
     stim_frames = cfg["stim_frames"][ch]
     values, df_indexed, frame_cols, frame_to_col = _build_signal_matrix(
@@ -366,7 +366,7 @@ def _per_train_cell_means(state, exp_name, ch, cfg, *, metric, signal,
     acid experiment, whose pulses are not organized into fixed trains).
     """
     direction = cfg.get("response_direction", "increase")
-    window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+    window = response_window_frames(state, exp_name, ch, cfg)
     stim_frames = cfg["stim_frames"][ch]
     n_stims = len(stim_frames)
     n_trains = n_stims // n_per_train
@@ -511,9 +511,13 @@ def plot_per_stimulus_response_violins(
     signal_label = "dF/F₀" if signal == "dff" else "Δ luminosity"
     for exp_name, cfg in experiments.items():
         direction = cfg.get("response_direction", "increase")
-        window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
         extremum_label = "max" if direction == "increase" else "min"
-        window_str = f"stim+{window[0]}…stim+{window[1] - 1} frames"
+        win_min = cfg.get("response_window_minutes")
+        if win_min is not None:
+            window_str = f"{win_min[0]:g}–{win_min[1]:g} min post-stim"
+        else:
+            wf = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
+            window_str = f"stim+{wf[0]}…stim+{wf[1] - 1} frames"
         if metric == "width":
             unit_str = "(dF/F₀ baseline)" if signal == "dff" else ""
             y_label = f"Response width (min) {unit_str}".strip()

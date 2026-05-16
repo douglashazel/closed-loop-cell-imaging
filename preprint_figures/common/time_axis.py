@@ -8,6 +8,7 @@ import os
 import numpy as np
 import pandas as pd
 
+from common.config import PEAK_OFFSET
 from common.stim_resolve import (
     minutes_from_frame_mtimes,
     parse_monitor_log_frame_times,
@@ -154,6 +155,47 @@ def frames_to_min(state, exp_name, ch, frames):
     known_frames, known_minutes = state["frame_minutes_src"][exp_name][ch]
     fi = np.asarray(frames, dtype=float)
     return np.interp(fi, known_frames, known_minutes)
+
+
+def _median_minutes_per_frame(known_frames, known_minutes):
+    """Median physical interval (minutes) between consecutive frames."""
+    df = np.diff(np.asarray(known_frames, dtype=float))
+    dm = np.diff(np.asarray(known_minutes, dtype=float))
+    good = df > 0
+    if not np.any(good):
+        return 1.0
+    rate = float(np.median(dm[good] / df[good]))
+    return rate if rate > 0 else 1.0
+
+
+def response_window_frames(state, exp_name, ch, cfg):
+    """Per-channel response search window, as integer frame offsets.
+
+    When ``cfg['response_window_minutes'] = (lo_min, hi_min)`` is set, the
+    window is given in physical time after stimulus onset and converted to
+    frame offsets using this channel's median frame interval — so a fixed
+    physical duration maps to the right frame count regardless of the
+    channel's frame rate (C2C12 runs ~6x slower than PC3). The frame-based
+    ``cfg['response_window']`` is honoured directly when present; otherwise
+    a single-frame window at ``PEAK_OFFSET`` is used.
+
+    Returns ``(lo, hi)`` — search columns ``[stim_col + lo, stim_col + hi)``.
+    """
+    win_min = cfg.get("response_window_minutes")
+    if win_min is None:
+        win_frames = cfg.get("response_window")
+        if win_frames is not None:
+            return int(win_frames[0]), int(win_frames[1])
+        return PEAK_OFFSET, PEAK_OFFSET + 1
+
+    lo_min, hi_min = float(win_min[0]), float(win_min[1])
+    known_frames, known_minutes = state["frame_minutes_src"][exp_name][ch]
+    min_per_frame = _median_minutes_per_frame(known_frames, known_minutes)
+    lo = int(round(lo_min / min_per_frame))
+    hi = int(round(hi_min / min_per_frame))
+    if hi <= lo:
+        hi = lo + 1
+    return lo, hi
 
 
 def setpoint_regions_from_log(entries):

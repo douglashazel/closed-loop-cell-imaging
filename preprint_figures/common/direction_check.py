@@ -11,8 +11,8 @@ Called from ``pipeline.prepare_state`` after BG fit + dead-frame fill.
 
 import numpy as np
 
-from common.config import PEAK_OFFSET
 from common.stim_helpers import per_cell_response_delta
+from common.time_axis import response_window_frames
 
 import sys
 sys.path.insert(0, "SCRIPTS")
@@ -27,9 +27,9 @@ def confirm_response_direction(experiments, state):
     print("=== response-direction sanity check ===")
     for exp_name, cfg in experiments.items():
         configured = cfg.get("response_direction", "increase")
-        window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
 
         for ch in cfg["channels"]:
+            window = response_window_frames(state, exp_name, ch, cfg)
             stim_frames = cfg["stim_frames"].get(ch, [])
             if not stim_frames:
                 continue

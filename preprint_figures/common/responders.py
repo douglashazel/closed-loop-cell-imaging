@@ -24,8 +24,8 @@ from common.baseline_window import (
     per_cell_response_delta_with_baseline,
     prestim_baseline_values,
 )
-from common.config import PEAK_OFFSET
 from common.stim_helpers import compute_f0_baseline
+from common.time_axis import response_window_frames
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
@@ -96,10 +96,10 @@ def compute_responder_thresholds(
 
     for exp_name, cfg in experiments.items():
         direction = cfg.get("response_direction", "increase")
-        window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
-        win_lo, win_hi = window
 
         for ch in cfg["channels"]:
+            window = response_window_frames(state, exp_name, ch, cfg)
+            win_lo, win_hi = window
             stim_frames = cfg["stim_frames"][ch]
             n_real = len(stim_frames)
             if n_real == 0:
@@ -193,9 +193,9 @@ def compute_responder_masks(
     for exp_name, cfg in experiments.items():
         direction = cfg.get("response_direction", "increase")
         sign = -1.0 if direction == "decrease" else 1.0
-        window = cfg.get("response_window", (PEAK_OFFSET, PEAK_OFFSET + 1))
 
         for ch in cfg["channels"]:
+            window = response_window_frames(state, exp_name, ch, cfg)
             stim_frames = cfg["stim_frames"][ch]
             dff_mat, frame_to_col = _channel_dff(state, exp_name, ch, cfg)
             n_cells = dff_mat.shape[0]
