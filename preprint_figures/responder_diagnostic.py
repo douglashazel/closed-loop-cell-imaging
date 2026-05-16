@@ -10,11 +10,11 @@ results folder so the PDF aggregator picks them up:
   bulk piled at 0 with a separated right tail; an artifact shows up as a
   whole-population blob shifted off 0 that the threshold merely slices.
 
-* ``responder_stimlock_diagnostic`` — the key open check: the population
-  Δ dF/F0 aligned to real stim onsets vs. randomly placed pseudo-stims. A
-  field-wide step at real stims (absent at pseudo-stims) means a
-  stimulus-locked nuisance, not per-cell responses. A footer panel lists
-  the diagnoses still outstanding before the responder logic is changed.
+* ``responder_stimlock_diagnostic`` — the population Δ dF/F0 aligned to
+  real stim onsets vs. randomly placed pseudo-stims. A field-wide step at
+  real stims (absent at pseudo-stims) means a stimulus-locked nuisance,
+  not per-cell responses. A footer panel summarises the closed
+  responder-rate investigation (diagnoses #1–#6).
 
 * ``responder_artifact_diagnostic`` — diagnoses #2 and #3. #2: every
   masked dead frame's offset from each stim onset against the shaded
@@ -295,19 +295,19 @@ def _quartile_resp_rates(f0, mask, valid):
     return rates
 
 
-REMAINING_CHECKS = [
-    "1.  Stim-locked population shift  — this figure: does the field-wide "
-    "Δ dF/F0 step up at REAL stims but not at pseudo-stims?",
-    "2.  Dead-frame proximity  — answered in responder_artifact_diagnostic: "
-    "do PC3's masked dead frames sit in a stim window and bias Δ?",
-    "3.  Perfusion / optical artifact  — answered in "
-    "responder_artifact_diagnostic: bg_trace + image sharpness at stim onsets.",
-    "4.  F0 dependence  — answered in responder_f0_diagnostic: does "
-    "per-cell Δ dF/F0 fall with F0 (a 1/F0 normalization artifact)?",
-    "5.  Decision (after 1-4)  — if a field-wide nuisance is confirmed, "
-    "score responders relative to the per-stim population median.",
-    "6.  alpha sensitivity sweep  — regenerate responder counts at "
-    "alpha in {0.001, 0.01, 0.05} once the nuisance is handled.",
+INVESTIGATION_SUMMARY = [
+    "1.  Stim-locked population shift  — CONFIRMED (this figure): a "
+    "field-wide Δ dF/F0 lift steps up at real stims, large in PC3.",
+    "2.  Dead-frame proximity  — RULED OUT (responder_artifact_diagnostic): "
+    "masked dead frames are never the response peak; Δ shift 0.0000.",
+    "3.  Perfusion / optical artifact  — RULED OUT "
+    "(responder_artifact_diagnostic): no bg step; sharpness rises, no defocus.",
+    "4.  F0 dependence  — RULED OUT (responder_f0_diagnostic): Δ dF/F0 rises "
+    "WITH brightness (corr +0.47), not a 1/F0 normalization artifact.",
+    "5.  Decision (2026-05-16)  — no artifact found; responder logic kept "
+    "UNCHANGED. PC3's ~40% is treated as a legitimate result.",
+    "6.  alpha sensitivity sweep  — not run; logic unchanged, so no sweep "
+    "is needed.",
 ]
 
 
@@ -380,7 +380,7 @@ def _draw_distribution_figure(exp_name, channels, panels):
 
 
 def _draw_stimlock_figure(exp_name, channels, panels):
-    """Stim-aligned population trace + per-stim deltas + remaining-checks panel."""
+    """Stim-aligned population trace + per-stim deltas + investigation-summary panel."""
     n = len(channels)
     height = 4.2 * n + 3.0
     fig = plt.figure(figsize=(13.5, height), dpi=PLOT_PARAMS["dpi"])
@@ -441,10 +441,10 @@ def _draw_stimlock_figure(exp_name, channels, panels):
 
     ax_c = fig.add_subplot(gs[n, :])
     ax_c.axis("off")
-    ax_c.text(0.0, 1.0, "Remaining diagnoses before changing the responder logic",
+    ax_c.text(0.0, 1.0, "Responder-rate investigation — outcome (closed 2026-05-16)",
               fontsize=PLOT_PARAMS["title_fontsize"],
               fontweight=PLOT_PARAMS["title_fontweight"], va="top")
-    ax_c.text(0.0, 0.84, "\n".join(REMAINING_CHECKS),
+    ax_c.text(0.0, 0.84, "\n".join(INVESTIGATION_SUMMARY),
               fontsize=PLOT_PARAMS["panel_fontsize"], va="top", family="monospace")
 
     fig.suptitle(
