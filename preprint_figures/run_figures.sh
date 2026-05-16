@@ -16,9 +16,10 @@ set -euo pipefail
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
 # Set to "all" or a space-separated subset of analyses.
 # ANALYSES="all"
-ANALYSES="clustering dff correlation_distance response_violins responder_diagnostic learning_scores nrk_hardware_log"
+ANALYSES="clustering dff average_peak correlation_distance response_violins responder_diagnostic learning_scores nrk_hardware_log"
 # Available:
 #   dff                  — dF/F0 stacked traces + responder-pooled mean
+#   average_peak         — per-stimulus dF/F0 peak overlay + mean (DMSO only)
 #   correlation_distance — pairwise correlation vs spatial distance
 #   clustering           — pooled PCA + UMAP scatter (no clustering)
 #   response_violins     — pooled per-stim asymmetric violin (height + width)
@@ -44,6 +45,7 @@ cd "$PROJECT_ROOT"
 ALL_ANALYSES=(
     clustering
     dff
+    average_peak
     correlation_distance
     response_violins
     responder_diagnostic

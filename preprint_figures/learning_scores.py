@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """Learning-score histograms (DMSO experiments only).
 
-Per DMSO experiment, the summed-distribution figures for habituation,
-sensitization and anticipation × height/width, each overlaid with a
-shuffled-stim-order permutation null and a stats box reporting the
-FDR-corrected per-cell hit count plus a population-level permutation test
-(pooled and per biological replicate):
+Per DMSO experiment: the summed-distribution figures for habituation and
+sensitization (× height/width) plus a single anticipation figure, each
+overlaid with a permutation null and a stats box reporting the FDR-corrected
+per-cell hit count plus a population-level permutation test (pooled and per
+biological replicate):
     * learning_habituation_height.png
     * learning_habituation_width.png
     * learning_sensitization_height.png
     * learning_sensitization_width.png
-    * learning_anticipation_height.png
-    * learning_anticipation_width.png
+    * learning_anticipation.png
+
+Habituation / sensitization count new running extrema across each train,
+nulled by shuffling stim order. Anticipation is scored per train against a
+post-train rest region: a cell's luminosity in a 5-frame window 10 min after
+the train's last response peak is compared to mean ± 3·SD of that rest
+region, nulled by permuting the rest region's luminosity values.
 """
 
 import os
@@ -83,6 +88,8 @@ def _build_learning_inputs(state, exp_name, ch, cfg, *, metric):
         "direction": direction,
         "window": window,
         "cell_ids": list(df_indexed.index),
+        "exp_name": exp_name,
+        "ch": ch,
     }
 
 
@@ -117,113 +124,207 @@ def _score_running_extremum(per_stim, *, mode, n_per_train=LEARNING_STIMS_PER_TR
     return per_train.sum(axis=0), per_train
 
 
-def _per_cell_typical_fluctuation(mat, stim_cols, frame_to_min_fn,
-                                  n_per_train=LEARNING_STIMS_PER_TRAIN,
-                                  rest_min=10.0):
-    """Per-cell std of frame-to-frame deltas in non-stim periods."""
-    n_cells, n_cols = mat.shape
-    n_trains = len(stim_cols) // n_per_train
-    non_stim = np.ones(n_cols, dtype=bool)
-    all_minutes = frame_to_min_fn(np.arange(n_cols))
-    for t in range(n_trains):
-        first_sc = stim_cols[t * n_per_train]
-        last_sc = stim_cols[t * n_per_train + n_per_train - 1]
-        end_min = float(frame_to_min_fn([last_sc])[0]) + rest_min
-        end_col = int(np.argmin(np.abs(all_minutes - end_min)))
-        non_stim[first_sc:end_col + 1] = False
-    deltas = np.diff(mat, axis=1)
-    keep = non_stim[:-1] & non_stim[1:]
-    if not keep.any():
-        return np.full(n_cells, np.nan)
-    return np.nanstd(deltas[:, keep], axis=1)
+def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
+                             window, n_trains, n_win=5):
+    """Resolve train ``t``'s rest region and 5-frame anticipation window.
+
+    Returns ``(ref_lo, ref_hi, win_cols)`` — the half-open column range of the
+    post-train rest region and the integer columns of the anticipation window
+    — or ``None`` when the experiment ends too early to score the train (or
+    the window is not fully inside the rest region, which the permutation null
+    requires).
+
+    The rest region runs from the end of the train's last response (the last
+    stim + the response-window upper bound) to 30 min later, or to the last
+    frame for the final train. The anticipation window is centred 10 min after
+    the train's last response peak (the median peak column across cells), with
+    ``± n_win // 2`` frames either side.
+    """
+    n_cols = mat.shape[1]
+    win_lo_off, win_hi_off = window
+    train = stim_cols[
+        t * LEARNING_STIMS_PER_TRAIN:(t + 1) * LEARNING_STIMS_PER_TRAIN
+    ]
+    last_sc = train[-1]
+
+    # Last response peak of the train: median peak column across cells.
+    pk_lo = max(0, last_sc + win_lo_off)
+    pk_hi = min(n_cols, last_sc + win_hi_off)
+    if pk_lo >= pk_hi:
+        return None
+    seg = mat[:, pk_lo:pk_hi]
+    if direction == "decrease":
+        peak_offsets = np.argmin(np.where(np.isnan(seg), np.inf, seg), axis=1)
+    else:
+        peak_offsets = np.argmax(np.where(np.isnan(seg), -np.inf, seg), axis=1)
+    peak_col = int(np.round(np.nanmedian(pk_lo + peak_offsets)))
+
+    # Rest region: end of last response → +30 min (→ experiment end if last).
+    end_resp_col = min(last_sc + win_hi_off, n_cols - 1)
+    ref_lo = end_resp_col
+    if t == n_trains - 1:
+        ref_hi = n_cols
+    else:
+        ref_end_min = float(all_minutes[end_resp_col]) + 30.0
+        ref_hi = int(np.argmin(np.abs(all_minutes - ref_end_min))) + 1
+    if ref_hi - ref_lo < n_win:
+        return None
+
+    # Anticipation window: 10 min after the peak, ± n_win // 2 frames.
+    anticip_min = float(all_minutes[peak_col]) + 10.0
+    anticip_col = int(np.argmin(np.abs(all_minutes - anticip_min)))
+    half = n_win // 2
+    win_cols = np.arange(anticip_col - half, anticip_col - half + n_win)
+
+    # The null permutes within the rest region, so the window must sit inside.
+    if win_cols[0] < ref_lo or win_cols[-1] >= ref_hi:
+        return None
+    return ref_lo, ref_hi, win_cols
 
 
-def _score_anticipation(inputs, *, metric):
-    """Compute anticipation scores. Returns ``(pos, neg)`` summed across trains.
+def _score_anticipation(inputs, n_win=5):
+    """Per-train positive / negative anticipation events. Returns ``(pos, neg)``.
 
-    For each train, look 10 min after the median post-train response peak; a
-    cell scores a (signed) anticipation event when its response there exceeds
-    its typical non-stim fluctuation.
+    For each train the post-train rest region gives a per-cell mean and SD
+    (see :func:`_anticipation_train_spec`). A cell scores one positive event
+    for the train when any frame of the 5-frame anticipation window exceeds
+    ``mean + 3·SD``, and one negative event when any frame falls below
+    ``mean − 3·SD`` (the two are independent — a cell may score both). ``pos``
+    / ``neg`` are the event counts summed across trains, each of shape
+    ``(n_cells,)`` and ranging ``0..n_trains``.
     """
     mat = inputs["mat"]
     stim_cols = inputs["stim_cols"]
-    f2m = inputs["frame_to_min_fn"]
     direction = inputs["direction"]
     window = inputs["window"]
     n_cells, n_cols = mat.shape
     n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
-    sign = -1.0 if direction == "decrease" else 1.0
+    all_minutes = inputs["frame_to_min_fn"](np.arange(n_cols))
 
-    typical = _per_cell_typical_fluctuation(mat, stim_cols, f2m)
-
-    pos_per_train = np.zeros((n_trains, n_cells), dtype=int)
-    neg_per_train = np.zeros((n_trains, n_cells), dtype=int)
-    win_lo_off, win_hi_off = window
-    all_minutes = f2m(np.arange(n_cols))
-
+    pos = np.zeros(n_cells, dtype=int)
+    neg = np.zeros(n_cells, dtype=int)
     for t in range(n_trains):
-        train = stim_cols[
-            t * LEARNING_STIMS_PER_TRAIN:(t + 1) * LEARNING_STIMS_PER_TRAIN
-        ]
-        last_sc = train[-1]
-        win_lo = max(0, last_sc + win_lo_off)
-        win_hi = min(n_cols, last_sc + win_hi_off)
-        if win_lo >= win_hi:
-            continue
-        seg = mat[:, win_lo:win_hi]
-        if direction == "decrease":
-            peak_offsets = np.argmin(
-                np.where(np.isnan(seg), np.inf, seg), axis=1,
-            )
-        else:
-            peak_offsets = np.argmax(
-                np.where(np.isnan(seg), -np.inf, seg), axis=1,
-            )
-        peak_cols = win_lo + peak_offsets
-        ref_peak_col = int(np.round(np.nanmedian(peak_cols)))
-        ref_peak_min = float(f2m([ref_peak_col])[0])
-        anticip_min = ref_peak_min + 10.0
-        if anticip_min > float(all_minutes[-1]):
-            continue
-        anticip_col = int(np.argmin(np.abs(all_minutes - anticip_min)))
-        if anticip_col + win_hi_off > n_cols:
-            continue
-
-        cap = compute_stim_caps([anticip_col], n_cols)[0]
-        height_resp, width_resp = per_cell_response_delta(
-            mat, anticip_col, direction, window,
-            return_width=True, cap_col=cap, frame_to_min_fn=f2m,
+        spec = _anticipation_train_spec(
+            t, stim_cols, mat, all_minutes, direction, window, n_trains, n_win,
         )
-        signed = sign * height_resp
-        significant = np.abs(height_resp) > typical
-        if metric == "width":
-            significant = significant & ~np.isnan(width_resp)
-        pos_per_train[t] = (significant & (signed > 0)).astype(int)
-        neg_per_train[t] = (significant & (signed < 0)).astype(int)
+        if spec is None:
+            print(
+                f"    anticipation: {inputs['exp_name']} / {inputs['ch']} — "
+                f"train {t + 1}/{n_trains} not scorable "
+                f"(rest region / window out of range)."
+            )
+            continue
+        ref_lo, ref_hi, win_cols = spec
+        ref = mat[:, ref_lo:ref_hi]
+        ref_mean = np.nanmean(ref, axis=1)
+        ref_std = np.nanstd(ref, axis=1)
+        win_vals = mat[:, win_cols]
+        pos += np.any(win_vals > (ref_mean + 3.0 * ref_std)[:, None], axis=1)
+        neg += np.any(win_vals < (ref_mean - 3.0 * ref_std)[:, None], axis=1)
+    return pos, neg
 
-    return pos_per_train.sum(axis=0), neg_per_train.sum(axis=0)
 
+def _anticipation_null(inputs, *, n_perm=200, rng_seed=44, n_win=5):
+    """Per-cell null for the anticipation scores.
 
-def _anticipation_null(inputs, *, metric, n_perm=200, rng_seed=44):
-    """Per-cell null for anticipation scores under shuffled stim_cols order.
-
-    Each iteration permutes ``stim_cols`` globally, then re-runs the same
-    anticipation routine. Returns ``(pos_null, neg_null)`` of shape
+    The 5-frame anticipation window is a subset of each train's rest region,
+    so the null permutes that region's luminosity values: every permutation a
+    cell draws ``n_win`` values without replacement from its rest region and
+    the same ``mean ± 3·SD`` test is applied (mean and SD are unchanged by a
+    permutation). Returns ``(pos_null, neg_null)``, each of shape
     ``(n_perm, n_cells)``.
     """
+    mat = inputs["mat"]
+    stim_cols = inputs["stim_cols"]
+    direction = inputs["direction"]
+    window = inputs["window"]
+    n_cells, n_cols = mat.shape
+    n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
+    all_minutes = inputs["frame_to_min_fn"](np.arange(n_cols))
     rng = np.random.default_rng(rng_seed)
-    stim_cols = np.asarray(inputs["stim_cols"])
-    n_cells = inputs["mat"].shape[0]
+
     pos_null = np.zeros((n_perm, n_cells), dtype=float)
     neg_null = np.zeros((n_perm, n_cells), dtype=float)
-    for i in range(n_perm):
-        shuffled = stim_cols[rng.permutation(stim_cols.size)].tolist()
-        shuffled_inputs = dict(inputs)
-        shuffled_inputs["stim_cols"] = shuffled
-        pos, neg = _score_anticipation(shuffled_inputs, metric=metric)
-        pos_null[i] = pos
-        neg_null[i] = neg
+    for t in range(n_trains):
+        spec = _anticipation_train_spec(
+            t, stim_cols, mat, all_minutes, direction, window, n_trains, n_win,
+        )
+        if spec is None:
+            continue
+        ref_lo, ref_hi, _ = spec
+        ref = mat[:, ref_lo:ref_hi]
+        n_ref = ref.shape[1]
+        ref_mean = np.nanmean(ref, axis=1)
+        ref_std = np.nanstd(ref, axis=1)
+        hi_thr = (ref_mean + 3.0 * ref_std)[:, None]
+        lo_thr = (ref_mean - 3.0 * ref_std)[:, None]
+        for i in range(n_perm):
+            # Independent per-cell permutation; the first n_win draws stand
+            # in for the values that would land in the anticipation window.
+            order = np.argsort(rng.random((n_cells, n_ref)), axis=1)
+            draws = np.take_along_axis(ref, order[:, :n_win], axis=1)
+            pos_null[i] += np.any(draws > hi_thr, axis=1)
+            neg_null[i] += np.any(draws < lo_thr, axis=1)
     return pos_null, neg_null
+
+
+def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=200):
+    """Pool the per-train anticipation scores across channels for one expt.
+
+    Anticipation is metric-independent (it is scored on raw luminosity, height
+    only), so it is computed once per experiment rather than per metric.
+    Returns a blob with the observed ``anticipation_pos`` / ``anticipation_neg``
+    scores plus, when ``n_perm > 0``, the permutation null, per-cell p-values
+    and population-level stats — or ``None`` when no channel yields data.
+    """
+    pos_chunks, neg_chunks = [], []
+    pos_null_chunks, neg_null_chunks = [], []
+    used_channels = []
+    for ch in cfg["channels"]:
+        inputs = _build_learning_inputs(
+            state, exp_name, ch, cfg, metric="height",
+        )
+        if inputs is None:
+            continue
+        used_channels.append(ch)
+        pos, neg = _score_anticipation(inputs)
+        pos_chunks.append(pos)
+        neg_chunks.append(neg)
+        if n_perm and n_perm > 0:
+            pos_null, neg_null = _anticipation_null(
+                inputs, n_perm=n_perm, rng_seed=44,
+            )
+            pos_null_chunks.append(pos_null)
+            neg_null_chunks.append(neg_null)
+
+    if not pos_chunks:
+        return None
+    blob = {
+        "anticipation_pos": np.concatenate(pos_chunks),
+        "anticipation_neg": np.concatenate(neg_chunks),
+    }
+    # Channels are biological replicates; the null matrices are concatenated
+    # in the same channel order, so this index aligns scores and null columns.
+    blob["channel_index"] = np.concatenate(
+        [np.full(len(c), ci, dtype=int) for ci, c in enumerate(pos_chunks)]
+    )
+    blob["channel_names"] = list(used_channels)
+    if pos_null_chunks:
+        blob["anticipation_pos_null"] = np.concatenate(pos_null_chunks, axis=1)
+        blob["anticipation_neg_null"] = np.concatenate(neg_null_chunks, axis=1)
+        blob["anticipation_pos_pvalue"] = pvalue_one_tailed(
+            blob["anticipation_pos"], blob["anticipation_pos_null"],
+        )
+        blob["anticipation_neg_pvalue"] = pvalue_one_tailed(
+            blob["anticipation_neg"], blob["anticipation_neg_null"],
+        )
+        _add_population_stats(blob, blob["channel_index"], len(used_channels))
+    print(
+        f"  anticipation scores: {exp_name} — "
+        f"{len(blob['anticipation_pos'])} cells pooled across "
+        f"{len(used_channels)} channels."
+    )
+    return blob
 
 
 def _add_population_stats(blob, channel_index, n_channels):
@@ -259,11 +360,12 @@ def _add_population_stats(blob, channel_index, n_channels):
 def compute_learning_scores(experiments, state, *, n_perm=200):
     """Compute habituation + sensitization + anticipation scores per DMSO expt.
 
-    Returns a nested dict ``out[exp][metric]`` whose blob holds the observed
-    ``habituation`` / ``sensitization`` / ``anticipation_pos`` /
-    ``anticipation_neg`` scores plus, when ``n_perm > 0``, the
-    shuffled-stim-order null distributions and one-tailed per-cell p-values.
-    Experiments are filtered to ``response_direction == "increase"`` (DMSO).
+    Returns a nested dict ``out[exp]`` keyed by ``"height"`` / ``"width"``
+    (a habituation + sensitization blob per metric) and ``"anticipation"`` (a
+    single metric-independent anticipation blob). Each blob holds the observed
+    scores plus, when ``n_perm > 0``, the permutation null distributions and
+    one-tailed per-cell p-values. Experiments are filtered to
+    ``response_direction == "increase"`` (DMSO).
     """
     out = {}
     for exp_name, cfg in experiments.items():
@@ -272,9 +374,7 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
         out[exp_name] = {}
         for metric in ("height", "width"):
             hab_chunks, sen_chunks = [], []
-            pos_chunks, neg_chunks = [], []
             hab_null_chunks, sen_null_chunks = [], []
-            pos_null_chunks, neg_null_chunks = [], []
             used_channels = []
             for ch in cfg["channels"]:
                 inputs = _build_learning_inputs(
@@ -285,11 +385,8 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
                 used_channels.append(ch)
                 hab, _ = _score_running_extremum(inputs["per_stim"], mode="min")
                 sen, _ = _score_running_extremum(inputs["per_stim"], mode="max")
-                pos, neg = _score_anticipation(inputs, metric=metric)
                 hab_chunks.append(hab)
                 sen_chunks.append(sen)
-                pos_chunks.append(pos)
-                neg_chunks.append(neg)
 
                 if n_perm and n_perm > 0:
                     hab_null = permutation_null_distribution(
@@ -302,13 +399,8 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
                         inputs["per_stim"], n_perm=n_perm,
                         rng_seed=43, mode="per_cell",
                     )
-                    pos_null, neg_null = _anticipation_null(
-                        inputs, metric=metric, n_perm=n_perm, rng_seed=44,
-                    )
                     hab_null_chunks.append(hab_null)
                     sen_null_chunks.append(sen_null)
-                    pos_null_chunks.append(pos_null)
-                    neg_null_chunks.append(neg_null)
 
             if not hab_chunks:
                 out[exp_name][metric] = None
@@ -316,8 +408,6 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
             blob = {
                 "habituation": np.concatenate(hab_chunks),
                 "sensitization": np.concatenate(sen_chunks),
-                "anticipation_pos": np.concatenate(pos_chunks),
-                "anticipation_neg": np.concatenate(neg_chunks),
             }
             # Keep replicate identity: which channel each pooled cell came
             # from (channels are biological replicates). Null matrices below
@@ -331,23 +421,11 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
             if hab_null_chunks:
                 blob["habituation_null"] = np.concatenate(hab_null_chunks, axis=1)
                 blob["sensitization_null"] = np.concatenate(sen_null_chunks, axis=1)
-                blob["anticipation_pos_null"] = np.concatenate(
-                    pos_null_chunks, axis=1,
-                )
-                blob["anticipation_neg_null"] = np.concatenate(
-                    neg_null_chunks, axis=1,
-                )
                 blob["habituation_pvalue"] = pvalue_one_tailed(
                     blob["habituation"], blob["habituation_null"],
                 )
                 blob["sensitization_pvalue"] = pvalue_one_tailed(
                     blob["sensitization"], blob["sensitization_null"],
-                )
-                blob["anticipation_pos_pvalue"] = pvalue_one_tailed(
-                    blob["anticipation_pos"], blob["anticipation_pos_null"],
-                )
-                blob["anticipation_neg_pvalue"] = pvalue_one_tailed(
-                    blob["anticipation_neg"], blob["anticipation_neg_null"],
                 )
                 _add_population_stats(
                     blob, blob["channel_index"], len(used_channels),
@@ -356,8 +434,11 @@ def compute_learning_scores(experiments, state, *, n_perm=200):
             print(
                 f"  learning scores: {exp_name} ({metric}) — "
                 f"{len(blob['habituation'])} cells pooled across "
-                f"{len(cfg['channels'])} channels."
+                f"{len(used_channels)} channels."
             )
+        out[exp_name]["anticipation"] = _compute_anticipation_blob(
+            state, exp_name, cfg, n_perm=n_perm,
+        )
     return out
 
 
@@ -572,13 +653,15 @@ def _plot_anticipation_histogram(pos, neg, *, title, save_path,
 def plot_learning_score_histograms(experiments, state, scores=None):
     """Emit summed habituation / sensitization / anticipation histograms (DMSO).
 
-    For each measure × metric: ``learning_<measure>_<metric>.png``, with the
-    shuffled-stim-order null overlaid when it was computed.
+    For habituation / sensitization: ``learning_<measure>_<metric>.png`` per
+    metric. For anticipation: a single ``learning_anticipation.png`` per
+    experiment. The permutation null is overlaid when it was computed.
     """
     if scores is None:
         scores = compute_learning_scores(experiments, state)
-    for exp_name, by_metric in scores.items():
-        for metric, blob in by_metric.items():
+    for exp_name, by_key in scores.items():
+        for metric in ("height", "width"):
+            blob = by_key.get(metric)
             if blob is None:
                 continue
             n_ch = len(blob.get("channel_names", []))
@@ -608,26 +691,30 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                     x_max=12,
                 )
 
+        ablob = by_key.get("anticipation")
+        if ablob is not None:
+            n_ch = len(ablob.get("channel_names", []))
+            caveat = inferential_caveat(exp_name, n_ch, unit="cell")
             _plot_anticipation_histogram(
-                blob["anticipation_pos"],
-                blob["anticipation_neg"],
+                ablob["anticipation_pos"],
+                ablob["anticipation_neg"],
                 title=(
-                    f"{exp_name} — anticipation score ({metric})\n"
-                    f"|response| > typical fluctuation, 10 min after last "
-                    f"train peak"
+                    f"{exp_name} — anticipation score\n"
+                    f"luminosity beyond mean ± 3·SD of post-train rest, "
+                    f"5-frame window 10 min after each train's last peak"
                 ),
-                save_path=fig_path(exp_name, f"learning_anticipation_{metric}"),
-                pos_null=blob.get("anticipation_pos_null"),
-                neg_null=blob.get("anticipation_neg_null"),
+                save_path=fig_path(exp_name, "learning_anticipation"),
+                pos_null=ablob.get("anticipation_pos_null"),
+                neg_null=ablob.get("anticipation_neg_null"),
                 pos_stats=(
-                    blob.get("anticipation_pos_qvalue"),
-                    blob.get("anticipation_pos_pop"),
-                    blob.get("anticipation_pos_pop_by_channel"),
+                    ablob.get("anticipation_pos_qvalue"),
+                    ablob.get("anticipation_pos_pop"),
+                    ablob.get("anticipation_pos_pop_by_channel"),
                 ),
                 neg_stats=(
-                    blob.get("anticipation_neg_qvalue"),
-                    blob.get("anticipation_neg_pop"),
-                    blob.get("anticipation_neg_pop_by_channel"),
+                    ablob.get("anticipation_neg_qvalue"),
+                    ablob.get("anticipation_neg_pop"),
+                    ablob.get("anticipation_neg_pop_by_channel"),
                 ),
                 caveat=caveat,
             )
