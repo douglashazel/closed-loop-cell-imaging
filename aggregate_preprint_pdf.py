@@ -56,6 +56,8 @@ OVERVIEW_ORDER = [
     "learning_anticipation_width",
     "learning_anticipation_width_per_train",
     "learning_anticipation_width_split",
+    "responder_distribution_diagnostic",
+    "responder_stimlock_diagnostic",
 ]
 PER_CHANNEL_ORDER = [
     "dff",
@@ -89,6 +91,12 @@ CATEGORY_LABELS = {
     "amplitude_width_scatter_dff": "Amplitude × width per stim (dF/F0)",
     "pca_umap_uncolored": "PCA + UMAP scatter (no clustering)",
     "hw_lum_log": "Hardware feedback luminosity (log)",
+    "responder_distribution_diagnostic": (
+        "Responder diagnostic — per-cell Δ dF/F0 distribution vs. threshold"
+    ),
+    "responder_stimlock_diagnostic": (
+        "Responder diagnostic — stimulus-locked artifact check + open questions"
+    ),
 }
 
 PLOT_PARAMS = {

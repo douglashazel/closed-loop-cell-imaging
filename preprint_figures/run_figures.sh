@@ -16,12 +16,13 @@ set -euo pipefail
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
 # Set to "all" or a space-separated subset of analyses.
 # ANALYSES="all"
-ANALYSES="clustering dff correlation_distance response_violins learning_scores nrk_hardware_log"
+ANALYSES="clustering dff correlation_distance response_violins responder_diagnostic learning_scores nrk_hardware_log"
 # Available:
 #   dff                  — dF/F0 stacked traces + responder-pooled mean
 #   correlation_distance — pairwise correlation vs spatial distance
 #   clustering           — pooled PCA + UMAP scatter (no clustering)
 #   response_violins     — pooled per-stim asymmetric violin (height + width)
+#   responder_diagnostic — responder distribution + stimulus-locked artifact check
 #   learning_scores      — habituation / sensitization summed scores (DMSO only)
 #   nrk_hardware_log     — hardware feedback log (NRK only)
 
@@ -45,6 +46,7 @@ ALL_ANALYSES=(
     dff
     correlation_distance
     response_violins
+    responder_diagnostic
     learning_scores
     nrk_hardware_log
 )
