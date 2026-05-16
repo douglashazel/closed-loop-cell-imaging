@@ -8,6 +8,7 @@ onsets.
 
     * corr_vs_dist[{_during,_between}].png         — per-channel scatter panels
     * corr_vs_dist_combined[{_during,_between}].png — pooled across channels
+    * {ch}_corr_vs_dist_c{cid}[{_during,_between}].png — per-cluster panels
 
 Within each panel, pairs are coloured by responder-pair status (RR / NN / RN)
 when responder thresholds are available, with a separate regression line per
@@ -29,6 +30,7 @@ from scipy.stats import linregress
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
+from common.cluster_labels import align_labels_to_cells, load_cluster_labels
 from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
 from common.io_paths import fig_path
 from common.pipeline import prepare_state
@@ -566,10 +568,117 @@ def plot_correlation_vs_distance(experiments, state):
             )
 
 
+def plot_correlation_vs_distance_per_cluster(experiments, state):
+    """Per (exp, ch, cluster): pairwise Pearson + Spearman vs distance.
+
+    Restricts each panel to within-cluster cell pairs. Skips clusters with
+    fewer than 5 cells. Silently no-ops when no cluster cache exists.
+    """
+    for exp_name, cfg in experiments.items():
+        for ch in cfg["channels"]:
+            blob = load_cluster_labels(exp_name, ch)
+            if blob is None:
+                continue
+            df = lum_dict_to_df(state["corrected_lum"][exp_name][ch]).set_index("CellID")
+            frame_cols = sorted(
+                [c for c in df.columns if str(c).startswith("f")],
+                key=lambda c: int(str(c).lstrip("f")),
+            )
+            frame_nums = [int(str(c).lstrip("f")) for c in frame_cols]
+            mat = df[frame_cols].values
+            cell_ids_int = list(df.index)
+            target_ids = [(ch, cid) for cid in cell_ids_int]
+            cluster_labels = align_labels_to_cells(blob, target_ids)
+
+            positions = mean_cell_positions(
+                state["traj_by_channel"][exp_name][ch],
+                state["frame_counts"][exp_name][ch],
+            )
+            keep_rows, pos_xy = [], []
+            for r, cid_int in enumerate(cell_ids_int):
+                for key in (str(cid_int), cid_int):
+                    if key in positions:
+                        keep_rows.append(r)
+                        pos_xy.append(positions[key])
+                        break
+            if len(keep_rows) < 2:
+                continue
+            mat_k = mat[keep_rows]
+            pos_xy = np.array(pos_xy, dtype=float)
+            cluster_labels_k = cluster_labels[keep_rows]
+            best_k = int(blob["best_k"])
+
+            windows = _time_window_masks(cfg, ch, frame_nums, state, exp_name)
+
+            for cid in range(best_k):
+                in_cluster = cluster_labels_k == cid
+                if int(in_cluster.sum()) < 5:
+                    continue
+                sub_mat = mat_k[in_cluster]
+                sub_pos = pos_xy[in_cluster]
+                dist_mat = squareform(pdist(sub_pos, metric="euclidean"))
+                iu = np.triu_indices(sub_mat.shape[0], k=1)
+                pw_dist = dist_mat[iu] / PIXELS_PER_UM
+
+                for w_key, w_label, w_mask in windows:
+                    suffix = "" if w_key == "full" else f"_{w_key}"
+                    sub_mat_w = sub_mat if w_mask is None else sub_mat[:, w_mask]
+                    if sub_mat_w.shape[1] < MIN_FRAMES_FOR_CORR:
+                        continue
+
+                    pearson_mat = pd.DataFrame(sub_mat_w).T.corr(method="pearson").values
+                    spearman_mat = pd.DataFrame(sub_mat_w).T.corr(method="spearman").values
+                    pw_corr_pearson = pearson_mat[iu]
+                    pw_corr_spearman = spearman_mat[iu]
+
+                    fig, axes = plt.subplots(
+                        2, 1, figsize=(7, 11), dpi=PLOT_PARAMS["dpi"],
+                    )
+                    _scatter_corr_vs_dist(
+                        axes[0], pw_dist, pw_corr_pearson,
+                        pair_classes=None, corr_method="pearson",
+                        title=f"Pearson  (n={int(in_cluster.sum())} cells in cluster)",
+                    )
+                    axes[0].set_xlabel(
+                        "Pairwise distance (μm)",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    axes[0].set_ylabel(
+                        f"Pearson r ({w_label})",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    _scatter_corr_vs_dist(
+                        axes[1], pw_dist, pw_corr_spearman,
+                        pair_classes=None, corr_method="spearman",
+                        title=f"Spearman  (n={int(in_cluster.sum())} cells in cluster)",
+                    )
+                    axes[1].set_xlabel(
+                        "Pairwise distance (μm)",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    axes[1].set_ylabel(
+                        f"Spearman ρ ({w_label})",
+                        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+                    )
+                    fig.suptitle(
+                        f"{exp_name} / {ch} — cluster {cid} — "
+                        f"pairwise correlation vs distance ({w_label})",
+                        fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+                        fontweight="bold", y=1.01,
+                    )
+                    plt.tight_layout()
+                    fig.savefig(
+                        fig_path(exp_name, f"{ch}_corr_vs_dist_c{cid}{suffix}"),
+                        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+                    )
+                    plt.close(fig)
+
+
 def main():
     experiments, recompute_bg = parse_args()
     state = prepare_state(experiments, recompute_bg=recompute_bg)
     plot_correlation_vs_distance(experiments, state)
+    plot_correlation_vs_distance_per_cluster(experiments, state)
 
 
 if __name__ == "__main__":

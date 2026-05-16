@@ -6,9 +6,9 @@ single, organized multi-page PDF.
 Layout
 ------
 - One cover page per experiment.
-- Per-experiment "overview" section: bg_diagnostic, time_traces,
-  corrected_traces, corr_vs_dist.
-- Per-channel section: dff, peak_value_violin, response_violin, hw_lum_log.
+- Per-experiment "overview" section: corrected_traces, corr_vs_dist,
+  learning scores.
+- Per-channel section: dff, pca_umap_uncolored, hw_lum_log.
 
 Channels are sorted naturally — c2c12 uses ``channel_<n>_*.png``; nrk uses
 ``channel_<n>_<letter>_*.png`` (letter encodes the stimulus). Any unrecognised
@@ -34,8 +34,6 @@ OUTPUT_PDF = RESULTS_DIR / "April28_preprint_figures.pdf"
 SKIP_DIRS = {"bg_cache", "archive", "state_cache"}
 
 OVERVIEW_ORDER = [
-    "bg_diagnostic",
-    "time_traces",
     "corrected_traces",
     "dff_mean_combined",
     "corr_vs_dist",
@@ -69,13 +67,10 @@ PER_CHANNEL_ORDER = [
     "amplitude_width_scatter_lum",
     "amplitude_width_scatter_dff",
     "pca_umap_uncolored",
-    "sliding_corr",
     "hw_lum_log",
 ]
 
 CATEGORY_LABELS = {
-    "bg_diagnostic": "Background-correction diagnostic",
-    "time_traces": "Raw time traces",
     "corrected_traces": "Corrected per-cell traces",
     "dff_mean_combined": "Mean dF/F0 — all channels combined",
     "corr_vs_dist": "Pairwise correlation vs. distance",
@@ -89,7 +84,6 @@ CATEGORY_LABELS = {
     "amplitude_width_scatter_lum": "Amplitude × width per stim (raw luminosity)",
     "amplitude_width_scatter_dff": "Amplitude × width per stim (dF/F0)",
     "pca_umap_uncolored": "PCA + UMAP scatter (no clustering)",
-    "sliding_corr": "Sliding-window pairwise correlation (Pearson + Spearman)",
     "hw_lum_log": "Hardware feedback luminosity (log)",
 }
 

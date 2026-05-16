@@ -16,16 +16,13 @@ set -euo pipefail
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
 # Set to "all" or a space-separated subset of analyses.
 # ANALYSES="all"
-ANALYSES="bg_diagnostic time_traces clustering dff correlation_distance response_violins learning_scores nrk_hardware_log"
+ANALYSES="clustering dff correlation_distance response_violins learning_scores nrk_hardware_log"
 # Available:
-#   bg_diagnostic        — background-correction diagnostic per experiment
-#   time_traces          — per-cell luminosity traces (with + without stim shading)
-#   dff                  — dF/F0 + responder-pooled mean + diagnostic
+#   dff                  — dF/F0 stacked traces + responder-pooled mean
 #   correlation_distance — pairwise correlation vs spatial distance
-#   clustering           — PCA + UMAP + KMeans (per channel + pooled + kselect)
-#   response_violins     — per-stim asymmetric violin (height + width + responders)
-#   learning_scores      — habituation / sensitization / anticipation (DMSO only)
-#   sliding_correlation  — sliding Pearson + Spearman (slow; off by default)
+#   clustering           — pooled PCA + UMAP scatter (no clustering)
+#   response_violins     — pooled per-stim asymmetric violin (height + width)
+#   learning_scores      — habituation / sensitization summed scores (DMSO only)
 #   nrk_hardware_log     — hardware feedback log (NRK only)
 
 # Set to "all" or a space-separated subset of experiment names.
@@ -42,18 +39,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# sliding_correlation is run by default but is the slowest analysis (computes
-# pairwise rolling Pearson + Spearman over the full time series). To skip it,
-# set ANALYSES to a space-separated subset that excludes it.
 ALL_ANALYSES=(
-    bg_diagnostic
-    time_traces
     clustering
     dff
     correlation_distance
     response_violins
     learning_scores
-    sliding_correlation
     nrk_hardware_log
 )
 
