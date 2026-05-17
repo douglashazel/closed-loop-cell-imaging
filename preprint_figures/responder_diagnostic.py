@@ -49,7 +49,7 @@ from scipy.stats import spearmanr
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.io_paths import channel_dir, fig_path, sorted_image_files
+from common.io_paths import channel_dir, fig_path, save_fig, sorted_image_files
 from common.pipeline import prepare_state, resolve_dead_frame_indices
 from common.responders import (
     _aggregate,
@@ -357,6 +357,7 @@ def _draw_distribution_figure(exp_name, channels, panels):
             y = rng.uniform(0.0, 1.0, size=x.size)
             ax_s.scatter(x, y, s=PLOT_PARAMS["scatter_size"], color=color,
                          alpha=PLOT_PARAMS["scatter_alpha"], edgecolors="none",
+                         rasterized=True,
                          label=f"{lbl} (n={int(sel.sum())})")
         ax_s.axvline(signed_t, color=PLOT_PARAMS["threshold_color"], lw=2, ls="--")
         ax_s.axvline(0.0, color=PLOT_PARAMS["zero_color"], lw=1)
@@ -374,7 +375,7 @@ def _draw_distribution_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=0.97);
     out = fig_path(exp_name, "responder_distribution_diagnostic")
-    fig.savefig(out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
     return out
 
@@ -454,7 +455,7 @@ def _draw_stimlock_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=1.0 - 0.30 / height);
     out = fig_path(exp_name, "responder_stimlock_diagnostic")
-    fig.savefig(out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
     return out
 
@@ -658,7 +659,7 @@ def _draw_artifact_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=1.0 - 0.85 / height);
     out = fig_path(exp_name, "responder_artifact_diagnostic")
-    fig.savefig(out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
     return out
 
@@ -782,7 +783,7 @@ def _draw_f0_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=1.0 - 0.6 / height);
     out = fig_path(exp_name, "responder_f0_diagnostic")
-    fig.savefig(out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
     return out
 

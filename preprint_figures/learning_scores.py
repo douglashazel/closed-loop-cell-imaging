@@ -30,7 +30,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
 from common.config import LEARNING_STIMS_PER_TRAIN
-from common.io_paths import fig_path
+from common.io_paths import fig_path, save_fig
 from common.permutation_null import permutation_null_distribution, pvalue_one_tailed
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
@@ -542,7 +542,7 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
 
 
@@ -646,7 +646,7 @@ def _plot_anticipation_histogram(pos, neg, *, title, save_path,
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
 
 

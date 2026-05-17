@@ -17,7 +17,7 @@ from sklearn.decomposition import PCA
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.io_paths import fig_path
+from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.time_axis import frames_to_min
@@ -153,6 +153,7 @@ def _render_pca_umap_uncolored(
         color=PLOT_PARAMS["pca_scatter_color"],
         alpha=PLOT_PARAMS["scatter_alpha"],
         edgecolors="none",
+        rasterized=True,
     )
     ax.set_xlabel(
         f"PC 1 ({evr[0] * 100:.1f}% var)",
@@ -175,6 +176,7 @@ def _render_pca_umap_uncolored(
         color=PLOT_PARAMS["pca_scatter_color"],
         alpha=PLOT_PARAMS["scatter_alpha"],
         edgecolors="none",
+        rasterized=True,
     )
     ax.set_xlabel("UMAP 1", fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax.set_ylabel("UMAP 2", fontsize=PLOT_PARAMS["axis_label_fontsize"])
@@ -191,8 +193,8 @@ def _render_pca_umap_uncolored(
         y=1.02,
     )
     plt.tight_layout()
-    fig.savefig(
-        fig_path(exp_name, save_name),
+    save_fig(
+        fig, fig_path(exp_name, save_name),
         dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)

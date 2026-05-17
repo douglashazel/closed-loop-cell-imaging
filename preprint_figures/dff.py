@@ -21,7 +21,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.io_paths import fig_path
+from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
@@ -163,8 +163,8 @@ def plot_dff(experiments, state, *, responder_masks=None, select=None):
                 "non_responders": "_dff_non_responders",
                 None: "_dff",
             }[subset]
-            fig.savefig(
-                fig_path(exp_name, f"{ch}{name_suffix}"),
+            save_fig(
+                fig, fig_path(exp_name, f"{ch}{name_suffix}"),
                 dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
             )
             plt.close(fig)
@@ -277,7 +277,8 @@ def plot_dff_mean_pooled(experiments, state, *, responder_masks=None, only_respo
         )
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
         plt.tight_layout()
-        fig.savefig(
+        save_fig(
+            fig,
             fig_path(
                 exp_name,
                 "dff_mean_pooled_responders" if only_responders else "dff_mean_pooled",
@@ -378,8 +379,8 @@ def plot_dff_pooled_traces(experiments, state):
         )
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
         plt.tight_layout()
-        fig.savefig(
-            fig_path(exp_name, "dff_pooled_traces"),
+        save_fig(
+            fig, fig_path(exp_name, "dff_pooled_traces"),
             dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
         )
         plt.close(fig)

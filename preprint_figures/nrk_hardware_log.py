@@ -19,7 +19,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
 from common.config import PULSE_DEDUP_FRAMES
-from common.io_paths import fig_path
+from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS_HW_LOG
 from common.stim_resolve import _dedup_close_frames
@@ -141,8 +141,8 @@ def plot_nrk_hardware_log(experiments, state, exp_name="nrk_acid_13APR26"):
         ax.set_ylabel("Mean luminosity", fontsize=pp["axis_label_fontsize"])
         ax.legend(loc="upper left", fontsize=pp["legend_fontsize"])
         plt.tight_layout()
-        fig.savefig(
-            fig_path(exp_name, f"{ch}_hw_lum_log"),
+        save_fig(
+            fig, fig_path(exp_name, f"{ch}_hw_lum_log"),
             dpi=pp["dpi"], bbox_inches="tight",
         )
         plt.close(fig)

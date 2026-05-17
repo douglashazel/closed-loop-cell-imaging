@@ -22,7 +22,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
 from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
-from common.io_paths import fig_path
+from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
@@ -160,7 +160,7 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
             color=PLOT_PARAMS["scatter_color"],
             alpha=PLOT_PARAMS["scatter_alpha"],
             s=PLOT_PARAMS["scatter_size"],
-            zorder=2, linewidths=0,
+            zorder=2, linewidths=0, rasterized=True,
         )
         if rmask.any():
             ax_.scatter(
@@ -169,7 +169,7 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
                 edgecolors=PLOT_PARAMS["responder_edge"],
                 alpha=0.9,
                 s=PLOT_PARAMS["scatter_size"] * 1.7,
-                linewidths=0.5, zorder=5,
+                linewidths=0.5, zorder=5, rasterized=True,
                 label=None if resp_label_used else "Responder",
             )
             resp_label_used = True
@@ -256,7 +256,7 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    fig.savefig(save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
     plt.close(fig)
     return True
 

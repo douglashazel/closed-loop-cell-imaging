@@ -22,7 +22,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.io_paths import fig_path
+from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.stim_helpers import compute_f0_baseline
@@ -146,8 +146,8 @@ def plot_average_peak(experiments, state):
         )
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
         plt.tight_layout()
-        fig.savefig(
-            fig_path(exp_name, "average_peak"),
+        save_fig(
+            fig, fig_path(exp_name, "average_peak"),
             dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
         )
         plt.close(fig)

@@ -3,6 +3,7 @@
 import os
 import re
 
+import matplotlib as mpl
 import numpy as np
 
 from common.config import OUT_ROOT
@@ -18,6 +19,25 @@ def fig_path(exp_name, name, ext="png"):
     out_dir = os.path.join(OUT_ROOT, exp_name)
     os.makedirs(out_dir, exist_ok=True)
     return os.path.join(out_dir, f"{_slug(name)}.{ext}")
+
+
+def save_fig(fig, png_path, **savefig_kwargs):
+    """Save *fig* as a PNG at *png_path* and as an editable SVG alongside it.
+
+    The SVG is written to a sibling ``svg/`` directory with the same basename
+    (``<dir>/svg/<name>.svg``). SVG text is kept as live ``<text>`` elements
+    (``svg.fonttype='none'``) so fonts/labels can be edited in Illustrator or
+    Inkscape. ``savefig_kwargs`` (e.g. ``dpi``, ``bbox_inches``) are passed to
+    both saves — ``dpi`` still controls the resolution of any rasterized layers
+    embedded in the SVG.
+    """
+    fig.savefig(png_path, **savefig_kwargs)
+    svg_dir = os.path.join(os.path.dirname(png_path), "svg")
+    os.makedirs(svg_dir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(png_path))[0]
+    svg_path = os.path.join(svg_dir, base + ".svg")
+    with mpl.rc_context({"svg.fonttype": "none"}):
+        fig.savefig(svg_path, **savefig_kwargs)
 
 
 def load_segmentation(path):

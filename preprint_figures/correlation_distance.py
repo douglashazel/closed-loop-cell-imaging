@@ -27,7 +27,7 @@ from scipy.stats import linregress
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.io_paths import fig_path
+from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
@@ -108,7 +108,7 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None):
                 dists[valid], corrs[valid],
                 color=color, alpha=0.35, s=8, edgecolors="none",
                 label=f"{label_prefix} (n={n})",
-                zorder=1,
+                zorder=1, rasterized=True,
             )
         return False
     xv, yv = dists[valid], corrs[valid]
@@ -119,7 +119,7 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None):
     ax.scatter(
         xv, yv,
         color=color, alpha=0.30, s=8, edgecolors="none",
-        zorder=1,
+        zorder=1, rasterized=True,
     )
 
     dof = len(xv) - 2
@@ -181,7 +181,7 @@ def _scatter_corr_vs_dist(
                 ax.scatter(
                     pw_dist[valid], pw_corr[valid],
                     color=PAIR_CLASS_COLORS["NN"], alpha=0.30, s=8,
-                    edgecolors="none", zorder=1,
+                    edgecolors="none", zorder=1, rasterized=True,
                     label=f"{PAIR_CLASS_LABEL['NN']} (n={n_nn})",
                 )
                 drew_any = True
@@ -259,7 +259,7 @@ def _plot_corr_vs_dist_combined(
                     ax.scatter(
                         dists[valid], corrs[valid],
                         color=PAIR_CLASS_COLORS["NN"], alpha=0.20, s=6,
-                        edgecolors="none", zorder=1,
+                        edgecolors="none", zorder=1, rasterized=True,
                         label=f"{PAIR_CLASS_LABEL['NN']} (pooled, n={n_nn})",
                     )
             # Responder × responder (RR) pairs: blue scatter + fit line + band.
@@ -347,8 +347,8 @@ def _plot_corr_vs_dist_combined(
         fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
         style="italic", color="#555555",
     )
-    fig.savefig(
-        fig_path(exp_name, "corr_vs_dist_combined"),
+    save_fig(
+        fig, fig_path(exp_name, "corr_vs_dist_combined"),
         dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
@@ -526,8 +526,8 @@ def plot_correlation_vs_distance(experiments, state):
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-        fig.savefig(
-            fig_path(exp_name, "corr_vs_dist"),
+        save_fig(
+            fig, fig_path(exp_name, "corr_vs_dist"),
             dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
         )
         plt.close(fig)
