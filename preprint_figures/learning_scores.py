@@ -15,7 +15,7 @@ biological replicate):
 Habituation / sensitization count new running extrema across each train,
 nulled by shuffling stim order. Anticipation is scored per train against a
 post-train rest region: a cell's luminosity in a 5-frame window 10 min after
-the train's last response peak is compared to mean ± 3·SD of that rest
+the train's last response peak is compared to mean ± 2·SD of that rest
 region, nulled by permuting the rest region's luminosity values.
 """
 
@@ -188,8 +188,8 @@ def _score_anticipation(inputs, n_win=5):
     For each train the post-train rest region gives a per-cell mean and SD
     (see :func:`_anticipation_train_spec`). A cell scores one positive event
     for the train when any frame of the 5-frame anticipation window exceeds
-    ``mean + 3·SD``, and one negative event when any frame falls below
-    ``mean − 3·SD`` (the two are independent — a cell may score both). ``pos``
+    ``mean + 2·SD``, and one negative event when any frame falls below
+    ``mean − 2·SD`` (the two are independent — a cell may score both). ``pos``
     / ``neg`` are the event counts summed across trains, each of shape
     ``(n_cells,)`` and ranging ``0..n_trains``.
     """
@@ -219,8 +219,8 @@ def _score_anticipation(inputs, n_win=5):
         ref_mean = np.nanmean(ref, axis=1)
         ref_std = np.nanstd(ref, axis=1)
         win_vals = mat[:, win_cols]
-        pos += np.any(win_vals > (ref_mean + 3.0 * ref_std)[:, None], axis=1)
-        neg += np.any(win_vals < (ref_mean - 3.0 * ref_std)[:, None], axis=1)
+        pos += np.any(win_vals > (ref_mean + 2.0 * ref_std)[:, None], axis=1)
+        neg += np.any(win_vals < (ref_mean - 2.0 * ref_std)[:, None], axis=1)
     return pos, neg
 
 
@@ -230,7 +230,7 @@ def _anticipation_null(inputs, *, n_perm=200, rng_seed=44, n_win=5):
     The 5-frame anticipation window is a subset of each train's rest region,
     so the null permutes that region's luminosity values: every permutation a
     cell draws ``n_win`` values without replacement from its rest region and
-    the same ``mean ± 3·SD`` test is applied (mean and SD are unchanged by a
+    the same ``mean ± 2·SD`` test is applied (mean and SD are unchanged by a
     permutation). Returns ``(pos_null, neg_null)``, each of shape
     ``(n_perm, n_cells)``.
     """
@@ -256,8 +256,8 @@ def _anticipation_null(inputs, *, n_perm=200, rng_seed=44, n_win=5):
         n_ref = ref.shape[1]
         ref_mean = np.nanmean(ref, axis=1)
         ref_std = np.nanstd(ref, axis=1)
-        hi_thr = (ref_mean + 3.0 * ref_std)[:, None]
-        lo_thr = (ref_mean - 3.0 * ref_std)[:, None]
+        hi_thr = (ref_mean + 2.0 * ref_std)[:, None]
+        lo_thr = (ref_mean - 2.0 * ref_std)[:, None]
         for i in range(n_perm):
             # Independent per-cell permutation; the first n_win draws stand
             # in for the values that would land in the anticipation window.
@@ -357,7 +357,7 @@ def _add_population_stats(blob, channel_index, n_channels):
         blob[f"{m}_pop_by_channel"] = per_channel
 
 
-def compute_learning_scores(experiments, state, *, n_perm=200):
+def compute_learning_scores(experiments, state, *, n_perm=10000):
     """Compute habituation + sensitization + anticipation scores per DMSO expt.
 
     Returns a nested dict ``out[exp]`` keyed by ``"height"`` / ``"width"``
@@ -650,6 +650,146 @@ def _plot_anticipation_histogram(pos, neg, *, title, save_path,
     plt.close(fig)
 
 
+def _permutation_mean_pvalue(observed, null_mat):
+    """Two-tailed permutation p-value for the population mean score.
+
+    ``M_real`` is the observed mean score across cells; ``M_shuffled`` is the
+    per-permutation mean of the shuffled-null scores. The p-value is the
+    fraction of shuffled means whose absolute deviation from the null mean
+    exceeds the observed mean's deviation. Returns
+    ``(M_real, M_shuffled, p_value)``.
+    """
+    M_real = float(np.nanmean(observed))
+    M_shuffled = np.nanmean(null_mat, axis=1)
+    null_mean = float(np.nanmean(M_shuffled))
+    d_real = abs(M_real - null_mean)
+    d_shuf = np.abs(M_shuffled - null_mean)
+    p_value = float(np.mean(d_shuf > d_real))
+    return M_real, M_shuffled, p_value
+
+
+def _plot_permutation_mean_test(observed, null_mat, *, title, xlabel,
+                                save_path, caveat=None):
+    """Histogram of shuffled mean scores with the observed mean overlaid.
+
+    Visualizes the permutation test: each cell's response order is shuffled
+    ``n_perm`` times, the mean learning score recomputed each time, and the
+    distribution of shuffled means (``M_shuffled``) plotted as a histogram with
+    a vertical line at the observed mean (``M_real``). The annotated p-value is
+    the two-tailed permutation p (see :func:`_permutation_mean_pvalue`).
+    """
+    M_real, M_shuffled, p_value = _permutation_mean_pvalue(observed, null_mat)
+    n_perm = int(M_shuffled.size)
+
+    fig, ax = plt.subplots(
+        figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(top=False, right=False)
+    ax.hist(
+        M_shuffled, bins=40,
+        color="#7a7a7a", alpha=0.65,
+        edgecolor="#444444", linewidth=0.4,
+        label=f"Shuffled mean ({n_perm} perms)",
+        zorder=1,
+    )
+    p_disp = (f"< {1.0 / n_perm:.0e}" if p_value == 0.0
+              else f"= {p_value:.4g}")
+    ax.axvline(
+        M_real, color=PLOT_PARAMS["fit_color"], linewidth=2.4,
+        label=(f"Observed mean = {M_real:.3f}\n"
+               f"two-tailed permutation p {p_disp}"),
+        zorder=3,
+    )
+    ax.set_xlabel(xlabel, fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("Permutations", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        title,
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
+    plt.tight_layout(rect=(0, 0.035, 1, 1));
+    if caveat:
+        fig.text(
+            0.5, 0.008, caveat, ha="center", va="bottom",
+            fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
+            style="italic", color="#555555",
+        )
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    plt.close(fig)
+
+
+def _plot_anticipation_permutation_test(pos, neg, pos_null, neg_null, *,
+                                        title, save_path, caveat=None):
+    """Two-panel permutation test for the anticipation scores.
+
+    Mirrors :func:`_plot_anticipation_histogram`: the negative panel (left)
+    tests the mean negative-event count, the positive panel (right) the mean
+    positive-event count. Each panel histograms the per-permutation shuffled
+    mean, marks the observed mean with a vertical line and annotates the
+    two-tailed permutation p-value.
+    """
+    fig, (ax_neg, ax_pos) = plt.subplots(
+        1, 2,
+        figsize=(PLOT_PARAMS["figsize"][0] * 1.7, PLOT_PARAMS["figsize"][1]),
+        dpi=PLOT_PARAMS["dpi"],
+    )
+    panels = (
+        (ax_neg, neg, neg_null, "Negative", "#e74c3c"),
+        (ax_pos, pos, pos_null, "Positive", "#1a9d51"),
+    )
+    for ax, observed, null_mat, word, color in panels:
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(top=False, right=False)
+        M_real, M_shuffled, p_value = _permutation_mean_pvalue(
+            observed, null_mat,
+        )
+        n_perm = int(M_shuffled.size)
+        ax.hist(
+            M_shuffled, bins=40,
+            color="#7a7a7a", alpha=0.65,
+            edgecolor="#444444", linewidth=0.4,
+            label=f"Shuffled mean ({n_perm} perms)",
+            zorder=1,
+        )
+        p_disp = (f"< {1.0 / n_perm:.0e}" if p_value == 0.0
+                  else f"= {p_value:.4g}")
+        ax.axvline(
+            M_real, color=color, linewidth=2.4,
+            label=(f"Observed mean = {M_real:.3f}\n"
+                   f"two-tailed permutation p {p_disp}"),
+            zorder=3,
+        )
+        ax.set_xlabel(
+            f"Mean {word.lower()} anticipation score",
+            fontsize=PLOT_PARAMS["axis_label_fontsize"],
+        )
+        ax.set_title(
+            f"{word} anticipation",
+            fontsize=PLOT_PARAMS["title_fontsize"],
+            fontweight=PLOT_PARAMS["title_fontweight"],
+        )
+        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
+    ax_neg.set_ylabel(
+        "Permutations", fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    fig.suptitle(
+        title,
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    plt.tight_layout(rect=(0, 0.04, 1, 1));
+    if caveat:
+        fig.text(
+            0.5, 0.008, caveat, ha="center", va="bottom",
+            fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
+            style="italic", color="#555555",
+        )
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_learning_score_histograms(experiments, state, scores=None):
     """Emit summed habituation / sensitization / anticipation histograms (DMSO).
 
@@ -690,6 +830,21 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                     caveat=caveat,
                     x_max=12,
                 )
+                if null is not None and null.size:
+                    _plot_permutation_mean_test(
+                        summed, null,
+                        title=(
+                            f"{exp_name} — {label_word.lower()} permutation "
+                            f"test ({metric})\n"
+                            f"observed mean score vs shuffled-stim-order null"
+                        ),
+                        xlabel=f"Mean {label_word.lower()} score ({metric})",
+                        save_path=fig_path(
+                            exp_name,
+                            f"learning_{measure_key}_{metric}_permtest",
+                        ),
+                        caveat=caveat,
+                    )
 
         ablob = by_key.get("anticipation")
         if ablob is not None:
@@ -700,7 +855,7 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                 ablob["anticipation_neg"],
                 title=(
                     f"{exp_name} — anticipation score\n"
-                    f"luminosity beyond mean ± 3·SD of post-train rest, "
+                    f"luminosity beyond mean ± 2·SD of post-train rest, "
                     f"5-frame window 10 min after each train's last peak"
                 ),
                 save_path=fig_path(exp_name, "learning_anticipation"),
@@ -718,6 +873,23 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                 ),
                 caveat=caveat,
             )
+            pos_null = ablob.get("anticipation_pos_null")
+            neg_null = ablob.get("anticipation_neg_null")
+            if pos_null is not None and neg_null is not None:
+                _plot_anticipation_permutation_test(
+                    ablob["anticipation_pos"],
+                    ablob["anticipation_neg"],
+                    pos_null, neg_null,
+                    title=(
+                        f"{exp_name} — anticipation permutation test\n"
+                        f"observed mean event count vs shuffled "
+                        f"rest-region null"
+                    ),
+                    save_path=fig_path(
+                        exp_name, "learning_anticipation_permtest",
+                    ),
+                    caveat=caveat,
+                )
 
 
 def main():

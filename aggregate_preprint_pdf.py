@@ -38,21 +38,27 @@ OVERVIEW_ORDER = [
     "dff_mean_combined",
     "dff_pooled_traces",
     "average_peak",
+    "average_peak_responders",
     "corr_vs_dist",
     "corr_vs_dist_combined",
     "learning_habituation_height",
+    "learning_habituation_height_permtest",
     "learning_habituation_height_per_train",
     "learning_habituation_height_split",
     "learning_habituation_width",
+    "learning_habituation_width_permtest",
     "learning_habituation_width_per_train",
     "learning_habituation_width_split",
     "learning_sensitization_height",
+    "learning_sensitization_height_permtest",
     "learning_sensitization_height_per_train",
     "learning_sensitization_height_split",
     "learning_sensitization_width",
+    "learning_sensitization_width_permtest",
     "learning_sensitization_width_per_train",
     "learning_sensitization_width_split",
     "learning_anticipation",
+    "learning_anticipation_permtest",
     "responder_distribution_diagnostic",
     "responder_stimlock_diagnostic",
     "responder_artifact_diagnostic",
@@ -78,6 +84,9 @@ CATEGORY_LABELS = {
     "dff_mean_combined": "Mean dF/F0 — all channels combined",
     "dff_pooled_traces": "dF/F0 traces pooled across channels (all cells) + mean",
     "average_peak": "Average response peak — per-stimulus dF/F0 segments + mean",
+    "average_peak_responders": (
+        "Average response peak — responders only (per-stimulus dF/F0 segments + mean)"
+    ),
     "corr_vs_dist": "Pairwise correlation vs. distance",
     "corr_vs_dist_combined": "Pairwise correlation vs. distance (combined)",
     "dff": "dF/F0 normalized traces",
@@ -92,6 +101,21 @@ CATEGORY_LABELS = {
     "amplitude_width_scatter_dff": "Amplitude × width per stim (dF/F0)",
     "pca_umap_uncolored": "PCA + UMAP scatter (no clustering)",
     "hw_lum_log": "Hardware feedback luminosity (log)",
+    "learning_habituation_height_permtest": (
+        "Habituation permutation test (height) — observed vs. shuffled mean score"
+    ),
+    "learning_habituation_width_permtest": (
+        "Habituation permutation test (width) — observed vs. shuffled mean score"
+    ),
+    "learning_sensitization_height_permtest": (
+        "Sensitization permutation test (height) — observed vs. shuffled mean score"
+    ),
+    "learning_sensitization_width_permtest": (
+        "Sensitization permutation test (width) — observed vs. shuffled mean score"
+    ),
+    "learning_anticipation_permtest": (
+        "Anticipation permutation test — observed vs. shuffled mean event count"
+    ),
     "responder_distribution_diagnostic": (
         "Responder diagnostic — per-cell Δ dF/F0 distribution vs. threshold"
     ),

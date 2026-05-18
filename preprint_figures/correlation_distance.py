@@ -89,25 +89,31 @@ def _classify_pair_classes(responder_mask):
     }
 
 
-def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None):
+def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None,
+                         draw_scatter=True, scatter_label=None, stat_text=None):
     """Fit a line on (dists, corrs); plot scatter + line + ±3 SEM band.
 
     The slope and r of the least-squares fit are kept as *descriptive* effect
     sizes only. Significance comes from ``mantel`` — a :func:`mantel_test`
     result dict — because the pairs are not independent (each cell appears in
     many pairs); the ordinary-regression p-value would be badly anti-
-    conservative. When ``mantel`` is None the line is labelled descriptive-only.
+    conservative. When ``mantel`` is None the line is labelled descriptive-only;
+    ``stat_text`` overrides the derived stat line verbatim when given.
+
+    ``draw_scatter`` plots the point cloud (set False to add a fit line over an
+    already-drawn cloud); ``scatter_label`` gives that cloud its own legend
+    entry (e.g. the blue responder dot, mirroring the gray non-responder dot).
 
     Returns True if a line was drawn, False if too few valid points.
     """
     valid = ~np.isnan(dists) & ~np.isnan(corrs)
     n = int(valid.sum())
     if n < 3:
-        if n > 0:
+        if n > 0 and draw_scatter:
             ax.scatter(
                 dists[valid], corrs[valid],
                 color=color, alpha=0.35, s=8, edgecolors="none",
-                label=f"{label_prefix} (n={n})",
+                label=f"{scatter_label or label_prefix} (n={n})",
                 zorder=1, rasterized=True,
             )
         return False
@@ -116,11 +122,13 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None):
     x_line = np.linspace(xv.min(), xv.max(), 100)
     y_line = res.slope * x_line + res.intercept
 
-    ax.scatter(
-        xv, yv,
-        color=color, alpha=0.30, s=8, edgecolors="none",
-        zorder=1, rasterized=True,
-    )
+    if draw_scatter:
+        ax.scatter(
+            xv, yv,
+            color=color, alpha=0.30, s=8, edgecolors="none",
+            label=f"{scatter_label} (n={n})" if scatter_label else None,
+            zorder=1, rasterized=True,
+        )
 
     dof = len(xv) - 2
     rss = np.sum((yv - (res.slope * xv + res.intercept)) ** 2)
@@ -134,7 +142,9 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None):
             color=color, alpha=0.10, zorder=1.5,
         )
 
-    if mantel is None:
+    if stat_text is not None:
+        stat_line = stat_text
+    elif mantel is None:
         stat_line = "descriptive fit only (no Mantel test)"
     elif mantel.get("insufficient"):
         stat_line = f"Mantel: n={mantel.get('n_cells', 0)} cells — too few"
@@ -156,6 +166,36 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None):
         zorder=3,
     )
     return True
+
+
+def _combined_mantel_stat_text(per_channel_pairs, method):
+    """One-line Mantel summary for the pooled fit's legend.
+
+    Each channel contributes its own cell-level Mantel r; those per-replicate
+    r values are combined with a one-sample t-test against 0 — the replicate-
+    level biological test. A single pooled Mantel test would mix independent
+    dishes and has no valid label permutation, so it is not used.
+    """
+    r_per_channel = []
+    for entry in per_channel_pairs:
+        res = entry.get("mantel", {}).get(method, {}).get("all")
+        if res and not res.get("insufficient"):
+            r_per_channel.append(res["r_obs"])
+    if not r_per_channel:
+        return "Mantel: no channel had enough cells to test"
+    if len(r_per_channel) < 2:
+        return (
+            f"Mantel r={r_per_channel[0]:+.3f} "
+            f"(1 replicate — no replicate-level test)"
+        )
+    combined = one_sample_t_dz(r_per_channel)
+    if np.isfinite(combined["p_value"]):
+        return (
+            f"Mantel (per-channel r vs 0, {combined['n']} replicates): "
+            f"mean r={combined['mean']:+.3f}, p={combined['p_value']:.3g}, "
+            f"dz={combined['cohen_dz']:+.2f}"
+        )
+    return f"Mantel: {combined['n']} replicate(s) — too few to test"
 
 
 def _scatter_corr_vs_dist(
@@ -193,8 +233,20 @@ def _scatter_corr_vs_dist(
                 pw_dist[rr_mask], pw_corr[rr_mask],
                 color=PAIR_CLASS_COLORS["RR"],
                 label_prefix=PAIR_CLASS_LABEL["RR"],
+                scatter_label=PAIR_CLASS_LABEL["RR"],
                 mantel=mantel_rr,
             )
+        # All cells pooled (RR + NN + RN): one fit line over every pair, drawn
+        # over the already-coloured clouds without redrawing any scatter.
+        drew_any |= _fit_and_plot_subset(
+            ax,
+            np.asarray(pw_dist, dtype=float),
+            np.asarray(pw_corr, dtype=float),
+            color=PLOT_PARAMS["corr_fit_color"],
+            label_prefix="All cells pooled",
+            mantel=mantel_all,
+            draw_scatter=False,
+        )
     else:
         drew_any = _fit_and_plot_subset(
             ax,
@@ -249,6 +301,10 @@ def _plot_corr_vs_dist_combined(
             if any_classes else None
         )
 
+        # Mantel summary for the pooled fit's legend (replaces the old top-left
+        # stats box) — see _combined_mantel_stat_text for why it is per-channel.
+        mantel_stat = _combined_mantel_stat_text(per_channel_pairs, method)
+
         if merged_classes is not None and any(m.any() for m in merged_classes.values()):
             # Non-responder (NN) pairs: gray scatter only, no fit line.
             nn_mask = merged_classes.get("NN")
@@ -270,13 +326,25 @@ def _plot_corr_vs_dist_combined(
                     dists[rr_mask], corrs[rr_mask],
                     color=PAIR_CLASS_COLORS["RR"],
                     label_prefix=f"{PAIR_CLASS_LABEL['RR']} (pooled)",
+                    scatter_label=f"{PAIR_CLASS_LABEL['RR']} (pooled)",
                 )
+            # All cells pooled (RR + NN + RN): one fit line over every pair,
+            # drawn over the already-coloured clouds (no extra scatter).
+            _fit_and_plot_subset(
+                ax,
+                dists, corrs,
+                color=PLOT_PARAMS["corr_fit_color"],
+                label_prefix="All cells pooled",
+                stat_text=mantel_stat,
+                draw_scatter=False,
+            )
         else:
             _fit_and_plot_subset(
                 ax,
                 dists, corrs,
                 color=PLOT_PARAMS["corr_fit_color"],
                 label_prefix="Pooled",
+                stat_text=mantel_stat,
             )
 
         ax.set_xlabel(
@@ -294,44 +362,6 @@ def _plot_corr_vs_dist_combined(
             fontweight=PLOT_PARAMS["title_fontweight"],
         )
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="lower right")
-
-        # A single pooled Mantel test would mix independent dishes and has no
-        # valid label permutation. Instead each channel gets its own cell-level
-        # Mantel test, and the per-replicate Mantel r values are combined with a
-        # one-sample t-test against 0 — the replicate-level biological test the
-        # rest of the pipeline treats as the unit of inference.
-        mantel_lines = []
-        r_per_channel = []
-        for entry in per_channel_pairs:
-            res = entry.get("mantel", {}).get(method, {}).get("all")
-            if res and not res.get("insufficient"):
-                mantel_lines.append(
-                    f"{entry['ch']}: r={res['r_obs']:+.3f}, p={res['p_value']:.3g}"
-                )
-                r_per_channel.append(res["r_obs"])
-        if mantel_lines:
-            combined = one_sample_t_dz(r_per_channel)
-            if combined["n"] >= 2 and np.isfinite(combined["p_value"]):
-                mantel_lines.append(
-                    f"combined ({combined['n']} replicates): "
-                    f"mean r={combined['mean']:+.3f}, "
-                    f"t={combined['t_stat']:+.2f}, p={combined['p_value']:.3g}, "
-                    f"dz={combined['cohen_dz']:+.2f}"
-                )
-            else:
-                mantel_lines.append(
-                    f"combined: n={combined['n']} replicate(s) — too few to test"
-                )
-            ax.text(
-                0.02, 0.97,
-                "Mantel test (cell-level per channel; combined =\n"
-                "one-sample t of per-channel Mantel r vs 0):\n"
-                + "\n".join(mantel_lines),
-                ha="left", va="top", transform=ax.transAxes,
-                fontsize=PLOT_PARAMS["legend_fontsize"] - 1,
-                family="monospace",
-                bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
-            )
 
     n_channels = len(per_channel_pairs)
     plt.tight_layout(rect=(0, 0.03, 1, 1));

@@ -16,12 +16,13 @@ def shuffle_per_stim_within_cell(rng, per_stim):
     Shape preserved: ``(n_stims, n_cells)``. Right null for habituation /
     sensitization where the score depends on each cell's own running extremum
     across its own per-stim values.
+
+    Vectorized via per-column argsort of a random matrix so the (often
+    10k-iteration) permutation loop stays fast.
     """
-    out = per_stim.copy()
-    n_stims, n_cells = out.shape
-    for c in range(n_cells):
-        out[:, c] = out[rng.permutation(n_stims), c]
-    return out
+    n_stims, n_cells = per_stim.shape
+    order = np.argsort(rng.random((n_stims, n_cells)), axis=0)
+    return np.take_along_axis(per_stim, order, axis=0)
 
 
 def shuffle_per_stim(rng, per_stim):

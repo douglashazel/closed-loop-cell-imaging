@@ -25,6 +25,7 @@ from common.cli import parse_args
 from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
+from common.responders import compute_responder_masks
 from common.stim_helpers import compute_f0_baseline
 from common.time_axis import frames_to_min
 
@@ -41,7 +42,8 @@ SEGMENT_MINUTES = 10.0
 GRID_POINTS = 100
 
 
-def _channel_peak_segments(state, exp_name, ch, cfg, grid):
+def _channel_peak_segments(state, exp_name, ch, cfg, grid, *,
+                           responder_mask=None):
     """Resampled dF/F0 peak segments for one channel.
 
     Returns a list with one ``(n_cells, GRID_POINTS)`` array per stimulus —
@@ -49,6 +51,9 @@ def _channel_peak_segments(state, exp_name, ch, cfg, grid):
     resampled onto ``grid`` (relative minutes since onset). Grid points beyond
     a segment's actual extent (e.g. the final stim near the experiment end)
     are left NaN so they drop out of the mean.
+
+    ``responder_mask`` (aligned to the corrected-lum ``CellID`` order) filters
+    the segments to responder cells only when given.
     """
     stim_frames = cfg["stim_frames"][ch]
     df = lum_dict_to_df(
@@ -67,6 +72,8 @@ def _channel_peak_segments(state, exp_name, ch, cfg, grid):
     F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
     F0_safe = np.where(F0 == 0, np.nan, F0)
     dff = (mat - F0) / F0_safe
+    if responder_mask is not None:
+        dff = dff[np.asarray(responder_mask, dtype=bool)]
     minutes = frames_to_min(state, exp_name, ch, frame_nums)
 
     segments = []
@@ -91,70 +98,106 @@ def _channel_peak_segments(state, exp_name, ch, cfg, grid):
     return segments
 
 
+def _render_average_peak(exp_name, grid, all_segments, n_channels, *,
+                         save_name, descriptor):
+    """Render and save one average-peak overlay figure from pooled segments."""
+    stacked = np.vstack(all_segments)
+    mean_peak = np.nanmean(stacked, axis=0)
+    n_seg = stacked.shape[0]
+
+    fig, ax = plt.subplots(
+        figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(top=False, right=False)
+    for row in stacked:
+        ax.plot(
+            grid, row,
+            color=PLOT_PARAMS["cell_color"], alpha=0.05,
+            linewidth=PLOT_PARAMS["cell_lw"], zorder=1,
+        )
+    mean_lw = PLOT_PARAMS["mean_lw"] * 1.7
+    mean_line, = ax.plot(
+        grid, mean_peak,
+        color=PLOT_PARAMS["pooled_mean_color"], linewidth=mean_lw,
+        label=f"Average peak (n={n_seg} cell×stim segments)", zorder=3,
+    )
+    # White halo so the average reads clearly over the dense overlay.
+    mean_line.set_path_effects([
+        pe.Stroke(linewidth=mean_lw + 2.4, foreground="white"),
+        pe.Normal(),
+    ])
+    ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
+    ax.set_xlabel(
+        "Time since stimulus onset (min)",
+        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_ylabel("dF/F₀", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        f"{exp_name} — average response peak ({descriptor})\n"
+        f"per-stimulus dF/F₀ segments pooled over {n_channels} channel(s)",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    plt.tight_layout()
+    save_fig(
+        fig, fig_path(exp_name, save_name),
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+    )
+    plt.close(fig)
+    print(
+        f"  average peak ({descriptor}): {exp_name} — {n_seg} segments "
+        f"pooled across {n_channels} channel(s)."
+    )
+
+
 def plot_average_peak(experiments, state):
-    """One average-peak overlay figure per DMSO experiment."""
+    """Average-peak overlay figures per DMSO experiment.
+
+    Two figures per experiment: ``average_peak`` (all cells) and
+    ``average_peak_responders`` (responder cells only) — the latter lets the
+    forked C2C12/PC3 response shapes be compared without the non-responder
+    cloud flattening the mean.
+    """
     grid = np.linspace(0.0, SEGMENT_MINUTES, GRID_POINTS)
+    responder_masks = compute_responder_masks(experiments, state)
     for exp_name, cfg in experiments.items():
         if cfg.get("response_direction") != "increase":
             continue
+        n_channels = len(cfg["channels"])
         all_segments = []
+        resp_segments = []
         for ch in cfg["channels"]:
             all_segments.extend(
                 _channel_peak_segments(state, exp_name, ch, cfg, grid)
             )
+            ch_mask = responder_masks.get((exp_name, ch))
+            if ch_mask is not None and np.any(ch_mask):
+                resp_segments.extend(
+                    _channel_peak_segments(
+                        state, exp_name, ch, cfg, grid,
+                        responder_mask=ch_mask,
+                    )
+                )
         if not all_segments:
             print(f"{exp_name}: no peak segments — skipping average-peak figure.")
             continue
-        stacked = np.vstack(all_segments)
-        mean_peak = np.nanmean(stacked, axis=0)
-        n_seg = stacked.shape[0]
-
-        fig, ax = plt.subplots(
-            figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+        _render_average_peak(
+            exp_name, grid, all_segments, n_channels,
+            save_name="average_peak", descriptor="all cells",
         )
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.tick_params(top=False, right=False)
-        for row in stacked:
-            ax.plot(
-                grid, row,
-                color=PLOT_PARAMS["cell_color"], alpha=0.05,
-                linewidth=PLOT_PARAMS["cell_lw"], zorder=1,
+        if resp_segments:
+            _render_average_peak(
+                exp_name, grid, resp_segments, n_channels,
+                save_name="average_peak_responders",
+                descriptor="responders only",
             )
-        mean_lw = PLOT_PARAMS["mean_lw"] * 1.7
-        mean_line, = ax.plot(
-            grid, mean_peak,
-            color=PLOT_PARAMS["pooled_mean_color"], linewidth=mean_lw,
-            label=f"Average peak (n={n_seg} cell×stim segments)", zorder=3,
-        )
-        # White halo so the average reads clearly over the dense overlay.
-        mean_line.set_path_effects([
-            pe.Stroke(linewidth=mean_lw + 2.4, foreground="white"),
-            pe.Normal(),
-        ])
-        ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
-        ax.set_xlabel(
-            "Time since stimulus onset (min)",
-            fontsize=PLOT_PARAMS["axis_label_fontsize"],
-        )
-        ax.set_ylabel("dF/F₀", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-        ax.set_title(
-            f"{exp_name} — average response peak\n"
-            f"per-stimulus dF/F₀ segments pooled over "
-            f"{len(cfg['channels'])} channel(s)",
-            fontsize=PLOT_PARAMS["title_fontsize"],
-            fontweight=PLOT_PARAMS["title_fontweight"],
-        )
-        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-        plt.tight_layout()
-        save_fig(
-            fig, fig_path(exp_name, "average_peak"),
-            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
-        )
-        plt.close(fig)
-        print(
-            f"  average peak: {exp_name} — {n_seg} segments pooled across "
-            f"{len(cfg['channels'])} channel(s)."
-        )
+        else:
+            print(
+                f"{exp_name}: no responder peak segments — "
+                "skipping responders-only average-peak figure."
+            )
 
 
 def main():

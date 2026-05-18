@@ -60,8 +60,9 @@ def _sig_stars(p):
     return "ns"
 
 
-def _draw_replicate_train_inset(ax_, chan_means, train_p):
-    """Draw the per-replicate train-mean inset in the upper-right corner.
+def _plot_replicate_train_means(chan_means, train_p, *, title, y_label,
+                                save_path, caveat=None):
+    """Standalone per-replicate train-mean figure (was the violin's inset).
 
     ``chan_means`` has shape ``(n_channels, n_trains)`` — one green line per
     biological replicate across the stimulus trains, ramped dark→light.
@@ -70,60 +71,69 @@ def _draw_replicate_train_inset(ax_, chan_means, train_p):
     spanning train 1 to train N (``*`` / ``**`` / ``***`` or ``ns``).
     """
     n_ch, n_tr = chan_means.shape
-    axin = ax_.inset_axes([0.66, 0.66, 0.32, 0.30])
+    fig, ax = plt.subplots(
+        figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(top=False, right=False)
     train_x = np.arange(n_tr)
     greens = PLOT_PARAMS["replicate_greens"]
     for ci in range(n_ch):
-        axin.plot(
+        ax.plot(
             train_x, chan_means[ci],
             color=greens[ci % len(greens)],
-            linewidth=1.8, marker="D", markersize=6,
-            markeredgecolor="#222222", markeredgewidth=0.5,
+            linewidth=2.4, marker="D", markersize=9,
+            markeredgecolor="#222222", markeredgewidth=0.7,
             label=f"Rep {ci + 1}",
         )
-    axin.set_xticks(train_x)
-    axin.set_xticklabels(
-        [f"Train {t + 1}" for t in range(n_tr)], fontsize=8,
-    )
-    axin.tick_params(labelsize=8)
-    axin.spines[["top", "right"]].set_visible(False)
-    axin.set_title(
-        "Per-replicate train mean", fontsize=9,
+    ax.set_xticks(train_x)
+    ax.set_xticklabels([f"Train {t + 1}" for t in range(n_tr)])
+    ax.set_xlabel("Stimulus train", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel(y_label, fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        title,
+        fontsize=PLOT_PARAMS["title_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
-    axin.set_xlabel("Stimulus train", fontsize=8)
-    axin.set_ylabel("Mean response", fontsize=8)
 
     # Significance bracket for the first→last train change (replicate level).
     if n_tr >= 2:
-        y0, y1 = axin.get_ylim()
+        y0, y1 = ax.get_ylim()
         span = (y1 - y0) or 1.0
-        bar_y = y1 + span * 0.10
-        axin.plot(
+        bar_y = y1 + span * 0.08
+        ax.plot(
             [train_x[0], train_x[-1]], [bar_y, bar_y],
-            color="#222222", linewidth=1.2,
+            color="#222222", linewidth=1.4,
         )
-        axin.text(
-            (train_x[0] + train_x[-1]) / 2.0, bar_y + span * 0.05,
+        ax.text(
+            (train_x[0] + train_x[-1]) / 2.0, bar_y + span * 0.03,
             _sig_stars(train_p),
-            ha="center", va="bottom", fontsize=11,
+            ha="center", va="bottom", fontsize=14,
             fontweight=PLOT_PARAMS["title_fontweight"],
         )
-        axin.set_ylim(y0, bar_y + span * 0.30)
-    axin.legend(fontsize=7, loc="best", framealpha=0.85);
+        ax.set_ylim(y0, bar_y + span * 0.22)
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
+    plt.tight_layout(rect=(0, 0.035, 1, 1));
+    if caveat:
+        fig.text(
+            0.5, 0.008, caveat, ha="center", va="bottom",
+            fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
+            style="italic", color="#555555",
+        )
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    plt.close(fig)
 
 
 def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_path,
                                 x_axis_label="Peak frame",
-                                stats_text=None, chan_means=None, caveat=None,
-                                train_p=None, responder_data=None):
+                                stats_text=None, caveat=None,
+                                responder_data=None):
     """Render the asymmetric violin/box composite for one figure and save it.
 
     ``stats_text`` (the train-level repeated-measures result) is drawn as an
-    upper-left box; ``chan_means`` of shape ``(n_channels, n_trains)`` is drawn
-    as an upper-right inset of each biological replicate's per-train mean, with
-    ``train_p`` driving the inset's significance annotation; ``caveat`` is the
-    figure footnote naming the unit of inference.
+    upper-left box; ``caveat`` is the figure footnote naming the unit of
+    inference. The per-replicate train means are drawn as a separate figure
+    (see :func:`_plot_replicate_train_means`).
 
     ``responder_data``, when given, is a per-category list of boolean arrays
     aligned to ``violin_data`` — scatter points whose cell is a responder are
@@ -224,12 +234,6 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
     )
 
     ax_.legend(fontsize=PLOT_PARAMS["legend_fontsize_large"], loc="center right");
-
-    # Per-replicate (per-channel) train means shown in a small upper-right
-    # inset, so the biological-replicate structure behind the train-level test
-    # is visible without crowding the pooled cell-level violins.
-    if chan_means is not None and chan_means.size:
-        _draw_replicate_train_inset(ax_, chan_means, train_p)
 
     if stats_text:
         ax_.text(
@@ -598,14 +602,30 @@ def plot_per_stimulus_response_violins(
             ),
             x_axis_label="Stimulus onset (min)",
             stats_text=stats_text,
-            chan_means=chan_means,
             caveat=caveat,
-            train_p=train_p,
         )
         if not ok:
             print(
                 f"{exp_name}: pooled response violin ({metric}) — "
                 "no non-empty data; skipped."
+            )
+
+        # Per-replicate train means — formerly the violin's upper-right inset,
+        # now its own figure so the biological-replicate structure behind the
+        # train-level test is visible at full size.
+        if chan_means is not None and chan_means.size:
+            _plot_replicate_train_means(
+                chan_means, train_p,
+                title=(
+                    f"{exp_name} — per-replicate train mean ({metric})\n"
+                    f"each biological replicate's mean response per stimulus train"
+                ),
+                y_label=f"Mean response ({metric})",
+                save_path=fig_path(
+                    exp_name,
+                    f"pooled_response_violin_{metric}{suffix}_train_means",
+                ),
+                caveat=caveat,
             )
 
         # Responder-highlighted twin: same violins, responder cells in red.
@@ -634,9 +654,7 @@ def plot_per_stimulus_response_violins(
                 ),
                 x_axis_label="Stimulus onset (min)",
                 stats_text=stats_text,
-                chan_means=chan_means,
                 caveat=caveat,
-                train_p=train_p,
                 responder_data=responder_data,
             )
 
