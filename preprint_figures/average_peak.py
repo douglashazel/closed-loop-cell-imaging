@@ -40,6 +40,11 @@ SEGMENT_MINUTES = 10.0
 # ments have different frame rates, so segments hold different frame counts;
 # np.interp puts them all on the same 0-SEGMENT_MINUTES axis.
 GRID_POINTS = 100
+# Frame timing means most segments stop just short of SEGMENT_MINUTES, so the
+# extreme tail grid points are covered by only a handful of segments and their
+# mean is unrepresentative (it dives toward baseline). Drop grid points whose
+# segment coverage falls below this fraction of the best-covered point.
+MIN_COVERAGE_FRAC = 0.5
 
 
 def _channel_peak_segments(state, exp_name, ch, cfg, grid, *,
@@ -99,24 +104,44 @@ def _channel_peak_segments(state, exp_name, ch, cfg, grid, *,
 
 
 def _render_average_peak(exp_name, grid, all_segments, n_channels, *,
-                         save_name, descriptor):
-    """Render and save one average-peak overlay figure from pooled segments."""
+                         save_name, descriptor, show_cells=True):
+    """Render and save one average-peak overlay figure from pooled segments.
+
+    ``show_cells`` draws the faint per-cell×stim segment overlay; pass False
+    to render just the average line. A shaded mean ± 3·SEM band is always
+    drawn. Low-coverage tail grid points are clipped (see MIN_COVERAGE_FRAC).
+    """
     stacked = np.vstack(all_segments)
-    mean_peak = np.nanmean(stacked, axis=0)
     n_seg = stacked.shape[0]
+
+    # Clip grid points covered by too few segments — their mean is unreliable.
+    counts = np.sum(~np.isnan(stacked), axis=0)
+    keep = counts >= MIN_COVERAGE_FRAC * counts.max()
+    grid = grid[keep]
+    stacked = stacked[:, keep]
+    counts = counts[keep]
+
+    mean_peak = np.nanmean(stacked, axis=0)
+    sem = np.nanstd(stacked, axis=0, ddof=1) / np.sqrt(counts)
 
     fig, ax = plt.subplots(
         figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
     )
     ax.spines[["top", "right"]].set_visible(False)
     ax.tick_params(top=False, right=False)
-    for row in stacked:
-        ax.plot(
-            grid, row,
-            color=PLOT_PARAMS["cell_color"], alpha=0.05,
-            linewidth=PLOT_PARAMS["cell_lw"], zorder=1,
-        )
+    if show_cells:
+        for row in stacked:
+            ax.plot(
+                grid, row,
+                color=PLOT_PARAMS["cell_color"], alpha=0.05,
+                linewidth=PLOT_PARAMS["cell_lw"], zorder=1,
+            )
     mean_lw = PLOT_PARAMS["mean_lw"] * 1.7
+    ax.fill_between(
+        grid, mean_peak - 3 * sem, mean_peak + 3 * sem,
+        color=PLOT_PARAMS["pooled_mean_color"], alpha=0.25,
+        linewidth=0, zorder=2, label="Mean ± 3 SEM",
+    )
     mean_line, = ax.plot(
         grid, mean_peak,
         color=PLOT_PARAMS["pooled_mean_color"], linewidth=mean_lw,
@@ -192,6 +217,7 @@ def plot_average_peak(experiments, state):
                 exp_name, grid, resp_segments, n_channels,
                 save_name="average_peak_responders",
                 descriptor="responders only",
+                show_cells=False,
             )
         else:
             print(
