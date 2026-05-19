@@ -39,6 +39,7 @@ OVERVIEW_ORDER = [
     "dff_pooled_traces",
     "average_peak",
     "average_peak_responders",
+    "average_peak_responders_stim8",
     "corr_vs_dist",
     "corr_vs_dist_combined",
     "learning_habituation_height",
@@ -86,6 +87,10 @@ CATEGORY_LABELS = {
     "average_peak": "Average response peak — per-stimulus dF/F0 segments + mean",
     "average_peak_responders": (
         "Average response peak — responders only (per-stimulus dF/F0 segments + mean)"
+    ),
+    "average_peak_responders_stim8": (
+        "Average response peak — stimulus #8 only, responders (derived from "
+        "average_peak_responders)"
     ),
     "corr_vs_dist": "Pairwise correlation vs. distance",
     "corr_vs_dist_combined": "Pairwise correlation vs. distance (combined)",
