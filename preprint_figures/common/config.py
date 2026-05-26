@@ -93,7 +93,6 @@ EXPERIMENTS = {
     "c2c12_dmso_09APR26": {
         "dir": "EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26",
         "channels": ["channel 1", "channel 2", "channel 3"],
-        "bg_ref": "EXPERIMENTS/other/background images for subtraction method/20APR26/8.png",
         "stim_frames": [],   # auto-filled by stim_minutes/timestamps below
         # F0 is computed automatically from stim_frames (mean of frames 0..first_stim-1).
         # 15 min neutral, then 3 blocks of (5x: 2 min DMSO + 8 min neutral) separated
@@ -120,6 +119,15 @@ EXPERIMENTS = {
         },
         # Optional: 'perfusion_start': '09-Apr-2026 14:08:16'
         # Default = earliest frame-0 datetime across channels listed in 'timestamps'.
+        # Per-channel cell filter: only cells whose frame-0 (x0, y0) lies on a
+        # non-zero pixel of the listed mask are kept. Paths are relative to
+        # cfg['dir']. Masks were produced via the interactive circle+area
+        # filter cells at the end of play.ipynb.
+        "cell_mask_filter": {
+            "channel 1": "channel_1_image_0_a_timepoint_00000_circle_area_filtered.npy",
+            "channel 2": "channel_2_image_0_a_timepoint_00000_circle_area_filtered.npy",
+            "channel 3": "channel_3_image_0_a_timepoint_00000_circle_area_filtered.npy",
+        },
     },
     "pc3_dmso_23MAR26": {
         "dir": "EXPERIMENTS/other/PC3 DMSO pulses perfusion 23MAR26",
@@ -129,7 +137,6 @@ EXPERIMENTS = {
         # circuits the per-channel subdir in path resolution.
         "channels": ["channel 1"],
         "single_channel_root": True,
-        "bg_ref": "EXPERIMENTS/other/background images for subtraction method/20APR26/8.png",
         "stim_frames": [],   # auto-filled by stim_minutes/timestamps below
         # Same DMSO schedule as c2c12_dmso_09APR26 except for the acclimation
         # window: 10 min normal medium (vs 15 min for C2C12), then 3 trains of
@@ -168,7 +175,6 @@ EXPERIMENTS = {
     "nrk_acid_13APR26": {
         "dir": "EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26",
         "channels": ["channel 1 A", "channel 1 C", "channel 2 B", "channel 2 D"],
-        "bg_ref": "EXPERIMENTS/other/background images for subtraction method/20APR26/8.png",
         "stim_frames": [],   # auto-filled by stim_logs below
         # F0 is computed automatically from stim_frames (mean of frames 0..first_stim-1).
         # Acid pulse delivery window is ~30 s.

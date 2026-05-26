@@ -27,7 +27,7 @@ from common.bg_fit import (
     fit_background_from_image,
 )
 from common.config import BG_FIT, CACHE_DIR, RECOMPUTE_BG
-from common.io_paths import channel_dir, sorted_image_files
+from common.io_paths import channel_dir, load_segmentation, sorted_image_files
 from common.stim_resolve import resolve_all_stim_frames
 from common.time_axis import (
     build_frame_to_minutes_lookups,
@@ -466,6 +466,64 @@ def fill_dead_frames(experiments, state):
                 )
 
 
+def apply_cell_mask_filter(experiments, state):
+    """Drop cells whose frame-0 position lies on background of a per-channel filter mask.
+
+    Opt-in per experiment via ``cfg["cell_mask_filter"]``, a mapping
+    ``{channel: mask_path}`` where each path is relative to ``cfg["dir"]`` and
+    points to a 2-D labeled mask. A cell is kept iff its trajectory has both
+    ``x0`` and ``y0`` and the mask value at ``(round(y0), round(x0))`` is
+    non-zero. Cells without frame-0 coordinates, with out-of-bounds positions,
+    or that land on background are removed from both
+    ``state["corrected_lum"][exp][ch]`` and ``state["traj_by_channel"][exp][ch]``,
+    so every downstream analysis sees only the kept subset.
+
+    Runs after ``compute_background_correction`` so the per-experiment BG
+    cache stays valid — toggling the filter never invalidates the cache.
+    """
+    for exp_name, cfg in experiments.items():
+        filt_by_ch = cfg.get("cell_mask_filter")
+        if not filt_by_ch:
+            continue
+        for ch in cfg["channels"]:
+            rel = filt_by_ch.get(ch)
+            if rel is None:
+                continue
+            mask = load_segmentation(os.path.join(cfg["dir"], rel))
+            H, W = mask.shape
+            traj = state["traj_by_channel"][exp_name][ch]
+            lum = state["corrected_lum"][exp_name][ch]
+
+            keep = set()
+            for cid, coords in traj.items():
+                x = coords.get("x0")
+                y = coords.get("y0")
+                if x is None or y is None:
+                    continue
+                try:
+                    xi = int(round(float(x)))
+                    yi = int(round(float(y)))
+                except (TypeError, ValueError):
+                    continue
+                if not (0 <= xi < W and 0 <= yi < H):
+                    continue
+                if int(mask[yi, xi]) == 0:
+                    continue
+                keep.add(cid)
+
+            before = len(lum)
+            state["corrected_lum"][exp_name][ch] = {
+                cid: v for cid, v in lum.items() if cid in keep
+            }
+            state["traj_by_channel"][exp_name][ch] = {
+                cid: v for cid, v in traj.items() if cid in keep
+            }
+            print(
+                f"  {exp_name} / {ch}: cell-mask filter kept "
+                f"{len(state['corrected_lum'][exp_name][ch])} / {before} cells"
+            )
+
+
 def prepare_state(experiments, *, recompute_bg=False, check_direction=True):
     """Run the prep steps and return the populated state dict.
 
@@ -480,6 +538,7 @@ def prepare_state(experiments, *, recompute_bg=False, check_direction=True):
     """
     resolve_all_stim_frames(experiments)
     state = compute_background_correction(experiments, recompute=recompute_bg)
+    apply_cell_mask_filter(experiments, state)
     build_frame_to_minutes_lookups(experiments, state)
     clip_experiments_to_time_window(experiments, state)
     mask_dead_frames(experiments, state)
