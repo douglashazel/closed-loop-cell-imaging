@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """Learning-score histograms (DMSO experiments only).
 
-Per DMSO experiment: the summed-distribution figures for habituation and
-sensitization (× height/width) plus a single anticipation figure, each
-overlaid with a permutation null and a stats box reporting the FDR-corrected
-per-cell hit count plus a population-level permutation test (pooled and per
-biological replicate):
+Per DMSO experiment, the habituation / sensitization figures (× height/width)
+are unchanged: each is overlaid with a permutation null and a stats box
+reporting the FDR-corrected per-cell hit count plus a population-level
+permutation test (pooled and per biological replicate):
     * learning_habituation_height.png
     * learning_habituation_width.png
     * learning_sensitization_height.png
     * learning_sensitization_width.png
-    * learning_anticipation.png
 
-Habituation / sensitization count new running extrema across each train,
-nulled by shuffling stim order. Anticipation is scored per train against a
-post-train rest region: a cell's luminosity in a 5-frame window 10 min after
-the train's last response peak is compared to mean ± 2·SD of that rest
-region, nulled by permuting the rest region's luminosity values.
+Anticipation is now scored per anticipation period (post-train 1 and
+post-train 2) independently on the dF/F₀-normalized signal. The rest region
+for train ``t`` runs from the end of train ``t``'s last response to the start
+of train ``t+1``'s first stim. For each cell we record the dF/F₀ value at the
+anticipation time (10 min after the train's last response peak) and the
+dF/F₀ value at a random other frame in the rest region. Two plots per train,
+per variant (no-window vs. 5-frame window picking the largest dF/F₀):
+    * learning_anticipation_train{1,2}{,_window}.png
+    * learning_anticipation_train{1,2}{,_window}_permtest.png
+The first overlays the real (blue) and shuffled (gray) distributions; the
+second is a permutation-mean test with 10 000 shuffles and a two-tailed p.
 """
 
 import os
@@ -35,7 +39,11 @@ from common.permutation_null import permutation_null_distribution, pvalue_one_ta
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.stats import bh_fdr, inferential_caveat, population_permutation_pvalue
-from common.stim_helpers import compute_stim_caps, per_cell_response_delta
+from common.stim_helpers import (
+    compute_f0_baseline,
+    compute_stim_caps,
+    per_cell_response_delta,
+)
 from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS")
@@ -126,26 +134,28 @@ def _score_running_extremum(per_stim, *, mode, n_per_train=LEARNING_STIMS_PER_TR
 
 def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
                              window, n_trains, n_win=5):
-    """Resolve train ``t``'s rest region and 5-frame anticipation window.
+    """Resolve train ``t``'s rest region, anticipation column, and 5-frame window.
 
-    Returns ``(ref_lo, ref_hi, win_cols)`` — the half-open column range of the
-    post-train rest region and the integer columns of the anticipation window
-    — or ``None`` when the experiment ends too early to score the train (or
-    the window is not fully inside the rest region, which the permutation null
-    requires).
+    Returns ``(ref_lo, ref_hi, anticip_col, win_cols)`` or ``None`` when the
+    train is not scoreable. ``[ref_lo, ref_hi)`` is the post-train rest region;
+    ``anticip_col`` is the single-frame anticipation time (10 min after the
+    train's last response peak); ``win_cols`` is a length-``n_win`` integer
+    range centred on ``anticip_col``.
 
-    The rest region runs from the end of the train's last response (the last
-    stim + the response-window upper bound) to 30 min later, or to the last
-    frame for the final train. The anticipation window is centred 10 min after
-    the train's last response peak (the median peak column across cells), with
-    ``± n_win // 2`` frames either side.
+    The rest region runs from the end of train ``t``'s last response to the
+    start of train ``t+1``'s first stim. The last train of the experiment
+    therefore has no scoreable rest region under this definition and is
+    skipped (returns ``None``).
     """
+    if t >= n_trains - 1:
+        return None
     n_cols = mat.shape[1]
     win_lo_off, win_hi_off = window
     train = stim_cols[
         t * LEARNING_STIMS_PER_TRAIN:(t + 1) * LEARNING_STIMS_PER_TRAIN
     ]
     last_sc = train[-1]
+    next_first_sc = stim_cols[(t + 1) * LEARNING_STIMS_PER_TRAIN]
 
     # Last response peak of the train: median peak column across cells.
     pk_lo = max(0, last_sc + win_lo_off)
@@ -159,14 +169,10 @@ def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
         peak_offsets = np.argmax(np.where(np.isnan(seg), -np.inf, seg), axis=1)
     peak_col = int(np.round(np.nanmedian(pk_lo + peak_offsets)))
 
-    # Rest region: end of last response → +30 min (→ experiment end if last).
+    # Rest region: end of last response → start of next train's first stim.
     end_resp_col = min(last_sc + win_hi_off, n_cols - 1)
     ref_lo = end_resp_col
-    if t == n_trains - 1:
-        ref_hi = n_cols
-    else:
-        ref_end_min = float(all_minutes[end_resp_col]) + 30.0
-        ref_hi = int(np.argmin(np.abs(all_minutes - ref_end_min))) + 1
+    ref_hi = int(next_first_sc)
     if ref_hi - ref_lo < n_win:
         return None
 
@@ -176,153 +182,202 @@ def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
     half = n_win // 2
     win_cols = np.arange(anticip_col - half, anticip_col - half + n_win)
 
-    # The null permutes within the rest region, so the window must sit inside.
+    # Both the single anticipation frame and the full window must sit inside
+    # the rest region (the null draws windows from within that region).
+    if anticip_col < ref_lo or anticip_col >= ref_hi:
+        return None
     if win_cols[0] < ref_lo or win_cols[-1] >= ref_hi:
         return None
-    return ref_lo, ref_hi, win_cols
+    return ref_lo, ref_hi, anticip_col, win_cols
 
 
-def _score_anticipation(inputs, n_win=5):
-    """Per-train positive / negative anticipation events. Returns ``(pos, neg)``.
+def _sliding_window_max(dff, n_win):
+    """Per-cell max in every length-``n_win`` sliding window along axis 1.
 
-    For each train the post-train rest region gives a per-cell mean and SD
-    (see :func:`_anticipation_train_spec`). A cell scores one positive event
-    for the train when any frame of the 5-frame anticipation window exceeds
-    ``mean + 2·SD``, and one negative event when any frame falls below
-    ``mean − 2·SD`` (the two are independent — a cell may score both). ``pos``
-    / ``neg`` are the event counts summed across trains, each of shape
-    ``(n_cells,)`` and ranging ``0..n_trains``.
+    Returns ``(n_cells, n_cols - n_win + 1)``. ``n_win == 1`` is the identity.
     """
-    mat = inputs["mat"]
-    stim_cols = inputs["stim_cols"]
-    direction = inputs["direction"]
-    window = inputs["window"]
-    n_cells, n_cols = mat.shape
-    n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
-    all_minutes = inputs["frame_to_min_fn"](np.arange(n_cols))
-
-    pos = np.zeros(n_cells, dtype=int)
-    neg = np.zeros(n_cells, dtype=int)
-    for t in range(n_trains):
-        spec = _anticipation_train_spec(
-            t, stim_cols, mat, all_minutes, direction, window, n_trains, n_win,
-        )
-        if spec is None:
-            print(
-                f"    anticipation: {inputs['exp_name']} / {inputs['ch']} — "
-                f"train {t + 1}/{n_trains} not scorable "
-                f"(rest region / window out of range)."
-            )
-            continue
-        ref_lo, ref_hi, win_cols = spec
-        ref = mat[:, ref_lo:ref_hi]
-        ref_mean = np.nanmean(ref, axis=1)
-        ref_std = np.nanstd(ref, axis=1)
-        win_vals = mat[:, win_cols]
-        pos += np.any(win_vals > (ref_mean + 2.0 * ref_std)[:, None], axis=1)
-        neg += np.any(win_vals < (ref_mean - 2.0 * ref_std)[:, None], axis=1)
-    return pos, neg
+    if n_win == 1:
+        return np.asarray(dff)
+    return np.nanmax(
+        np.lib.stride_tricks.sliding_window_view(dff, n_win, axis=1), axis=2,
+    )
 
 
-def _anticipation_null(inputs, *, n_perm=200, rng_seed=44, n_win=5):
-    """Per-cell null for the anticipation scores.
+def _anticipation_start_pool(ref_lo, ref_hi, real_start, n_win):
+    """Valid shuffled window-start columns within ``[ref_lo, ref_hi)``.
 
-    The 5-frame anticipation window is a subset of each train's rest region,
-    so the null permutes that region's luminosity values: every permutation a
-    cell draws ``n_win`` values without replacement from its rest region and
-    the same ``mean ± 2·SD`` test is applied (mean and SD are unchanged by a
-    permutation). Returns ``(pos_null, neg_null)``, each of shape
-    ``(n_perm, n_cells)``.
+    Every start ``s`` is required to keep the full window ``[s, s + n_win)``
+    inside the rest region. The real start (``anticip_col`` for the
+    no-window variant, ``win_cols[0]`` for the 5-frame variant) is excluded.
     """
-    mat = inputs["mat"]
-    stim_cols = inputs["stim_cols"]
-    direction = inputs["direction"]
-    window = inputs["window"]
-    n_cells, n_cols = mat.shape
-    n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
-    all_minutes = inputs["frame_to_min_fn"](np.arange(n_cols))
+    hi = ref_hi - n_win + 1
+    if hi <= ref_lo:
+        return np.empty(0, dtype=int)
+    candidates = np.arange(ref_lo, hi, dtype=int)
+    return candidates[candidates != int(real_start)]
+
+
+def _compute_anticipation_deltas(win_max, start_pool, real_start, *, rng):
+    """Per-cell real and shuffled dF/F₀ deltas for one train / variant.
+
+    ``win_max`` is the precomputed sliding-window max (or the dFF matrix when
+    ``n_win == 1``). ``real`` is the per-cell value at the real start;
+    ``shuffled`` is the per-cell value at a single random start drawn from
+    ``start_pool``.
+    """
+    n_cells = win_max.shape[0]
+    real = win_max[:, int(real_start)].copy()
+    if start_pool.size == 0:
+        return real, np.full(n_cells, np.nan, dtype=float)
+    picks = start_pool[rng.integers(0, start_pool.size, size=n_cells)]
+    shuffled = win_max[np.arange(n_cells), picks]
+    return real, shuffled
+
+
+def _anticipation_null_matrix(win_max, start_pool, *, n_perm, rng_seed):
+    """Null matrix ``(n_perm, n_cells)`` of shuffled per-cell dF/F₀ deltas.
+
+    Each iteration draws one random start per cell from ``start_pool`` and
+    records the corresponding ``win_max`` value. Returns NaN when the rest
+    region admits no valid shuffled start.
+    """
+    n_cells = win_max.shape[0]
     rng = np.random.default_rng(rng_seed)
-
-    pos_null = np.zeros((n_perm, n_cells), dtype=float)
-    neg_null = np.zeros((n_perm, n_cells), dtype=float)
-    for t in range(n_trains):
-        spec = _anticipation_train_spec(
-            t, stim_cols, mat, all_minutes, direction, window, n_trains, n_win,
-        )
-        if spec is None:
-            continue
-        ref_lo, ref_hi, _ = spec
-        ref = mat[:, ref_lo:ref_hi]
-        n_ref = ref.shape[1]
-        ref_mean = np.nanmean(ref, axis=1)
-        ref_std = np.nanstd(ref, axis=1)
-        hi_thr = (ref_mean + 2.0 * ref_std)[:, None]
-        lo_thr = (ref_mean - 2.0 * ref_std)[:, None]
-        for i in range(n_perm):
-            # Independent per-cell permutation; the first n_win draws stand
-            # in for the values that would land in the anticipation window.
-            order = np.argsort(rng.random((n_cells, n_ref)), axis=1)
-            draws = np.take_along_axis(ref, order[:, :n_win], axis=1)
-            pos_null[i] += np.any(draws > hi_thr, axis=1)
-            neg_null[i] += np.any(draws < lo_thr, axis=1)
-    return pos_null, neg_null
+    if start_pool.size == 0:
+        return np.full((n_perm, n_cells), np.nan, dtype=float)
+    null = np.empty((n_perm, n_cells), dtype=float)
+    cell_ix = np.arange(n_cells)
+    for i in range(n_perm):
+        picks = start_pool[rng.integers(0, start_pool.size, size=n_cells)]
+        null[i] = win_max[cell_ix, picks]
+    return null
 
 
-def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=200):
-    """Pool the per-train anticipation scores across channels for one expt.
+def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
+    """Per-train, per-variant dF/F₀ anticipation deltas for one experiment.
 
-    Anticipation is metric-independent (it is scored on raw luminosity, height
-    only), so it is computed once per experiment rather than per metric.
-    Returns a blob with the observed ``anticipation_pos`` / ``anticipation_neg``
-    scores plus, when ``n_perm > 0``, the permutation null, per-cell p-values
-    and population-level stats — or ``None`` when no channel yields data.
+    Anticipation is metric-independent so it is computed once per experiment.
+    Returns a nested blob keyed by train index (1, 2) and variant
+    (``"no_window"`` / ``"window"``):
+
+        blob["channel_names"] -> list[str]
+        blob["trains"][train_idx] = {
+            "channel_index": (n_cells,) int,
+            "no_window": {"real": ..., "shuffled": ..., "null": ...},
+            "window":    {"real": ..., "shuffled": ..., "null": ...},
+        }
+
+    or ``None`` when no channel yields data. ``trains[t]`` is ``None`` when
+    every channel failed to score that train.
     """
-    pos_chunks, neg_chunks = [], []
-    pos_null_chunks, neg_null_chunks = [], []
+    direction = cfg.get("response_direction", "increase")
+    train_idxs = (1, 2)
+    accum = {
+        ti: {
+            "no_window": {"real": [], "shuffled": [], "null": []},
+            "window":    {"real": [], "shuffled": [], "null": []},
+            "channel_index": [],
+        }
+        for ti in train_idxs
+    }
     used_channels = []
-    for ch in cfg["channels"]:
+
+    for ch_ix, ch in enumerate(cfg["channels"]):
         inputs = _build_learning_inputs(
             state, exp_name, ch, cfg, metric="height",
         )
         if inputs is None:
             continue
         used_channels.append(ch)
-        pos, neg = _score_anticipation(inputs)
-        pos_chunks.append(pos)
-        neg_chunks.append(neg)
-        if n_perm and n_perm > 0:
-            pos_null, neg_null = _anticipation_null(
-                inputs, n_perm=n_perm, rng_seed=44,
-            )
-            pos_null_chunks.append(pos_null)
-            neg_null_chunks.append(neg_null)
+        mat = inputs["mat"]
+        F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
+        # F0 has shape (n_cells, 1); reuse the lum_dict_to_df row order that
+        # _build_learning_inputs already used, so rows align with mat.
+        F0_safe = np.where(F0 == 0, np.nan, F0)
+        dff = (mat - F0_safe) / F0_safe
+        win_max_singles = _sliding_window_max(dff, 1)
+        win_max_5 = _sliding_window_max(dff, 5)
 
-    if not pos_chunks:
+        stim_cols = inputs["stim_cols"]
+        window = inputs["window"]
+        n_cells, n_cols = mat.shape
+        n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
+        all_minutes = inputs["frame_to_min_fn"](np.arange(n_cols))
+
+        for t_idx, train_idx in enumerate(train_idxs):
+            t = train_idx - 1
+            spec = _anticipation_train_spec(
+                t, stim_cols, mat, all_minutes, direction, window, n_trains,
+            )
+            if spec is None:
+                print(
+                    f"    anticipation: {exp_name} / {ch} — "
+                    f"train {train_idx} not scorable "
+                    f"(rest region / window out of range)."
+                )
+                continue
+            ref_lo, ref_hi, anticip_col, win_cols = spec
+            # Each variant has its own RNG seed so the per-cell shuffles for
+            # the overlay plot are independent of the null draws below.
+            seed_base = 1000 * ch_ix + 100 * train_idx
+            for variant_key, n_win, real_start, win_max in (
+                ("no_window", 1, anticip_col, win_max_singles),
+                ("window",    5, int(win_cols[0]), win_max_5),
+            ):
+                start_pool = _anticipation_start_pool(
+                    ref_lo, ref_hi, real_start, n_win,
+                )
+                overlay_rng = np.random.default_rng(
+                    seed_base + (10 if variant_key == "window" else 0),
+                )
+                real, shuffled = _compute_anticipation_deltas(
+                    win_max, start_pool, real_start, rng=overlay_rng,
+                )
+                null = _anticipation_null_matrix(
+                    win_max, start_pool, n_perm=n_perm,
+                    rng_seed=seed_base + (11 if variant_key == "window" else 1),
+                )
+                accum[train_idx][variant_key]["real"].append(real)
+                accum[train_idx][variant_key]["shuffled"].append(shuffled)
+                accum[train_idx][variant_key]["null"].append(null)
+            accum[train_idx]["channel_index"].append(
+                np.full(n_cells, ch_ix, dtype=int)
+            )
+
+    if not used_channels:
         return None
-    blob = {
-        "anticipation_pos": np.concatenate(pos_chunks),
-        "anticipation_neg": np.concatenate(neg_chunks),
-    }
-    # Channels are biological replicates; the null matrices are concatenated
-    # in the same channel order, so this index aligns scores and null columns.
-    blob["channel_index"] = np.concatenate(
-        [np.full(len(c), ci, dtype=int) for ci, c in enumerate(pos_chunks)]
+    trains_blob = {}
+    for train_idx in train_idxs:
+        entries = accum[train_idx]
+        if not entries["channel_index"]:
+            trains_blob[train_idx] = None
+            continue
+        trains_blob[train_idx] = {
+            "channel_index": np.concatenate(entries["channel_index"]),
+            "no_window": {
+                "real": np.concatenate(entries["no_window"]["real"]),
+                "shuffled": np.concatenate(entries["no_window"]["shuffled"]),
+                "null": np.concatenate(entries["no_window"]["null"], axis=1),
+            },
+            "window": {
+                "real": np.concatenate(entries["window"]["real"]),
+                "shuffled": np.concatenate(entries["window"]["shuffled"]),
+                "null": np.concatenate(entries["window"]["null"], axis=1),
+            },
+        }
+    blob = {"channel_names": list(used_channels), "trains": trains_blob}
+    n_pooled_train1 = (
+        trains_blob[1]["no_window"]["real"].size
+        if trains_blob.get(1) is not None else 0
     )
-    blob["channel_names"] = list(used_channels)
-    if pos_null_chunks:
-        blob["anticipation_pos_null"] = np.concatenate(pos_null_chunks, axis=1)
-        blob["anticipation_neg_null"] = np.concatenate(neg_null_chunks, axis=1)
-        blob["anticipation_pos_pvalue"] = pvalue_one_tailed(
-            blob["anticipation_pos"], blob["anticipation_pos_null"],
-        )
-        blob["anticipation_neg_pvalue"] = pvalue_one_tailed(
-            blob["anticipation_neg"], blob["anticipation_neg_null"],
-        )
-        _add_population_stats(blob, blob["channel_index"], len(used_channels))
+    n_pooled_train2 = (
+        trains_blob[2]["no_window"]["real"].size
+        if trains_blob.get(2) is not None else 0
+    )
     print(
-        f"  anticipation scores: {exp_name} — "
-        f"{len(blob['anticipation_pos'])} cells pooled across "
-        f"{len(used_channels)} channels."
+        f"  anticipation (dF/F₀): {exp_name} — train1 n={n_pooled_train1}, "
+        f"train2 n={n_pooled_train2}, "
+        f"channels={len(used_channels)}."
     )
     return blob
 
@@ -339,8 +394,7 @@ def _add_population_stats(blob, channel_index, n_channels):
     biological replicate (``<measure>_pop_by_channel``) so a single dish
     driving the pooled result stays visible.
     """
-    for m in ("habituation", "sensitization",
-              "anticipation_pos", "anticipation_neg"):
+    for m in ("habituation", "sensitization"):
         pvals = blob.get(f"{m}_pvalue")
         null = blob.get(f"{m}_null")
         if pvals is None or null is None:
@@ -546,100 +600,69 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     plt.close(fig)
 
 
-def _plot_anticipation_histogram(pos, neg, *, title, save_path,
-                                 pos_null=None, neg_null=None,
-                                 pos_stats=None, neg_stats=None,
-                                 caveat=None, n_trains=3):
-    """Side-by-side negative / positive anticipation histograms.
+def _plot_anticipation_dff_histogram(real, shuffled, *, title, save_path,
+                                      caveat=None):
+    """Real (blue) vs. shuffled (gray) dF/F₀ anticipation deltas.
 
-    Each cell contributes one negative-event count and one positive-event
-    count, so the two panels hold the same set of cells. The left panel plots
-    the negative counts on a discrete ``-n_trains..0`` axis, the right panel
-    the positive counts on ``0..n_trains``; both panels share the y-axis.
-
-    ``pos_stats`` / ``neg_stats`` are ``(qvalues, pop_result, pop_by_channel)``
-    tuples rendered as the per-panel stats box; ``caveat`` is the figure
-    footnote naming the unit of inference.
+    Both distributions hold one value per cell; shared bins are computed from
+    the pooled finite values. Dashed vertical lines mark the two means.
     """
-    fig, (ax_neg, ax_pos) = plt.subplots(
-        1, 2, sharey=True,
-        figsize=(PLOT_PARAMS["figsize"][0] * 1.7, PLOT_PARAMS["figsize"][1]),
-        dpi=PLOT_PARAMS["dpi"],
+    fig, ax = plt.subplots(
+        figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
     )
-    for ax in (ax_neg, ax_pos):
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.tick_params(top=False, right=False)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(top=False, right=False)
 
-    neg_bins = np.arange(-n_trains - 0.5, 1.5, 1)
-    pos_bins = np.arange(-0.5, n_trains + 1.5, 1)
-
-    if neg_null is not None and neg_null.size:
-        n_perm = neg_null.shape[0]
-        ax_neg.hist(
-            -neg_null.ravel(), bins=neg_bins,
-            color="#eda396", alpha=0.45,
-            edgecolor="#6e2418", linewidth=0.4,
-            weights=np.full(neg_null.size, 1.0 / max(n_perm, 1)),
-            label=f"null ({n_perm} perms)",
-            zorder=1,
-        )
-    ax_neg.hist(
-        -neg, bins=neg_bins, color="#e74c3c", alpha=0.55,
-        edgecolor="#7a1a12", linewidth=0.8,
-        label=f"negative (n={neg.size})",
+    pooled = np.concatenate([np.asarray(real), np.asarray(shuffled)])
+    finite = pooled[np.isfinite(pooled)]
+    if finite.size:
+        bins = np.histogram_bin_edges(finite, bins=40)
+    else:
+        bins = 40
+    ax.hist(
+        shuffled, bins=bins, color="#7a7a7a", alpha=0.55,
+        edgecolor="#444444", linewidth=0.4,
+        label=f"Shuffled (n={np.asarray(shuffled).size})",
+        zorder=1,
+    )
+    ax.hist(
+        real, bins=bins, color=PLOT_PARAMS["fit_color"], alpha=0.6,
+        edgecolor="#222222", linewidth=0.6,
+        label=f"Observed (n={np.asarray(real).size})",
         zorder=2,
     )
-
-    if pos_null is not None and pos_null.size:
-        n_perm = pos_null.shape[0]
-        ax_pos.hist(
-            pos_null.ravel(), bins=pos_bins,
-            color="#7fc8a0", alpha=0.45,
-            edgecolor="#2f6e49", linewidth=0.4,
-            weights=np.full(pos_null.size, 1.0 / max(n_perm, 1)),
-            label=f"null ({n_perm} perms)",
-            zorder=1,
-        )
-    ax_pos.hist(
-        pos, bins=pos_bins, color="#1a9d51", alpha=0.55,
-        edgecolor="#0d4f29", linewidth=0.8,
-        label=f"positive (n={pos.size})",
-        zorder=2,
+    mean_real = float(np.nanmean(real))
+    mean_shuf = float(np.nanmean(shuffled))
+    ax.axvline(
+        mean_real, color=PLOT_PARAMS["fit_color"],
+        linewidth=1.8, linestyle="--", zorder=3,
     )
-
-    ax_neg.set_xticks(np.arange(-n_trains, 1))
-    ax_pos.set_xticks(np.arange(0, n_trains + 1))
-
-    neg_text = _format_score_stats(*neg_stats) if neg_stats else ""
-    if neg_text:
-        ax_neg.text(
-            0.02, 0.95, neg_text,
-            ha="left", va="top", transform=ax_neg.transAxes,
-            fontsize=PLOT_PARAMS["legend_fontsize"],
-            bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
-        )
-    pos_text = _format_score_stats(*pos_stats) if pos_stats else ""
-    if pos_text:
-        ax_pos.text(
-            0.98, 0.95, pos_text,
-            ha="right", va="top", transform=ax_pos.transAxes,
-            fontsize=PLOT_PARAMS["legend_fontsize"],
-            bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
-        )
-
-    ax_neg.set_xlabel("Negative anticipation score (events / 3 trains)",
-                      fontsize=PLOT_PARAMS["axis_label_fontsize"])
-    ax_pos.set_xlabel("Positive anticipation score (events / 3 trains)",
-                      fontsize=PLOT_PARAMS["axis_label_fontsize"])
-    ax_neg.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-    ax_neg.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
-    ax_pos.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
-    fig.suptitle(
+    ax.axvline(
+        mean_shuf, color="#444444",
+        linewidth=1.4, linestyle="--", zorder=3,
+    )
+    stats_text = (
+        f"n cells = {np.asarray(real).size}\n"
+        f"mean observed = {mean_real:.3g}\n"
+        f"mean shuffled = {mean_shuf:.3g}"
+    )
+    ax.text(
+        0.98, 0.95, stats_text,
+        ha="right", va="top", transform=ax.transAxes,
+        fontsize=PLOT_PARAMS["legend_fontsize"],
+        bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
+    )
+    ax.set_xlabel(
+        "dF/F₀ delta", fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
         title,
         fontsize=PLOT_PARAMS["title_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
-    plt.tight_layout(rect=(0, 0.04, 1, 1));
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
+    plt.tight_layout(rect=(0, 0.035, 1, 1));
     if caveat:
         fig.text(
             0.5, 0.008, caveat, ha="center", va="bottom",
@@ -720,82 +743,13 @@ def _plot_permutation_mean_test(observed, null_mat, *, title, xlabel,
     plt.close(fig)
 
 
-def _plot_anticipation_permutation_test(pos, neg, pos_null, neg_null, *,
-                                        title, save_path, caveat=None):
-    """Two-panel permutation test for the anticipation scores.
-
-    Mirrors :func:`_plot_anticipation_histogram`: the negative panel (left)
-    tests the mean negative-event count, the positive panel (right) the mean
-    positive-event count. Each panel histograms the per-permutation shuffled
-    mean, marks the observed mean with a vertical line and annotates the
-    two-tailed permutation p-value.
-    """
-    fig, (ax_neg, ax_pos) = plt.subplots(
-        1, 2,
-        figsize=(PLOT_PARAMS["figsize"][0] * 1.7, PLOT_PARAMS["figsize"][1]),
-        dpi=PLOT_PARAMS["dpi"],
-    )
-    panels = (
-        (ax_neg, neg, neg_null, "Negative", "#e74c3c"),
-        (ax_pos, pos, pos_null, "Positive", "#1a9d51"),
-    )
-    for ax, observed, null_mat, word, color in panels:
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.tick_params(top=False, right=False)
-        M_real, M_shuffled, p_value = _permutation_mean_pvalue(
-            observed, null_mat,
-        )
-        n_perm = int(M_shuffled.size)
-        ax.hist(
-            M_shuffled, bins=40,
-            color="#7a7a7a", alpha=0.65,
-            edgecolor="#444444", linewidth=0.4,
-            label=f"Shuffled mean ({n_perm} perms)",
-            zorder=1,
-        )
-        p_disp = (f"< {1.0 / n_perm:.0e}" if p_value == 0.0
-                  else f"= {p_value:.4g}")
-        ax.axvline(
-            M_real, color=color, linewidth=2.4,
-            label=(f"Observed mean = {M_real:.3f}\n"
-                   f"two-tailed permutation p {p_disp}"),
-            zorder=3,
-        )
-        ax.set_xlabel(
-            f"Mean {word.lower()} anticipation score",
-            fontsize=PLOT_PARAMS["axis_label_fontsize"],
-        )
-        ax.set_title(
-            f"{word} anticipation",
-            fontsize=PLOT_PARAMS["title_fontsize"],
-            fontweight=PLOT_PARAMS["title_fontweight"],
-        )
-        ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
-    ax_neg.set_ylabel(
-        "Permutations", fontsize=PLOT_PARAMS["axis_label_fontsize"],
-    )
-    fig.suptitle(
-        title,
-        fontsize=PLOT_PARAMS["title_fontsize"],
-        fontweight=PLOT_PARAMS["title_fontweight"],
-    )
-    plt.tight_layout(rect=(0, 0.04, 1, 1));
-    if caveat:
-        fig.text(
-            0.5, 0.008, caveat, ha="center", va="bottom",
-            fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
-            style="italic", color="#555555",
-        )
-    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
-    plt.close(fig)
-
-
 def plot_learning_score_histograms(experiments, state, scores=None):
-    """Emit summed habituation / sensitization / anticipation histograms (DMSO).
+    """Emit habituation / sensitization / anticipation histograms (DMSO).
 
     For habituation / sensitization: ``learning_<measure>_<metric>.png`` per
-    metric. For anticipation: a single ``learning_anticipation.png`` per
-    experiment. The permutation null is overlaid when it was computed.
+    metric (unchanged). For anticipation: per train (1, 2) and per variant
+    (no-window vs. 5-frame window) — a real-vs-shuffled overlay plus a
+    permutation-mean test, on the dF/F₀-normalized signal.
     """
     if scores is None:
         scores = compute_learning_scores(experiments, state)
@@ -847,49 +801,49 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                     )
 
         ablob = by_key.get("anticipation")
-        if ablob is not None:
-            n_ch = len(ablob.get("channel_names", []))
-            caveat = inferential_caveat(exp_name, n_ch, unit="cell")
-            _plot_anticipation_histogram(
-                ablob["anticipation_pos"],
-                ablob["anticipation_neg"],
-                title=(
-                    f"{exp_name} — anticipation score\n"
-                    f"luminosity beyond mean ± 2·SD of post-train rest, "
-                    f"5-frame window 10 min after each train's last peak"
-                ),
-                save_path=fig_path(exp_name, "learning_anticipation"),
-                pos_null=ablob.get("anticipation_pos_null"),
-                neg_null=ablob.get("anticipation_neg_null"),
-                pos_stats=(
-                    ablob.get("anticipation_pos_qvalue"),
-                    ablob.get("anticipation_pos_pop"),
-                    ablob.get("anticipation_pos_pop_by_channel"),
-                ),
-                neg_stats=(
-                    ablob.get("anticipation_neg_qvalue"),
-                    ablob.get("anticipation_neg_pop"),
-                    ablob.get("anticipation_neg_pop_by_channel"),
-                ),
-                caveat=caveat,
-            )
-            pos_null = ablob.get("anticipation_pos_null")
-            neg_null = ablob.get("anticipation_neg_null")
-            if pos_null is not None and neg_null is not None:
-                _plot_anticipation_permutation_test(
-                    ablob["anticipation_pos"],
-                    ablob["anticipation_neg"],
-                    pos_null, neg_null,
+        if ablob is None or not ablob.get("trains"):
+            continue
+        n_ch = len(ablob.get("channel_names", []))
+        caveat = inferential_caveat(exp_name, n_ch, unit="cell")
+        for train_idx in (1, 2):
+            train_blob = ablob["trains"].get(train_idx)
+            if train_blob is None:
+                continue
+            for variant_key, suffix, win_word in (
+                ("no_window", "",        "no window"),
+                ("window",    "_window", "5-frame window"),
+            ):
+                sub = train_blob[variant_key]
+                _plot_anticipation_dff_histogram(
+                    sub["real"], sub["shuffled"],
                     title=(
-                        f"{exp_name} — anticipation permutation test\n"
-                        f"observed mean event count vs shuffled "
-                        f"rest-region null"
+                        f"{exp_name} — anticipation "
+                        f"(train {train_idx}, {win_word})\n"
+                        f"dF/F₀ at anticipation time vs random rest-region times"
                     ),
                     save_path=fig_path(
-                        exp_name, "learning_anticipation_permtest",
+                        exp_name,
+                        f"learning_anticipation_train{train_idx}{suffix}",
                     ),
                     caveat=caveat,
                 )
+                null = sub.get("null")
+                if null is not None and null.size:
+                    _plot_permutation_mean_test(
+                        sub["real"], null,
+                        title=(
+                            f"{exp_name} — anticipation permutation test "
+                            f"(train {train_idx}, {win_word})\n"
+                            f"observed mean dF/F₀ vs shuffled rest-region null"
+                        ),
+                        xlabel="Mean dF/F₀ delta",
+                        save_path=fig_path(
+                            exp_name,
+                            f"learning_anticipation_train{train_idx}"
+                            f"{suffix}_permtest",
+                        ),
+                        caveat=caveat,
+                    )
 
 
 def main():
