@@ -5,13 +5,15 @@ Per experiment:
     * corr_vs_dist.png           — per-channel scatter panels
     * corr_vs_dist_combined.png  — pooled across channels
 
-Both use the full corrected time series. Within each panel, pairs are coloured
-by responder-pair status (RR / NN / RN) when responder thresholds are
-available, with a separate descriptive regression line per subset. Falls back
-to a single-cloud scatter when no responder threshold applies for the channel.
-Significance is a Mantel permutation test (per channel) — the regression
-p-value is invalid here because the ~N²/2 cell pairs are not independent.
-Distances are reported in μm using the imaging calibration ``PIXELS_PER_UM``.
+Both use the full dF/F0-normalized time series (per-cell baseline-normalized
+to keep the metric consistent with the rest of the pipeline). Within each
+panel, pairs are coloured by responder-pair status (RR / NN / RN) when
+responder thresholds are available, with a separate descriptive regression
+line per subset. Falls back to a single-cloud scatter when no responder
+threshold applies for the channel. Significance is a Mantel permutation test
+(per channel) — the regression p-value is invalid here because the ~N²/2
+cell pairs are not independent. Distances are reported in μm using the
+imaging calibration ``PIXELS_PER_UM``.
 """
 
 import os
@@ -32,6 +34,7 @@ from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
 from common.stats import inferential_caveat, mantel_test, one_sample_t_dz
+from common.stim_helpers import compute_f0_baseline
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
@@ -388,11 +391,12 @@ def plot_correlation_vs_distance(experiments, state):
     """Per experiment: Pearson + Spearman correlation vs pairwise distance.
 
     Two-row figure with Pearson on row 0 and Spearman on row 1, one column
-    per channel, computed over the full corrected time series. Pairs are
-    colored by responder-pair class when responder thresholds are available.
+    per channel, computed over the full dF/F0-normalized time series. Pairs
+    are colored by responder-pair class when responder thresholds are
+    available.
     """
     responder_masks = compute_responder_masks(experiments, state)
-    window_label = "full corrected time series"
+    window_label = "full dF/F0 time series"
 
     for exp_name, cfg in experiments.items():
         channels = cfg["channels"]
@@ -406,6 +410,14 @@ def plot_correlation_vs_distance(experiments, state):
                 key=lambda c: int(str(c).lstrip("f")),
             )
             mat = df[frame_cols].values
+            # Normalize each cell to its own pre-stim baseline so the
+            # correlation is computed on dF/F0 (consistent with the rest of
+            # the pipeline — responders, time traces, etc.). F0 rows align
+            # with df.index because compute_f0_baseline reads the same
+            # corrected_lum table.
+            F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
+            F0_safe = np.where(F0 == 0, np.nan, F0)
+            mat = (mat - F0) / F0_safe
             cell_ids_int = list(df.index)
 
             positions = mean_cell_positions(

@@ -20,6 +20,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common.baseline_window import (
+    per_cell_response_delta_with_baseline,
+    prestim_baseline_values,
+)
 from common.cli import parse_args
 from common.config import LEARNING_STIMS_PER_TRAIN, PEAK_OFFSET
 from common.io_paths import fig_path, save_fig
@@ -27,16 +31,17 @@ from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
 from common.stats import friedman_with_posthoc, inferential_caveat, one_sample_t_dz
-from common.stim_helpers import (
-    compute_f0_baseline,
-    compute_stim_caps,
-    per_cell_response_delta,
-)
+from common.stim_helpers import compute_f0_baseline, compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
 
+
+# Pre-stim baseline window used for every per-stim Δ — matches the responder
+# gate in common/responders.py so the descriptive figures and the responder
+# classification share the same baseline definition.
+_PRESTIM_BASELINE_FRAMES = 5
 
 _VIOLIN_BOX_OFFSET = 0.18
 _VIOLIN_BOX_WIDTH = 0.18
@@ -336,9 +341,12 @@ def _per_channel_stim_response_arrays(
             responder_data.append(np.array([], dtype=bool))
             continue
         col = frame_to_col[p]
+        baseline = prestim_baseline_values(
+            values, col, n_pre=_PRESTIM_BASELINE_FRAMES,
+        )
         if metric == "width":
-            _, widths = per_cell_response_delta(
-                values, col, direction, window,
+            _, widths = per_cell_response_delta_with_baseline(
+                values, col, direction, window, baseline,
                 return_width=True,
                 cap_col=cap_for_col[col],
                 frame_to_min_fn=_f2m,
@@ -346,7 +354,9 @@ def _per_channel_stim_response_arrays(
             finite = ~np.isnan(widths)
             vals = widths[finite]
         else:
-            deltas = per_cell_response_delta(values, col, direction, window)
+            deltas = per_cell_response_delta_with_baseline(
+                values, col, direction, window, baseline,
+            )
             finite = ~np.isnan(deltas)
             vals = deltas[finite]
         violin_data.append(vals)
@@ -405,15 +415,20 @@ def _per_train_cell_means(state, exp_name, ch, cfg, *, metric, signal,
         if p not in frame_to_col:
             continue
         col = frame_to_col[p]
+        baseline = prestim_baseline_values(
+            values, col, n_pre=_PRESTIM_BASELINE_FRAMES,
+        )
         if metric == "width":
-            _, widths = per_cell_response_delta(
-                values, col, direction, window,
+            _, widths = per_cell_response_delta_with_baseline(
+                values, col, direction, window, baseline,
                 return_width=True, cap_col=cap_for_col[col],
                 frame_to_min_fn=_f2m,
             )
             per_stim[i] = widths
         else:
-            per_stim[i] = per_cell_response_delta(values, col, direction, window)
+            per_stim[i] = per_cell_response_delta_with_baseline(
+                values, col, direction, window, baseline,
+            )
 
     trains = per_stim.reshape(n_trains, n_per_train, n_cells)
     with warnings.catch_warnings():

@@ -32,6 +32,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common.baseline_window import (
+    per_cell_response_delta_with_baseline,
+    prestim_baseline_values,
+)
 from common.cli import parse_args
 from common.config import LEARNING_STIMS_PER_TRAIN
 from common.io_paths import fig_path, save_fig
@@ -39,15 +43,17 @@ from common.permutation_null import permutation_null_distribution, pvalue_one_ta
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.stats import bh_fdr, inferential_caveat, population_permutation_pvalue
-from common.stim_helpers import (
-    compute_f0_baseline,
-    compute_stim_caps,
-    per_cell_response_delta,
-)
+from common.stim_helpers import compute_f0_baseline, compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
+
+
+# Pre-stim baseline window used for every per-stim Δ — matches the responder
+# gate in common/responders.py so the descriptive figures and the responder
+# classification share the same baseline definition.
+_PRESTIM_BASELINE_FRAMES = 5
 
 
 def _build_learning_inputs(state, exp_name, ch, cfg, *, metric):
@@ -79,8 +85,11 @@ def _build_learning_inputs(state, exp_name, ch, cfg, *, metric):
     per_stim_height = np.full((len(valid_stim_cols), n_cells), np.nan)
     per_stim_width = np.full((len(valid_stim_cols), n_cells), np.nan)
     for i, (sc, cap) in enumerate(zip(valid_stim_cols, caps)):
-        d, w = per_cell_response_delta(
-            mat, sc, direction, window,
+        baseline = prestim_baseline_values(
+            mat, sc, n_pre=_PRESTIM_BASELINE_FRAMES,
+        )
+        d, w = per_cell_response_delta_with_baseline(
+            mat, sc, direction, window, baseline,
             return_width=True, cap_col=cap, frame_to_min_fn=f2m,
         )
         per_stim_height[i] = d
