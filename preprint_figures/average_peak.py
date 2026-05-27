@@ -196,6 +196,68 @@ def _render_average_peak(exp_name, grid, all_segments, n_channels, *,
     )
 
 
+def _responders_cache_path(exp_name):
+    """Path to the per-experiment all-stim responders pooled-segment cache."""
+    return os.path.join(OUT_ROOT, exp_name, "average_peak_responders.npz")
+
+
+def _render_responders_combined(grid, per_exp):
+    """Overlay every DMSO experiment's all-stim responders average peak.
+
+    Cross-experiment companion to ``average_peak_responders.png``, modeled on
+    ``_render_stim8_combined``. Each experiment gets its responder mean across
+    every stim with a ±1 SEM band.
+    """
+    fig, ax = plt.subplots(
+        figsize=PLOT_PARAMS["figsize"], dpi=PLOT_PARAMS["dpi"],
+    )
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(top=False, right=False)
+    ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
+    mean_lw = PLOT_PARAMS["mean_lw"] * 1.7
+    for i, (exp_name, stacked) in enumerate(per_exp):
+        color = PLOT_PARAMS["colors"][i % len(PLOT_PARAMS["colors"])]
+        g, mean_peak, sem = _mean_sem_clipped(stacked, grid)
+        ax.fill_between(
+            g, mean_peak - sem, mean_peak + sem,
+            color=color, alpha=0.18, linewidth=0, zorder=2,
+        )
+        line, = ax.plot(
+            g, mean_peak, color=color, linewidth=mean_lw, zorder=3,
+            label=f"{exp_name}  (n={stacked.shape[0]} responder cell×stim segments)",
+        )
+        line.set_path_effects([
+            pe.Stroke(linewidth=mean_lw + 2.4, foreground="white"),
+            pe.Normal(),
+        ])
+    ax.set_xlabel(
+        "Time since stimulus onset (min)",
+        fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
+    ax.set_ylabel("dF/F₀", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_title(
+        "DMSO average response peak — PC3 vs C2C12 (responders only, all stims)"
+        "\nmean ± 1 SEM per experiment",
+        fontsize=PLOT_PARAMS["title_fontsize"],
+        fontweight=PLOT_PARAMS["title_fontweight"],
+    )
+    ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    plt.tight_layout()
+    os.makedirs(STIM8_COMBINED_DIR, exist_ok=True)
+    save_fig(
+        fig,
+        os.path.join(
+            STIM8_COMBINED_DIR, "average_peak_responders_combined.png"
+        ),
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+    )
+    plt.close(fig)
+    print(
+        f"  average peak responders (combined): {len(per_exp)} experiment(s) "
+        f"overlaid → {STIM8_COMBINED_DIR}/"
+    )
+
+
 def plot_average_peak(experiments, state):
     """Average-peak overlay figures per DMSO experiment.
 
@@ -203,12 +265,19 @@ def plot_average_peak(experiments, state):
     ``average_peak_responders`` (responder cells only) — the latter lets the
     forked C2C12/PC3 response shapes be compared without the non-responder
     cloud flattening the mean.
+
+    Each experiment's pooled responder segments are also cached
+    (``average_peak_responders.npz``) so the cross-experiment PC3-vs-C2C12
+    responders overlay can be assembled even when the pipeline runs one
+    experiment per process.
     """
     grid = np.linspace(0.0, SEGMENT_MINUTES, GRID_POINTS)
     responder_masks = compute_responder_masks(experiments, state)
+    processed_dmso = 0
     for exp_name, cfg in experiments.items():
         if cfg.get("response_direction") != "increase":
             continue
+        processed_dmso += 1
         n_channels = len(cfg["channels"])
         all_segments = []
         resp_segments = []
@@ -238,11 +307,36 @@ def plot_average_peak(experiments, state):
                 descriptor="responders only",
                 show_cells=False,
             )
+            stacked_resp = np.vstack(resp_segments)
+            cache = _responders_cache_path(exp_name)
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            np.savez(cache, stacked=stacked_resp)
         else:
             print(
                 f"{exp_name}: no responder peak segments — "
                 "skipping responders-only average-peak figure."
             )
+
+    if processed_dmso == 0:
+        return
+
+    # Assemble the cross-experiment PC3-vs-C2C12 responders overlay from
+    # whatever per-experiment caches exist. Mirrors the stim8 combined dance.
+    per_exp = []
+    for name, cfg in EXPERIMENTS.items():
+        if cfg.get("response_direction") != "increase":
+            continue
+        cache = _responders_cache_path(name)
+        if os.path.exists(cache):
+            with np.load(cache) as data:
+                per_exp.append((name, data["stacked"]))
+    if len(per_exp) >= 2:
+        _render_responders_combined(grid, per_exp)
+    else:
+        print(
+            f"  responders combined overlay: only {len(per_exp)} DMSO cache(s) "
+            "present — deferring until the other DMSO experiment has run."
+        )
 
 
 def _mean_sem_clipped(stacked, grid):
