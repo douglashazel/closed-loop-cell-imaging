@@ -10,15 +10,14 @@ permutation test (pooled and per biological replicate):
     * learning_sensitization_height.png
     * learning_sensitization_width.png
 
-Anticipation is now scored per anticipation period (post-train 1 and
-post-train 2) independently on the dF/F₀-normalized signal. The rest region
-for train ``t`` runs from the end of train ``t``'s last response to the start
-of train ``t+1``'s first stim. For each cell we record the dF/F₀ value at the
-anticipation time (10 min after the train's last response peak) and the
-dF/F₀ value at a random other frame in the rest region. Two plots per train,
-per variant (no-window vs. 5-frame window picking the largest dF/F₀):
-    * learning_anticipation_train{1,2}{,_window}.png
-    * learning_anticipation_train{1,2}{,_window}_permtest.png
+Anticipation is scored per anticipation period (post-train 1 and post-train
+2) independently. For each cell we z-score the signal across the rest region
+for that train (rest region = end of train ``t``'s last response → start of
+train ``t+1``'s first stim) and record the z-score at the anticipation time
+(10 min after the train's last response peak) plus the z-score at a random
+other frame in the rest region. Two plots per train:
+    * learning_anticipation_train{1,2}.png
+    * learning_anticipation_train{1,2}_permtest.png
 The first overlays the real (blue) and shuffled (gray) distributions; the
 second is a permutation-mean test with 10 000 shuffles and a two-tailed p.
 """
@@ -43,7 +42,7 @@ from common.permutation_null import permutation_null_distribution, pvalue_one_ta
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.stats import bh_fdr, inferential_caveat, population_permutation_pvalue
-from common.stim_helpers import compute_f0_baseline, compute_stim_caps
+from common.stim_helpers import compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS")
@@ -142,14 +141,13 @@ def _score_running_extremum(per_stim, *, mode, n_per_train=LEARNING_STIMS_PER_TR
 
 
 def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
-                             window, n_trains, n_win=5):
-    """Resolve train ``t``'s rest region, anticipation column, and 5-frame window.
+                             window, n_trains):
+    """Resolve train ``t``'s rest region and anticipation column.
 
-    Returns ``(ref_lo, ref_hi, anticip_col, win_cols)`` or ``None`` when the
-    train is not scoreable. ``[ref_lo, ref_hi)`` is the post-train rest region;
+    Returns ``(ref_lo, ref_hi, anticip_col)`` or ``None`` when the train is
+    not scoreable. ``[ref_lo, ref_hi)`` is the post-train rest region;
     ``anticip_col`` is the single-frame anticipation time (10 min after the
-    train's last response peak); ``win_cols`` is a length-``n_win`` integer
-    range centred on ``anticip_col``.
+    train's last response peak).
 
     The rest region runs from the end of train ``t``'s last response to the
     start of train ``t+1``'s first stim. The last train of the experiment
@@ -182,98 +180,99 @@ def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
     end_resp_col = min(last_sc + win_hi_off, n_cols - 1)
     ref_lo = end_resp_col
     ref_hi = int(next_first_sc)
-    if ref_hi - ref_lo < n_win:
+    # Need at least 2 frames so the shuffled pick can be different from the
+    # real anticipation frame.
+    if ref_hi - ref_lo < 2:
         return None
 
-    # Anticipation window: 10 min after the peak, ± n_win // 2 frames.
     anticip_min = float(all_minutes[peak_col]) + 10.0
     anticip_col = int(np.argmin(np.abs(all_minutes - anticip_min)))
-    half = n_win // 2
-    win_cols = np.arange(anticip_col - half, anticip_col - half + n_win)
-
-    # Both the single anticipation frame and the full window must sit inside
-    # the rest region (the null draws windows from within that region).
     if anticip_col < ref_lo or anticip_col >= ref_hi:
         return None
-    if win_cols[0] < ref_lo or win_cols[-1] >= ref_hi:
-        return None
-    return ref_lo, ref_hi, anticip_col, win_cols
+    return ref_lo, ref_hi, anticip_col
 
 
-def _sliding_window_max(dff, n_win):
-    """Per-cell max in every length-``n_win`` sliding window along axis 1.
+def _rest_region_zscores(mat, ref_lo, ref_hi):
+    """Per-cell z-score of ``mat`` over the rest region ``[ref_lo, ref_hi)``.
 
-    Returns ``(n_cells, n_cols - n_win + 1)``. ``n_win == 1`` is the identity.
+    Each cell is centred and scaled by its own mean and std across the rest
+    region; cells with zero (or all-NaN) variance get NaN z-scores.
     """
-    if n_win == 1:
-        return np.asarray(dff)
-    return np.nanmax(
-        np.lib.stride_tricks.sliding_window_view(dff, n_win, axis=1), axis=2,
-    )
+    rest = mat[:, ref_lo:ref_hi]
+    means = np.nanmean(rest, axis=1, keepdims=True)
+    stds = np.nanstd(rest, axis=1, keepdims=True)
+    stds_safe = np.where(stds == 0, np.nan, stds)
+    return (rest - means) / stds_safe
 
 
-def _anticipation_start_pool(ref_lo, ref_hi, real_start, n_win):
-    """Valid shuffled window-start columns within ``[ref_lo, ref_hi)``.
+def _anticipation_start_pool(ref_lo, ref_hi, real_start):
+    """Rest-region frame indices the shuffled per-cell pick can draw from.
 
-    Every start ``s`` is required to keep the full window ``[s, s + n_win)``
-    inside the rest region. The real start (``anticip_col`` for the
-    no-window variant, ``win_cols[0]`` for the 5-frame variant) is excluded.
+    All frames within ``[ref_lo, ref_hi)`` are candidates; the real
+    anticipation frame is excluded so the null is genuinely a different time.
     """
-    hi = ref_hi - n_win + 1
-    if hi <= ref_lo:
-        return np.empty(0, dtype=int)
-    candidates = np.arange(ref_lo, hi, dtype=int)
+    candidates = np.arange(ref_lo, ref_hi, dtype=int)
     return candidates[candidates != int(real_start)]
 
 
-def _compute_anticipation_deltas(win_max, start_pool, real_start, *, rng):
-    """Per-cell real and shuffled dF/F₀ deltas for one train / variant.
+def _compute_anticipation_deltas(z_rest, real_offset, start_pool_offsets, *,
+                                 rng):
+    """Per-cell real and shuffled rest-region z-scores for one train.
 
-    ``win_max`` is the precomputed sliding-window max (or the dFF matrix when
-    ``n_win == 1``). ``real`` is the per-cell value at the real start;
-    ``shuffled`` is the per-cell value at a single random start drawn from
-    ``start_pool``.
+    ``z_rest`` is the per-cell z-scored rest region (shape
+    ``(n_cells, rest_len)``). ``real`` is the z-score at the anticipation
+    offset; ``shuffled`` is the z-score at a single random other rest-region
+    offset.
     """
-    n_cells = win_max.shape[0]
-    real = win_max[:, int(real_start)].copy()
-    if start_pool.size == 0:
+    n_cells = z_rest.shape[0]
+    real = z_rest[:, int(real_offset)].copy()
+    if start_pool_offsets.size == 0:
         return real, np.full(n_cells, np.nan, dtype=float)
-    picks = start_pool[rng.integers(0, start_pool.size, size=n_cells)]
-    shuffled = win_max[np.arange(n_cells), picks]
+    picks = start_pool_offsets[
+        rng.integers(0, start_pool_offsets.size, size=n_cells)
+    ]
+    shuffled = z_rest[np.arange(n_cells), picks]
     return real, shuffled
 
 
-def _anticipation_null_matrix(win_max, start_pool, *, n_perm, rng_seed):
-    """Null matrix ``(n_perm, n_cells)`` of shuffled per-cell dF/F₀ deltas.
+def _anticipation_null_matrix(z_rest, start_pool_offsets, *, n_perm, rng_seed):
+    """Null matrix ``(n_perm, n_cells)`` of shuffled per-cell z-scores.
 
-    Each iteration draws one random start per cell from ``start_pool`` and
-    records the corresponding ``win_max`` value. Returns NaN when the rest
-    region admits no valid shuffled start.
+    Each iteration draws one random rest-region offset per cell from
+    ``start_pool_offsets`` and records the z-score there. Returns NaN when the
+    rest region admits no valid shuffled pick.
     """
-    n_cells = win_max.shape[0]
+    n_cells = z_rest.shape[0]
     rng = np.random.default_rng(rng_seed)
-    if start_pool.size == 0:
+    if start_pool_offsets.size == 0:
         return np.full((n_perm, n_cells), np.nan, dtype=float)
     null = np.empty((n_perm, n_cells), dtype=float)
     cell_ix = np.arange(n_cells)
     for i in range(n_perm):
-        picks = start_pool[rng.integers(0, start_pool.size, size=n_cells)]
-        null[i] = win_max[cell_ix, picks]
+        picks = start_pool_offsets[
+            rng.integers(0, start_pool_offsets.size, size=n_cells)
+        ]
+        null[i] = z_rest[cell_ix, picks]
     return null
 
 
 def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
-    """Per-train, per-variant dF/F₀ anticipation deltas for one experiment.
+    """Per-train rest-region z-score anticipation values for one experiment.
 
     Anticipation is metric-independent so it is computed once per experiment.
-    Returns a nested blob keyed by train index (1, 2) and variant
-    (``"no_window"`` / ``"window"``):
+    For each train, each cell's rest-region signal is z-scored (subtract
+    per-cell rest-region mean, divide by per-cell rest-region std); the
+    "real" z-score is taken 10 min after the train's last response peak, the
+    "shuffled" z-score at a random other frame in the same rest region.
+
+    Returns a nested blob keyed by train index (1, 2):
 
         blob["channel_names"] -> list[str]
         blob["trains"][train_idx] = {
             "channel_index": (n_cells,) int,
-            "no_window": {"real": ..., "shuffled": ..., "null": ...},
-            "window":    {"real": ..., "shuffled": ..., "null": ...},
+            "real":     (n_cells,) float,
+            "shuffled": (n_cells,) float,
+            "null":     (n_perm, n_cells) float,
         }
 
     or ``None`` when no channel yields data. ``trains[t]`` is ``None`` when
@@ -282,11 +281,7 @@ def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
     direction = cfg.get("response_direction", "increase")
     train_idxs = (1, 2)
     accum = {
-        ti: {
-            "no_window": {"real": [], "shuffled": [], "null": []},
-            "window":    {"real": [], "shuffled": [], "null": []},
-            "channel_index": [],
-        }
+        ti: {"real": [], "shuffled": [], "null": [], "channel_index": []}
         for ti in train_idxs
     }
     used_channels = []
@@ -299,21 +294,13 @@ def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
             continue
         used_channels.append(ch)
         mat = inputs["mat"]
-        F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
-        # F0 has shape (n_cells, 1); reuse the lum_dict_to_df row order that
-        # _build_learning_inputs already used, so rows align with mat.
-        F0_safe = np.where(F0 == 0, np.nan, F0)
-        dff = (mat - F0_safe) / F0_safe
-        win_max_singles = _sliding_window_max(dff, 1)
-        win_max_5 = _sliding_window_max(dff, 5)
-
         stim_cols = inputs["stim_cols"]
         window = inputs["window"]
         n_cells, n_cols = mat.shape
         n_trains = len(stim_cols) // LEARNING_STIMS_PER_TRAIN
         all_minutes = inputs["frame_to_min_fn"](np.arange(n_cols))
 
-        for t_idx, train_idx in enumerate(train_idxs):
+        for train_idx in train_idxs:
             t = train_idx - 1
             spec = _anticipation_train_spec(
                 t, stim_cols, mat, all_minutes, direction, window, n_trains,
@@ -322,33 +309,27 @@ def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
                 print(
                     f"    anticipation: {exp_name} / {ch} — "
                     f"train {train_idx} not scorable "
-                    f"(rest region / window out of range)."
+                    f"(rest region out of range)."
                 )
                 continue
-            ref_lo, ref_hi, anticip_col, win_cols = spec
-            # Each variant has its own RNG seed so the per-cell shuffles for
-            # the overlay plot are independent of the null draws below.
+            ref_lo, ref_hi, anticip_col = spec
+            z_rest = _rest_region_zscores(mat, ref_lo, ref_hi)
+            real_offset = anticip_col - ref_lo
+            rest_offsets = np.arange(ref_hi - ref_lo, dtype=int)
+            start_pool_offsets = rest_offsets[rest_offsets != real_offset]
+
             seed_base = 1000 * ch_ix + 100 * train_idx
-            for variant_key, n_win, real_start, win_max in (
-                ("no_window", 1, anticip_col, win_max_singles),
-                ("window",    5, int(win_cols[0]), win_max_5),
-            ):
-                start_pool = _anticipation_start_pool(
-                    ref_lo, ref_hi, real_start, n_win,
-                )
-                overlay_rng = np.random.default_rng(
-                    seed_base + (10 if variant_key == "window" else 0),
-                )
-                real, shuffled = _compute_anticipation_deltas(
-                    win_max, start_pool, real_start, rng=overlay_rng,
-                )
-                null = _anticipation_null_matrix(
-                    win_max, start_pool, n_perm=n_perm,
-                    rng_seed=seed_base + (11 if variant_key == "window" else 1),
-                )
-                accum[train_idx][variant_key]["real"].append(real)
-                accum[train_idx][variant_key]["shuffled"].append(shuffled)
-                accum[train_idx][variant_key]["null"].append(null)
+            overlay_rng = np.random.default_rng(seed_base)
+            real, shuffled = _compute_anticipation_deltas(
+                z_rest, real_offset, start_pool_offsets, rng=overlay_rng,
+            )
+            null = _anticipation_null_matrix(
+                z_rest, start_pool_offsets,
+                n_perm=n_perm, rng_seed=seed_base + 1,
+            )
+            accum[train_idx]["real"].append(real)
+            accum[train_idx]["shuffled"].append(shuffled)
+            accum[train_idx]["null"].append(null)
             accum[train_idx]["channel_index"].append(
                 np.full(n_cells, ch_ix, dtype=int)
             )
@@ -363,29 +344,20 @@ def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
             continue
         trains_blob[train_idx] = {
             "channel_index": np.concatenate(entries["channel_index"]),
-            "no_window": {
-                "real": np.concatenate(entries["no_window"]["real"]),
-                "shuffled": np.concatenate(entries["no_window"]["shuffled"]),
-                "null": np.concatenate(entries["no_window"]["null"], axis=1),
-            },
-            "window": {
-                "real": np.concatenate(entries["window"]["real"]),
-                "shuffled": np.concatenate(entries["window"]["shuffled"]),
-                "null": np.concatenate(entries["window"]["null"], axis=1),
-            },
+            "real": np.concatenate(entries["real"]),
+            "shuffled": np.concatenate(entries["shuffled"]),
+            "null": np.concatenate(entries["null"], axis=1),
         }
     blob = {"channel_names": list(used_channels), "trains": trains_blob}
     n_pooled_train1 = (
-        trains_blob[1]["no_window"]["real"].size
-        if trains_blob.get(1) is not None else 0
+        trains_blob[1]["real"].size if trains_blob.get(1) is not None else 0
     )
     n_pooled_train2 = (
-        trains_blob[2]["no_window"]["real"].size
-        if trains_blob.get(2) is not None else 0
+        trains_blob[2]["real"].size if trains_blob.get(2) is not None else 0
     )
     print(
-        f"  anticipation (dF/F₀): {exp_name} — train1 n={n_pooled_train1}, "
-        f"train2 n={n_pooled_train2}, "
+        f"  anticipation (rest-region z-score): {exp_name} — "
+        f"train1 n={n_pooled_train1}, train2 n={n_pooled_train2}, "
         f"channels={len(used_channels)}."
     )
     return blob
@@ -609,9 +581,9 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     plt.close(fig)
 
 
-def _plot_anticipation_dff_histogram(real, shuffled, *, title, save_path,
-                                      caveat=None):
-    """Real (blue) vs. shuffled (gray) dF/F₀ anticipation deltas.
+def _plot_anticipation_zscore_histogram(real, shuffled, *, title, save_path,
+                                         caveat=None):
+    """Real (blue) vs. shuffled (gray) rest-region z-scores.
 
     Both distributions hold one value per cell; shared bins are computed from
     the pooled finite values. Dashed vertical lines mark the two means.
@@ -662,7 +634,7 @@ def _plot_anticipation_dff_histogram(real, shuffled, *, title, save_path,
         bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
     )
     ax.set_xlabel(
-        "dF/F₀ delta", fontsize=PLOT_PARAMS["axis_label_fontsize"],
+        "Rest-region z-score", fontsize=PLOT_PARAMS["axis_label_fontsize"],
     )
     ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax.set_title(
@@ -756,9 +728,8 @@ def plot_learning_score_histograms(experiments, state, scores=None):
     """Emit habituation / sensitization / anticipation histograms (DMSO).
 
     For habituation / sensitization: ``learning_<measure>_<metric>.png`` per
-    metric (unchanged). For anticipation: per train (1, 2) and per variant
-    (no-window vs. 5-frame window) — a real-vs-shuffled overlay plus a
-    permutation-mean test, on the dF/F₀-normalized signal.
+    metric. For anticipation: per train (1, 2) — a real-vs-shuffled overlay
+    plus a permutation-mean test, on the per-cell rest-region z-scored signal.
     """
     if scores is None:
         scores = compute_learning_scores(experiments, state)
@@ -818,41 +789,33 @@ def plot_learning_score_histograms(experiments, state, scores=None):
             train_blob = ablob["trains"].get(train_idx)
             if train_blob is None:
                 continue
-            for variant_key, suffix, win_word in (
-                ("no_window", "",        "no window"),
-                ("window",    "_window", "5-frame window"),
-            ):
-                sub = train_blob[variant_key]
-                _plot_anticipation_dff_histogram(
-                    sub["real"], sub["shuffled"],
+            _plot_anticipation_zscore_histogram(
+                train_blob["real"], train_blob["shuffled"],
+                title=(
+                    f"{exp_name} — anticipation (train {train_idx})\n"
+                    f"z-score at anticipation time vs random rest-region times"
+                ),
+                save_path=fig_path(
+                    exp_name, f"learning_anticipation_train{train_idx}",
+                ),
+                caveat=caveat,
+            )
+            null = train_blob.get("null")
+            if null is not None and null.size:
+                _plot_permutation_mean_test(
+                    train_blob["real"], null,
                     title=(
-                        f"{exp_name} — anticipation "
-                        f"(train {train_idx}, {win_word})\n"
-                        f"dF/F₀ at anticipation time vs random rest-region times"
+                        f"{exp_name} — anticipation permutation test "
+                        f"(train {train_idx})\n"
+                        f"observed mean z-score vs shuffled rest-region null"
                     ),
+                    xlabel="Mean rest-region z-score",
                     save_path=fig_path(
                         exp_name,
-                        f"learning_anticipation_train{train_idx}{suffix}",
+                        f"learning_anticipation_train{train_idx}_permtest",
                     ),
                     caveat=caveat,
                 )
-                null = sub.get("null")
-                if null is not None and null.size:
-                    _plot_permutation_mean_test(
-                        sub["real"], null,
-                        title=(
-                            f"{exp_name} — anticipation permutation test "
-                            f"(train {train_idx}, {win_word})\n"
-                            f"observed mean dF/F₀ vs shuffled rest-region null"
-                        ),
-                        xlabel="Mean dF/F₀ delta",
-                        save_path=fig_path(
-                            exp_name,
-                            f"learning_anticipation_train{train_idx}"
-                            f"{suffix}_permtest",
-                        ),
-                        caveat=caveat,
-                    )
 
 
 def main():
