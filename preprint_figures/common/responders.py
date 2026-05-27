@@ -73,7 +73,7 @@ def compute_responder_thresholds(
     experiments, state,
     alpha=0.01,
     exclusion_pad=10,
-    n_pseudo=1000,
+    n_pseudo=999,
     baseline_n_pre=5,
     stat="mean",
     rng_seed=42,
