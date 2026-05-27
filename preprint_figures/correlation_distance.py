@@ -22,6 +22,7 @@ import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FixedLocator, FuncFormatter
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
@@ -199,6 +200,32 @@ def _combined_mantel_stat_text(per_channel_pairs, method):
             f"dz={combined['cohen_dz']:+.2f}"
         )
     return f"Mantel: {combined['n']} replicate(s) — too few to test"
+
+
+def _apply_log1p_xaxis(axes, xlabel="Pairwise distance (μm, log1p axis)"):
+    """Switch each axis to a log1p display scale — visualization only.
+
+    Underlying data and fit lines are untouched; only the x-axis transform
+    changes, so linear fits drawn over a log1p axis will display as gently
+    curved (which is the honest depiction of a linear-in-distance fit on a
+    log1p scale). Explicit ticks at biologically interpretable distances
+    keep the short-range region readable instead of letting matplotlib
+    place ticks at evenly-spaced transformed values.
+    """
+    candidate_ticks = [0, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
+    for ax in np.atleast_1d(axes).flat:
+        lo, hi = ax.get_xlim()
+        if hi <= 0:
+            continue
+        ax.set_xlim(max(0.0, lo), hi)
+        ax.set_xscale("function", functions=(np.log1p, np.expm1))
+        new_lo, new_hi = ax.get_xlim()
+        visible = [t for t in candidate_ticks if new_lo <= t <= new_hi]
+        if len(visible) >= 2:
+            ax.xaxis.set_major_locator(FixedLocator(visible))
+            ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+        if ax.get_xlabel():
+            ax.set_xlabel(xlabel, fontsize=PLOT_PARAMS["axis_label_fontsize"])
 
 
 def _scatter_corr_vs_dist(
@@ -382,6 +409,20 @@ def _plot_corr_vs_dist_combined(
     )
     save_fig(
         fig, fig_path(exp_name, "corr_vs_dist_combined"),
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+    )
+
+    _apply_log1p_xaxis(axes)
+    for ax in np.atleast_1d(axes).flat:
+        ttl = ax.get_title()
+        if ttl:
+            ax.set_title(
+                f"{ttl}  [log1p distance axis]",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+    save_fig(
+        fig, fig_path(exp_name, "corr_vs_dist_combined_log1p"),
         dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
@@ -570,6 +611,19 @@ def plot_correlation_vs_distance(experiments, state):
         )
         save_fig(
             fig, fig_path(exp_name, "corr_vs_dist"),
+            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        )
+
+        _apply_log1p_xaxis(axes)
+        fig.suptitle(
+            f"{exp_name} — pairwise correlation vs pairwise distance "
+            f"({window_label}, Pearson top, Spearman bottom)  "
+            f"[log1p distance axis]",
+            fontsize=PLOT_PARAMS["title_fontsize"] + 1,
+            fontweight="bold", y=1.01,
+        )
+        save_fig(
+            fig, fig_path(exp_name, "corr_vs_dist_log1p"),
             dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
         )
         plt.close(fig)
