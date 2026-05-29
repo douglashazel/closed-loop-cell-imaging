@@ -28,19 +28,16 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
-from common.config import EXPERIMENTS, OUT_ROOT
+from common.config import EXPERIMENTS, OUT_ROOT, cell_line_label
 from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
 from common.stim_helpers import compute_f0_baseline
 from common.time_axis import frames_to_min
-from figstyle import apply_style
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
-
-apply_style()
 
 
 # Window grabbed after each stimulus onset — the DMSO inter-stimulus interval
@@ -187,9 +184,10 @@ def _render_average_peak(exp_name, grid, all_segments, n_channels, *,
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    plt.tight_layout()
     save_fig(
         fig, fig_path(exp_name, save_name),
-        dpi=PLOT_PARAMS["dpi"],
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
     print(
@@ -244,13 +242,14 @@ def _render_responders_combined(grid, per_exp):
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    plt.tight_layout()
     os.makedirs(STIM8_COMBINED_DIR, exist_ok=True)
     save_fig(
         fig,
         os.path.join(
             STIM8_COMBINED_DIR, "average_peak_responders_combined.png"
         ),
-        dpi=PLOT_PARAMS["dpi"],
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
     print(
@@ -421,18 +420,17 @@ def _render_stim8(exp_name, grid, stacked, n_channels):
         "Time since stimulus onset (min)",
         fontsize=PLOT_PARAMS["axis_label_fontsize"],
     )
-    ax.set_ylabel("dF/F₀", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel("fluorescence", fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax.set_title(
-        f"{exp_name} — average response peak, stimulus #{STIM8_INDEX} "
-        f"(responders only)\nper-cell dF/F₀ segments pooled over "
-        f"{n_channels} channel(s)",
+        f"Mean response to stimulus #{STIM8_INDEX} ({cell_line_label(exp_name)})",
         fontsize=PLOT_PARAMS["title_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    plt.tight_layout()
     save_fig(
         fig, fig_path(exp_name, "average_peak_responders_stim8"),
-        dpi=PLOT_PARAMS["dpi"],
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
     print(
@@ -483,13 +481,14 @@ def _render_stim8_combined(grid, per_exp):
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
+    plt.tight_layout()
     os.makedirs(STIM8_COMBINED_DIR, exist_ok=True)
     save_fig(
         fig,
         os.path.join(
             STIM8_COMBINED_DIR, "average_peak_responders_stim8_combined.png"
         ),
-        dpi=PLOT_PARAMS["dpi"],
+        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
     )
     plt.close(fig)
     print(

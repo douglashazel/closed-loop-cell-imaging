@@ -2,9 +2,11 @@
 """Learning-score histograms (DMSO experiments only).
 
 Per DMSO experiment, the habituation / sensitization figures (× height/width)
-are unchanged: each is overlaid with a permutation null and a stats box
-reporting the FDR-corrected per-cell hit count plus a population-level
-permutation test (pooled and per biological replicate):
+each overlay an example shuffled null (a single shuffle of every cell, not the
+mean over all permutations) on the observed score distribution. The
+FDR-corrected per-cell hit count and the population-level permutation test
+(pooled and per biological replicate) are printed to the console rather than
+drawn on the figure:
     * learning_habituation_height.png
     * learning_habituation_width.png
     * learning_sensitization_height.png
@@ -510,15 +512,14 @@ def _format_score_stats(qvalues, pop_result, pop_by_channel, q_alpha=0.05):
 
 def _plot_score_histogram(scores, *, title, xlabel, save_path,
                           bins=None, color=None, null_dist=None, x_max=None,
-                          qvalues=None, pop_result=None, pop_by_channel=None,
                           caveat=None):
     """Single-distribution histogram with optional permutation-null overlay.
 
-    When ``null_dist`` (shape ``(n_perm, n_cells)``) is provided, plot the
-    pooled null as a back-layer histogram normalized to the same total cell
-    count. The stats box reports FDR-corrected per-cell hits plus the
-    population-level test (see :func:`_format_score_stats`); ``caveat`` is
-    drawn as a figure footnote naming the unit of inference.
+    When ``null_dist`` (shape ``(n_perm, n_cells)``) is provided, its first row
+    — a single representative shuffle, one shuffled score per cell — is drawn
+    as a back-layer "Shuffled null distribution" histogram (not the mean over
+    all permutations). ``caveat`` is drawn as a figure footnote naming the unit
+    of inference.
 
     When ``x_max`` is given the score axis is fixed to the discrete whole
     numbers ``0..x_max``.
@@ -537,13 +538,14 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
                 max_v = max(max_v, int(np.nanmax(null_dist)))
         bins = np.arange(-0.5, max_v + 1.5, 1)
     if null_dist is not None and null_dist.size:
-        n_perm = null_dist.shape[0]
+        # A single representative shuffle (one shuffled score per cell), not
+        # the mean over all permutations — an example null draw.
+        example_null = null_dist[0]
         ax.hist(
-            null_dist.ravel(), bins=bins,
+            example_null, bins=bins,
             color="#7a7a7a", alpha=0.55,
             edgecolor="#444444", linewidth=0.4,
-            weights=np.full(null_dist.size, 1.0 / max(n_perm, 1)),
-            label=f"Shuffled null (mean over {n_perm} perms)",
+            label="Shuffled null distribution",
             zorder=1,
         )
     ax.hist(
@@ -553,19 +555,12 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
         label=f"Observed (n={scores.size})",
         zorder=2,
     )
-    stats_text = _format_score_stats(qvalues, pop_result, pop_by_channel)
-    if stats_text:
-        ax.text(
-            0.98, 0.95, stats_text,
-            ha="right", va="top",
-            transform=ax.transAxes,
-            fontsize=PLOT_PARAMS["legend_fontsize"],
-            bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
-        )
     if x_max is not None:
         ax.set_xticks(np.arange(0, int(x_max) + 1))
     ax.set_xlabel(xlabel, fontsize=PLOT_PARAMS["axis_label_fontsize"])
-    ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel(
+        "number of cells", fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
     ax.set_title(
         title,
         fontsize=PLOT_PARAMS["title_fontsize"],
@@ -605,7 +600,7 @@ def _plot_anticipation_zscore_histogram(real, shuffled, *, title, save_path,
     ax.hist(
         shuffled, bins=bins, color="#7a7a7a", alpha=0.55,
         edgecolor="#444444", linewidth=0.4,
-        label=f"Shuffled (n={np.asarray(shuffled).size})",
+        label="Shuffled null distribution",
         zorder=1,
     )
     ax.hist(
@@ -624,21 +619,12 @@ def _plot_anticipation_zscore_histogram(real, shuffled, *, title, save_path,
         mean_shuf, color="#444444",
         linewidth=1.4, linestyle="--", zorder=3,
     )
-    stats_text = (
-        f"n cells = {np.asarray(real).size}\n"
-        f"mean observed = {mean_real:.3g}\n"
-        f"mean shuffled = {mean_shuf:.3g}"
-    )
-    ax.text(
-        0.98, 0.95, stats_text,
-        ha="right", va="top", transform=ax.transAxes,
-        fontsize=PLOT_PARAMS["legend_fontsize"],
-        bbox=dict(facecolor="white", edgecolor="#999999", alpha=0.9),
-    )
     ax.set_xlabel(
         "Rest-region z-score", fontsize=PLOT_PARAMS["axis_label_fontsize"],
     )
-    ax.set_ylabel("Cells", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+    ax.set_ylabel(
+        "number of cells", fontsize=PLOT_PARAMS["axis_label_fontsize"],
+    )
     ax.set_title(
         title,
         fontsize=PLOT_PARAMS["title_fontsize"],
@@ -740,6 +726,9 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                 continue
             n_ch = len(blob.get("channel_names", []))
             caveat = inferential_caveat(exp_name, n_ch, unit="cell")
+            # Height figures carry the bare titles/labels requested for the
+            # preprint; width keeps a suffix so the two metrics stay distinct.
+            metric_suffix = "" if metric == "height" else f" ({metric})"
             for measure_key, label_word in (
                 ("habituation", "Habituation"),
                 ("sensitization", "Sensitization"),
@@ -748,36 +737,44 @@ def plot_learning_score_histograms(experiments, state, scores=None):
                 null = blob.get(f"{measure_key}_null")
                 _plot_score_histogram(
                     summed,
-                    title=(
-                        f"{exp_name} — {label_word.lower()} score ({metric})\n"
-                        f"new {'minimums' if measure_key == 'habituation' else 'maximums'} "
-                        f"per cell across trains × increments"
-                    ),
-                    xlabel=f"{label_word} score ({metric})",
+                    title=f"{label_word} score distribution{metric_suffix}",
+                    xlabel=f"{label_word.lower()} score{metric_suffix}",
                     save_path=fig_path(
                         exp_name, f"learning_{measure_key}_{metric}",
                     ),
                     null_dist=null,
-                    qvalues=blob.get(f"{measure_key}_qvalue"),
-                    pop_result=blob.get(f"{measure_key}_pop"),
-                    pop_by_channel=blob.get(f"{measure_key}_pop_by_channel"),
-                    caveat=caveat,
+                    # caveat=caveat,
                     x_max=12,
                 )
+                # The on-figure stats box was removed; report the same numbers
+                # to the console / run log instead.
+                stats_text = _format_score_stats(
+                    blob.get(f"{measure_key}_qvalue"),
+                    blob.get(f"{measure_key}_pop"),
+                    blob.get(f"{measure_key}_pop_by_channel"),
+                )
+                if stats_text:
+                    print(
+                        f"  [{exp_name}] {label_word} score{metric_suffix} "
+                        f"stats:"
+                    )
+                    for line in stats_text.splitlines():
+                        print(f"      {line}")
                 if null is not None and null.size:
                     _plot_permutation_mean_test(
                         summed, null,
                         title=(
-                            f"{exp_name} — {label_word.lower()} permutation "
-                            f"test ({metric})\n"
-                            f"observed mean score vs shuffled-stim-order null"
+                            f"{label_word} score permutation test"
+                            f"{metric_suffix}"
                         ),
-                        xlabel=f"Mean {label_word.lower()} score ({metric})",
+                        xlabel=(
+                            f"Mean {label_word.lower()} score{metric_suffix}"
+                        ),
                         save_path=fig_path(
                             exp_name,
                             f"learning_{measure_key}_{metric}_permtest",
                         ),
-                        caveat=caveat,
+                        # caveat=caveat,
                     )
 
         ablob = by_key.get("anticipation")
@@ -789,32 +786,34 @@ def plot_learning_score_histograms(experiments, state, scores=None):
             train_blob = ablob["trains"].get(train_idx)
             if train_blob is None:
                 continue
+            real = train_blob["real"]
+            shuffled = train_blob["shuffled"]
             _plot_anticipation_zscore_histogram(
-                train_blob["real"], train_blob["shuffled"],
-                title=(
-                    f"{exp_name} — anticipation (train {train_idx})\n"
-                    f"z-score at anticipation time vs random rest-region times"
-                ),
+                real, shuffled,
+                title=f"Anticipation score distribution: train {train_idx}",
                 save_path=fig_path(
                     exp_name, f"learning_anticipation_train{train_idx}",
                 ),
-                caveat=caveat,
+                # caveat=caveat,
+            )
+            # The on-figure stats box was removed; report the numbers instead.
+            print(
+                f"  [{exp_name}] anticipation train {train_idx} stats: "
+                f"n cells={np.asarray(real).size}, "
+                f"mean observed={float(np.nanmean(real)):.3g}, "
+                f"mean shuffled={float(np.nanmean(shuffled)):.3g}"
             )
             null = train_blob.get("null")
             if null is not None and null.size:
                 _plot_permutation_mean_test(
-                    train_blob["real"], null,
-                    title=(
-                        f"{exp_name} — anticipation permutation test "
-                        f"(train {train_idx})\n"
-                        f"observed mean z-score vs shuffled rest-region null"
-                    ),
+                    real, null,
+                    title="Anticipation permutation test",
                     xlabel="Mean rest-region z-score",
                     save_path=fig_path(
                         exp_name,
                         f"learning_anticipation_train{train_idx}_permtest",
                     ),
-                    caveat=caveat,
+                    # caveat=caveat,
                 )
 
 

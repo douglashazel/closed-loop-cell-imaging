@@ -15,7 +15,7 @@ def _slug(s):
 
 
 def fig_path(exp_name, name, ext="png"):
-    """Return the save path ``April28_preprint_results/<exp_name>/<name>.<ext>``."""
+    """Return the save path ``May29_preprint_figures/<exp_name>/<name>.<ext>``."""
     out_dir = os.path.join(OUT_ROOT, exp_name)
     os.makedirs(out_dir, exist_ok=True)
     return os.path.join(out_dir, f"{_slug(name)}.{ext}")
@@ -32,12 +32,12 @@ def save_fig(fig, png_path, **savefig_kwargs):
     embedded in the SVG.
     """
     fig.savefig(png_path, **savefig_kwargs)
-    svg_dir = os.path.join(os.path.dirname(png_path), "svg")
-    os.makedirs(svg_dir, exist_ok=True)
-    base = os.path.splitext(os.path.basename(png_path))[0]
-    svg_path = os.path.join(svg_dir, base + ".svg")
-    with mpl.rc_context({"svg.fonttype": "none"}):
-        fig.savefig(svg_path, **savefig_kwargs)
+    # svg_dir = os.path.join(os.path.dirname(png_path), "svg")
+    # os.makedirs(svg_dir, exist_ok=True)
+    # base = os.path.splitext(os.path.basename(png_path))[0]
+    # svg_path = os.path.join(svg_dir, base + ".svg")
+    # with mpl.rc_context({"svg.fonttype": "none"}):
+    #     fig.savefig(svg_path, **savefig_kwargs)
 
 
 def load_segmentation(path):

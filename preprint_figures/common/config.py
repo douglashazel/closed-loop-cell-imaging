@@ -10,7 +10,7 @@ import os
 # =============================================================================
 # Output / cache locations
 # =============================================================================
-OUT_ROOT = "April28_preprint_results"
+OUT_ROOT = "May29_preprint_figures"
 CACHE_DIR = os.path.join(OUT_ROOT, "bg_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -92,6 +92,7 @@ LEARNING_STIMS_PER_TRAIN = 5  # Each DMSO train is 5 pulses (3 trains/expt).
 EXPERIMENTS = {
     "c2c12_dmso_09APR26": {
         "dir": "EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26",
+        "cell_line": "C2C12",   # display label for figure titles
         "channels": ["channel 1", "channel 2", "channel 3"],
         "stim_frames": [],   # auto-filled by stim_minutes/timestamps below
         # F0 is computed automatically from stim_frames (mean of frames 0..first_stim-1).
@@ -131,6 +132,7 @@ EXPERIMENTS = {
     },
     "pc3_dmso_23MAR26": {
         "dir": "EXPERIMENTS/other/PC3 DMSO pulses perfusion 23MAR26",
+        "cell_line": "PC-3",   # display label for figure titles
         # Single-channel dataset: data lives at <dir>/{frames,masks,analysis}
         # directly. The "channel 1" name is purely a label (preserved as a
         # state key and in figure filenames); ``single_channel_root`` short-
@@ -165,7 +167,7 @@ EXPERIMENTS = {
         # NaN and fill_dead_frames() linearly interpolates over them.
         "filter_dead_frames": True,
         "bad_frames_file": (
-            "April28_preprint_results/pc3_dmso_23MAR26/"
+            "May29_preprint_figures/pc3_dmso_23MAR26/"
             "PC3 bad frames light and dark.txt"
         ),
         "timestamps": {
@@ -174,6 +176,7 @@ EXPERIMENTS = {
     },
     "nrk_acid_13APR26": {
         "dir": "EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26",
+        "cell_line": "NRK",   # display label for figure titles
         "channels": ["channel 1 A", "channel 1 C", "channel 2 B", "channel 2 D"],
         "stim_frames": [],   # auto-filled by stim_logs below
         # F0 is computed automatically from stim_frames (mean of frames 0..first_stim-1).
@@ -196,3 +199,12 @@ EXPERIMENTS = {
         },
     },
 }
+
+
+def cell_line_label(exp_name):
+    """Cell-line display name for ``exp_name`` (e.g. "C2C12", "PC-3").
+
+    Reads the ``cell_line`` field from the experiment config; falls back to the
+    raw experiment name when none is set.
+    """
+    return EXPERIMENTS.get(exp_name, {}).get("cell_line", exp_name)

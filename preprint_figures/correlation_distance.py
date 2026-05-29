@@ -51,7 +51,7 @@ PAIR_CLASS_COLORS = {
     "NN": "#7f7f7f",                 # gray — both non-responders
 }
 PAIR_CLASS_LABEL = {
-    "RR": "Responder × Responder",
+    "RR": "Responders-only",
     "NN": "Non-responder pairs",
 }
 METHOD_LABEL = {"pearson": "Pearson r", "spearman": "Spearman ρ"}
@@ -97,7 +97,8 @@ def _classify_pair_classes(responder_mask):
 
 
 def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None,
-                         draw_scatter=True, scatter_label=None, stat_text=None):
+                         draw_scatter=True, scatter_label=None, stat_text=None,
+                         legend_label=None):
     """Fit a line on (dists, corrs); plot scatter + line + ±3 SEM band.
 
     The slope and r of the least-squares fit are kept as *descriptive* effect
@@ -110,6 +111,9 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None,
     ``draw_scatter`` plots the point cloud (set False to add a fit line over an
     already-drawn cloud); ``scatter_label`` gives that cloud its own legend
     entry (e.g. the blue responder dot, mirroring the gray non-responder dot).
+    ``legend_label`` overrides the entire fit-line legend entry verbatim — used
+    for the clean, caption-oriented Pearson legend (a short "Responders-only
+    (Mantel p = …)" in place of the multi-line descriptive slope/r block).
 
     Returns True if a line was drawn, False if too few valid points.
     """
@@ -166,6 +170,7 @@ def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *, mantel=None,
         color=color,
         linewidth=PLOT_PARAMS["mean_lw"],
         label=(
+            legend_label if legend_label is not None else
             f"{label_prefix} (n={n} pairs)\n"
             f"slope={res.slope:.2e}  r={res.rvalue:.3f}  (descriptive)\n"
             f"{stat_line}"
@@ -205,6 +210,47 @@ def _combined_mantel_stat_text(per_channel_pairs, method):
     return f"Mantel: {combined['n']} replicate(s) — too few to test"
 
 
+def _combined_mantel_pvalue(per_channel_pairs, method, key):
+    """Replicate-level Mantel result for one subset (``key`` = "all" or "RR").
+
+    Combines each channel's cell-level Mantel r for ``key`` via a one-sample
+    t-test of the per-channel r against 0 — the biological-replicate test that
+    underlies the pooled fit line (the ordinary regression p over the pooled
+    pairs is invalid; the pairs are not independent). Returns
+    ``{"p_value", "mean_r", "n"}`` (``p_value`` is NaN when only one channel was
+    testable) or ``None`` when no channel had enough cells.
+    """
+    r_per_channel = []
+    for entry in per_channel_pairs:
+        res = entry.get("mantel", {}).get(method, {}).get(key)
+        if res and not res.get("insufficient"):
+            r_per_channel.append(res["r_obs"])
+    if not r_per_channel:
+        return None
+    if len(r_per_channel) < 2:
+        return {"p_value": np.nan, "mean_r": float(r_per_channel[0]), "n": 1}
+    combined = one_sample_t_dz(r_per_channel)
+    return {
+        "p_value": combined["p_value"],
+        "mean_r": combined["mean"],
+        "n": combined["n"],
+    }
+
+
+def _fmt_p(p):
+    """Compact p-value string for a legend (sci-notation below 1e-3)."""
+    if not np.isfinite(p):
+        return "n/a"
+    return f"{p:.1e}" if p < 1e-3 else f"{p:.2g}"
+
+
+def _mantel_line_label(base, stat):
+    """``base`` plus a replicate-level Mantel p suffix when one is available."""
+    if stat is None or not np.isfinite(stat.get("p_value", np.nan)):
+        return base
+    return f"{base} (Mantel p = {_fmt_p(stat['p_value'])})"
+
+
 def _apply_log1p_xaxis(axes, xlabel="Pairwise distance (μm, log1p axis)"):
     """Switch each axis to a log1p display scale — visualization only.
 
@@ -234,6 +280,7 @@ def _apply_log1p_xaxis(axes, xlabel="Pairwise distance (μm, log1p axis)"):
 def _scatter_corr_vs_dist(
     ax, pw_dist, pw_corr, *, pair_classes=None,
     corr_method="pearson", title="", mantel_all=None, mantel_rr=None,
+    clean_legend=False,
 ):
     """Scatter pairwise (distance, correlation), optionally split by pair class.
 
@@ -241,11 +288,20 @@ def _scatter_corr_vs_dist(
     ``mantel_all`` / ``mantel_rr`` are :func:`mantel_test` results for the
     full cell set and the responder sub-matrix respectively, used to label
     each fit with a pseudoreplication-safe p-value.
+
+    ``clean_legend`` switches to the caption-oriented legend used for the NRK
+    per-chamber Pearson panels: the scatter clouds drop their own legend
+    entries and the two fit lines are labelled ``"Responders-only (Mantel
+    p = …)"`` and ``"All cells (Mantel p = …)"`` from this chamber's own
+    per-channel Mantel test. The descriptive slope/r/pair-count move to the
+    written caption. Mirrors the pooled (combined) figure's Pearson legend,
+    one panel per chamber.
     """
     ax.spines[["top", "right"]].set_visible(False)
     drew_any = False
     if pair_classes and any(m.any() for m in pair_classes.values()):
-        # Non-responder (NN) pairs: gray scatter only, no fit line.
+        # Non-responder (NN) pairs: gray scatter only, no fit line. The clean
+        # legend drops the NN entry — the two coloured fit lines carry meaning.
         nn_mask = pair_classes.get("NN")
         if nn_mask is not None and nn_mask.any():
             valid = nn_mask & ~np.isnan(pw_dist) & ~np.isnan(pw_corr)
@@ -255,10 +311,13 @@ def _scatter_corr_vs_dist(
                     pw_dist[valid], pw_corr[valid],
                     color=PAIR_CLASS_COLORS["NN"], alpha=0.30, s=8,
                     edgecolors="none", zorder=1, rasterized=True,
-                    label=f"{PAIR_CLASS_LABEL['NN']} (n={n_nn})",
+                    label=(None if clean_legend
+                           else f"{PAIR_CLASS_LABEL['NN']} (n={n_nn})"),
                 )
                 drew_any = True
-        # Responder × responder (RR) pairs: blue scatter + fit line + band.
+        # Responder × responder (RR) pairs: blue scatter + fit line + band. The
+        # clean legend suppresses the blue scatter entry and labels the fit line
+        # "Responders-only (Mantel p = …)".
         rr_mask = pair_classes.get("RR")
         if rr_mask is not None and rr_mask.any():
             drew_any |= _fit_and_plot_subset(
@@ -266,18 +325,24 @@ def _scatter_corr_vs_dist(
                 pw_dist[rr_mask], pw_corr[rr_mask],
                 color=PAIR_CLASS_COLORS["RR"],
                 label_prefix=PAIR_CLASS_LABEL["RR"],
-                scatter_label=PAIR_CLASS_LABEL["RR"],
-                mantel=mantel_rr,
+                scatter_label=(None if clean_legend
+                               else PAIR_CLASS_LABEL["RR"]),
+                legend_label=(_mantel_line_label(PAIR_CLASS_LABEL["RR"], mantel_rr)
+                              if clean_legend else None),
+                # mantel=mantel_rr,
             )
         # All cells pooled (RR + NN + RN): one fit line over every pair, drawn
-        # over the already-coloured clouds without redrawing any scatter.
+        # over the already-coloured clouds without redrawing any scatter. The
+        # clean legend labels it "All cells (Mantel p = …)".
         drew_any |= _fit_and_plot_subset(
             ax,
             np.asarray(pw_dist, dtype=float),
             np.asarray(pw_corr, dtype=float),
             color=PLOT_PARAMS["corr_fit_color"],
-            label_prefix="All cells pooled",
-            mantel=mantel_all,
+            label_prefix="All cells",
+            legend_label=(_mantel_line_label("All cells", mantel_all)
+                          if clean_legend else None),
+            # mantel=mantel_all,
             draw_scatter=False,
         )
     else:
@@ -287,7 +352,7 @@ def _scatter_corr_vs_dist(
             np.asarray(pw_corr, dtype=float),
             color=PLOT_PARAMS["corr_fit_color"],
             label_prefix="All pairs",
-            mantel=mantel_all,
+            # mantel=mantel_all,
         )
 
     ax.set_title(
@@ -340,8 +405,21 @@ def _plot_corr_vs_dist_combined(
         # stats box) — see _combined_mantel_stat_text for why it is per-channel.
         mantel_stat = _combined_mantel_stat_text(per_channel_pairs, method)
 
+        # The Pearson (top) panel gets a clean, caption-oriented legend: each
+        # fit line is labelled with its replicate-level Mantel p (the valid
+        # significance test), with the descriptive slope/r/n moved to the
+        # written caption. The Spearman (bottom) panel keeps the verbose
+        # descriptive legend unchanged.
+        is_pearson = method == "pearson"
+        p_rr = (_combined_mantel_pvalue(per_channel_pairs, method, "RR")
+                if is_pearson else None)
+        p_all = (_combined_mantel_pvalue(per_channel_pairs, method, "all")
+                 if is_pearson else None)
+
         if merged_classes is not None and any(m.any() for m in merged_classes.values()):
-            # Non-responder (NN) pairs: gray scatter only, no fit line.
+            # Non-responder (NN) pairs: gray scatter only, no fit line. On the
+            # Pearson panel the gray dots drop their own legend entry too — the
+            # coloured fit lines signal what each scatter colour means.
             nn_mask = merged_classes.get("NN")
             if nn_mask is not None and nn_mask.any():
                 valid = nn_mask & ~np.isnan(dists) & ~np.isnan(corrs)
@@ -351,9 +429,12 @@ def _plot_corr_vs_dist_combined(
                         dists[valid], corrs[valid],
                         color=PAIR_CLASS_COLORS["NN"], alpha=0.20, s=6,
                         edgecolors="none", zorder=1, rasterized=True,
-                        label=f"{PAIR_CLASS_LABEL['NN']} (pooled, n={n_nn})",
+                        label=(None if is_pearson
+                               else f"{PAIR_CLASS_LABEL['NN']}"),
                     )
             # Responder × responder (RR) pairs: blue scatter + fit line + band.
+            # On the Pearson panel the blue dots drop their own legend entry so
+            # the single "Responders-only (Mantel p = …)" line speaks for them.
             rr_mask = merged_classes.get("RR")
             if rr_mask is not None and rr_mask.any():
                 _fit_and_plot_subset(
@@ -361,7 +442,10 @@ def _plot_corr_vs_dist_combined(
                     dists[rr_mask], corrs[rr_mask],
                     color=PAIR_CLASS_COLORS["RR"],
                     label_prefix=f"{PAIR_CLASS_LABEL['RR']} (pooled)",
-                    scatter_label=f"{PAIR_CLASS_LABEL['RR']} (pooled)",
+                    scatter_label=(None if is_pearson
+                                   else f"{PAIR_CLASS_LABEL['RR']} (pooled)"),
+                    legend_label=(_mantel_line_label(PAIR_CLASS_LABEL["RR"], p_rr)
+                                  if is_pearson else None),
                 )
             # All cells pooled (RR + NN + RN): one fit line over every pair,
             # drawn over the already-coloured clouds (no extra scatter).
@@ -370,8 +454,10 @@ def _plot_corr_vs_dist_combined(
                 dists, corrs,
                 color=PLOT_PARAMS["corr_fit_color"],
                 label_prefix="All cells pooled",
-                stat_text=mantel_stat,
+                # stat_text=mantel_stat,
                 draw_scatter=False,
+                legend_label=(_mantel_line_label("All cells", p_all)
+                              if is_pearson else None),
             )
         else:
             _fit_and_plot_subset(
@@ -379,7 +465,7 @@ def _plot_corr_vs_dist_combined(
                 dists, corrs,
                 color=PLOT_PARAMS["corr_fit_color"],
                 label_prefix="Pooled",
-                stat_text=mantel_stat,
+                # stat_text=mantel_stat,
             )
 
         ax.set_xlabel(
@@ -390,12 +476,19 @@ def _plot_corr_vs_dist_combined(
             f"{METHOD_LABEL[method]} ({window_label})",
             fontsize=PLOT_PARAMS["axis_label_fontsize"],
         )
-        ax.set_title(
-            f"{exp_name} — pairwise {METHOD_LABEL[method]} vs distance "
-            f"({window_label}, all channels combined)",
-            fontsize=PLOT_PARAMS["title_fontsize"],
-            fontweight=PLOT_PARAMS["title_fontweight"],
-        )
+        if is_pearson:
+            ax.set_title(
+                "Pairwise Pearson r vs. distance",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
+        else:
+            ax.set_title(
+                f"{exp_name} — pairwise {METHOD_LABEL[method]} vs distance "
+                f"({window_label}, all channels combined)",
+                fontsize=PLOT_PARAMS["title_fontsize"],
+                fontweight=PLOT_PARAMS["title_fontweight"],
+            )
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="lower right")
 
     n_channels = len(per_channel_pairs)
@@ -578,24 +671,44 @@ def plot_correlation_vs_distance(experiments, state):
                 "mantel": mantel_by_method,
             })
 
+            # NRK encodes the chamber as a trailing letter ("channel 1 A");
+            # C2C12/PC3 channels end in a digit. Only the chamber-labelled
+            # (NRK) Pearson panels get the caption-oriented title + clean
+            # "Responders-only / All cells (Mantel p = …)" legend; every other
+            # panel keeps the verbose descriptive legend unchanged.
+            chamber = ch.split()[-1]
+            is_chamber = chamber.isalpha()
             for col, method in enumerate(("pearson", "spearman")):
+                clean = is_chamber and method == "pearson"
+                if clean:
+                    panel_title = (
+                        f"Pairwise Pearson r vs. distance: chamber {chamber}"
+                    )
+                else:
+                    panel_title = (
+                        f"{ch}  ({ctx['n_cells']} cells, {METHOD_LABEL[method]})"
+                    )
                 _scatter_corr_vs_dist(
                     axes[row, col],
                     ctx["pw_dist"], pw_corr_by_method[method],
                     pair_classes=ctx["pair_classes"],
                     corr_method=method,
-                    title=f"{ch}  ({ctx['n_cells']} cells, {METHOD_LABEL[method]})",
+                    title=panel_title,
                     mantel_all=mantel_by_method[method]["all"],
                     mantel_rr=mantel_by_method[method]["RR"],
+                    clean_legend=clean,
                 )
                 axes[row, col].set_xlabel(
                     "Pairwise distance (μm)",
                     fontsize=PLOT_PARAMS["axis_label_fontsize"],
                 )
                 if col == 0:
-                    # Row label = channel (the method is in each panel title).
+                    # Col 0 is Pearson. The clean chamber panels name the metric
+                    # (the chamber is in the title); otherwise the row is
+                    # labelled by channel (the method lives in each title).
                     axes[row, col].set_ylabel(
-                        f"{ch} ({window_label})",
+                        f"Pearson r ({window_label})" if clean
+                        else f"{ch} ({window_label})",
                         fontsize=PLOT_PARAMS["axis_label_fontsize"],
                     )
 

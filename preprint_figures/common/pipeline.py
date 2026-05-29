@@ -7,7 +7,7 @@
     4. clip_experiments_to_time_window
 
 Each analysis script calls this once and consumes the returned state. The
-per-experiment background pickle cache (April28_preprint_results/bg_cache/<exp>.pkl)
+per-experiment background pickle cache (May29_preprint_figures/bg_cache/<exp>.pkl)
 makes repeated invocations cheap.
 """
 

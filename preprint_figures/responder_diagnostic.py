@@ -746,7 +746,7 @@ def _draw_f0_figure(exp_name, channels, panels):
                       f"(Spearman r = {d['corr_dff_f0']:+.2f})",
                       fontsize=PLOT_PARAMS["title_fontsize"],
                       fontweight=PLOT_PARAMS["title_fontweight"])
-        ax1.set_xlabel("per-cell F0  (corrected-luminosity baseline brightness)")
+        ax1.set_xlabel("per-cell F0  (corrected-fluorescence baseline brightness)")
         ax1.set_ylabel("per-cell aggregate Δ dF/F0")
         ax1.spines[["top", "right"]].set_visible(False)
         ax1.legend(fontsize=7, loc="upper right");
@@ -762,12 +762,12 @@ def _draw_f0_figure(exp_name, channels, panels):
             ax2.plot(bx2, by2, color=PLOT_PARAMS["threshold_color"], lw=2,
                      marker="o", ms=4, label="binned median")
         ax2.axhline(0.0, color=PLOT_PARAMS["zero_color"], lw=1)
-        ax2.set_title(f"{ch} — Δ luminosity (Δ dF/F0 × F0) vs F0   "
+        ax2.set_title(f"{ch} — Δ fluorescence (Δ dF/F0 × F0) vs F0   "
                       f"(Spearman r = {d['corr_lum_f0']:+.2f})",
                       fontsize=PLOT_PARAMS["title_fontsize"],
                       fontweight=PLOT_PARAMS["title_fontweight"])
         ax2.set_xlabel("per-cell F0")
-        ax2.set_ylabel("per-cell aggregate Δ corrected luminosity\n"
+        ax2.set_ylabel("per-cell aggregate Δ corrected fluorescence\n"
                        "(additive units)")
         ax2.spines[["top", "right"]].set_visible(False)
         ax2.legend(fontsize=7, loc="upper right");
@@ -775,10 +775,10 @@ def _draw_f0_figure(exp_name, channels, panels):
         q = d["quartile_rates"]
         if d["corr_dff_f0"] < -0.25 and abs(d["corr_lum_f0"]) < 0.20:
             v = ("NORMALIZATION EFFECT — dim cells preferentially pass; the "
-                 "additive luminosity bump is ~F0-independent, so dividing "
+                 "additive fluorescence bump is ~F0-independent, so dividing "
                  "by a small F0 inflates Δ dF/F0 for low-F0 cells.")
         elif d["corr_dff_f0"] < -0.25:
-            v = ("Δ dF/F0 declines with F0 AND Δ luminosity also tracks F0 — "
+            v = ("Δ dF/F0 declines with F0 AND Δ fluorescence also tracks F0 — "
                  "partial F0 dependence; inspect both panels before deciding.")
         else:
             v = ("Δ dF/F0 is ~F0-independent — not a 1/F0 normalization "
@@ -787,7 +787,7 @@ def _draw_f0_figure(exp_name, channels, panels):
             f"{ch}:\n"
             f"   corr(Δdff, F0) = {d['corr_dff_f0']:+.2f}    "
             f"corr(Δdff, 1/F0) = {d['corr_dff_invf0']:+.2f}    "
-            f"corr(Δlum, F0) = {d['corr_lum_f0']:+.2f}\n"
+            f"corr(Δfluor, F0) = {d['corr_lum_f0']:+.2f}\n"
             f"   responder % by F0 quartile (dim -> bright): "
             f"{q[0]:.0f}% / {q[1]:.0f}% / {q[2]:.0f}% / {q[3]:.0f}%\n"
             f"   -> {v}"
@@ -804,7 +804,7 @@ def _draw_f0_figure(exp_name, channels, panels):
 
     fig.suptitle(
         f"{exp_name} — F0-dependence check\n"
-        "if Δ dF/F0 falls with F0 while Δ luminosity stays flat, the "
+        "if Δ dF/F0 falls with F0 while Δ fluorescence stays flat, the "
         "responder signal is a 1/F0 normalization artifact, not biology",
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=1.0 - 0.6 / height);

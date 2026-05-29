@@ -99,7 +99,7 @@ def plot_nrk_hardware_log(experiments, state, exp_name="nrk_acid_13APR26"):
         ax.plot(
             frames_min, luminosity,
             color=pp["line_color"], linewidth=pp["line_lw"],
-            label="Mean luminosity", zorder=3,
+            label="Mean fluorescence", zorder=3,
         )
 
         pulse_duration = float(cfg.get("stim_duration_minutes", 0.5) or 0.5)
@@ -136,12 +136,13 @@ def plot_nrk_hardware_log(experiments, state, exp_name="nrk_acid_13APR26"):
         ax.set_ylim(y_lo, y_hi)
         ax.set_xlim(x_lo, x_hi)
 
+        chamber = ch.split()[-1]
         ax.set_title(
-            f"NRK / {ch} — hardware feedback luminosity log",
+            f"Controlled mean fluorescence chamber {chamber}",
             fontsize=pp["title_fontsize"], fontweight=pp["title_fontweight"],
         )
-        ax.set_xlabel("Time (min)", fontsize=pp["axis_label_fontsize"])
-        ax.set_ylabel("Mean luminosity", fontsize=pp["axis_label_fontsize"])
+        ax.set_xlabel("time (min)", fontsize=pp["axis_label_fontsize"])
+        ax.set_ylabel("fluorescence", fontsize=pp["axis_label_fontsize"])
         ax.legend(loc="upper left", fontsize=pp["legend_fontsize"])
         save_fig(
             fig, fig_path(exp_name, f"{ch}_hw_lum_log"),

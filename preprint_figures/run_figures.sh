@@ -7,7 +7,7 @@ set -euo pipefail
 # Edit the CONFIG block below to choose which analyses run and on which
 # experiments. Each analysis is a standalone python script under
 # preprint_figures/. Background-correction state is cached per experiment to
-# April28_preprint_results/bg_cache/ so repeated runs across analyses are fast.
+# May29_preprint_figures/bg_cache/ so repeated runs across analyses are fast.
 #
 # Run from the project root (so SCRIPTS/ and EXPERIMENTS/ resolve correctly):
 #     ./preprint_figures/run_figures.sh
@@ -15,8 +15,8 @@ set -euo pipefail
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
 # Set to "all" or a space-separated subset of analyses.
-# ANALYSES="all"
-ANALYSES="clustering dff average_peak correlation_distance response_violins responder_diagnostic learning_scores nrk_hardware_log"
+ANALYSES="all"
+# ANALYSES="clustering dff average_peak correlation_distance response_violins responder_diagnostic learning_scores nrk_hardware_log"
 # Available:
 #   dff                  — dF/F0 stacked traces + responder-pooled mean
 #   average_peak         — per-stimulus dF/F0 peak overlay + mean (DMSO only)
@@ -28,11 +28,11 @@ ANALYSES="clustering dff average_peak correlation_distance response_violins resp
 #   nrk_hardware_log     — hardware feedback log (NRK only)
 
 # Set to "all" or a space-separated subset of experiment names.
-EXPERIMENTS="all"
+EXPERIMENTS="nrk_acid_13APR26"
 # Available: c2c12_dmso_09APR26 pc3_dmso_23MAR26 nrk_acid_13APR26
 
 RECOMPUTE_BG=false        # force background-cache rebuild for selected experiments
-AGGREGATE_PDF=true        # rebuild April28_preprint_figures.pdf at the end
+AGGREGATE_PDF=false        # rebuild May29_preprint_figures.pdf at the end
 PARALLEL=true             # run the 3 experiments concurrently (one worker each)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -43,14 +43,14 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 ALL_ANALYSES=(
-    clustering
-    dff
-    average_peak
+    # clustering
+    # dff
+    # average_peak
     correlation_distance
-    response_violins
-    responder_diagnostic
-    learning_scores
-    nrk_hardware_log
+    # response_violins
+    # responder_diagnostic
+    # learning_scores
+    # nrk_hardware_log
 )
 
 if [ "$ANALYSES" = "all" ]; then
@@ -112,7 +112,7 @@ if [ "$PARALLEL" = "true" ] && [ "${#EXP_LIST[@]}" -gt 1 ]; then
            MKL_NUM_THREADS="$THREADS_PER_WORKER" \
            NUMEXPR_NUM_THREADS="$THREADS_PER_WORKER"
 
-    LOG_DIR="April28_preprint_results/run_logs"
+    LOG_DIR="May29_preprint_figures/run_logs"
     mkdir -p "$LOG_DIR"
     echo ">>> Launching ${NWORKERS} workers (${THREADS_PER_WORKER} threads each); logs in ${LOG_DIR}/"
 
@@ -156,4 +156,4 @@ if [ "$AGGREGATE_PDF" = "true" ]; then
 fi
 
 echo
-echo "=== Done. Figures in April28_preprint_results/<experiment>/ ==="
+echo "=== Done. Figures in May29_preprint_figures/<experiment>/ ==="

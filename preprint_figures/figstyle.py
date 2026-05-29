@@ -130,7 +130,7 @@ PLOT_PARAMS = {
     "mean_marker_color": "#ed0d0d",
     "scatter_color": "#222222",
     "scatter_alpha": 0.5,
-    "scatter_size": 12,
+    "scatter_size": 4,
     "responder_color": "#8e44ad",     # responder scatter highlight
     "responder_edge": "#5a0000",      # dark red responder marker edge
     "jitter_strength": 0.08,
@@ -256,7 +256,7 @@ def save_figure(fig, stem, outdir="figures", dpi=None):
     Save a figure at its EXACT figsize (no tight bbox) as PNG + SVG.
 
     Convenience saver for standalone / template figures. The production
-    analysis scripts save into ``April28_preprint_results/<experiment>/`` via
+    analysis scripts save into ``May29_preprint_figures/<experiment>/`` via
     ``common.io_paths.save_fig`` (which also writes a sibling ``svg/``); both
     paths obey the same rule — no ``bbox_inches='tight'``.
 
@@ -268,4 +268,4 @@ def save_figure(fig, stem, outdir="figures", dpi=None):
         dpi = PLOT_PARAMS["dpi"]
     os.makedirs(outdir, exist_ok=True)
     fig.savefig(os.path.join(outdir, f"{stem}.png"), dpi=dpi)  # NOT bbox_inches='tight'
-    fig.savefig(os.path.join(outdir, f"{stem}.svg"))
+    # fig.savefig(os.path.join(outdir, f"{stem}.svg"))

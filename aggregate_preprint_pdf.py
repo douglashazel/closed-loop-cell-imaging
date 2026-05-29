@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Aggregate every figure under ``April28_preprint_results/<experiment>/`` into a
+Aggregate every figure under ``May29_preprint_figures/<experiment>/`` into a
 single, organized multi-page PDF.
 
 Layout
@@ -29,8 +29,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 
 
-RESULTS_DIR = Path("April28_preprint_results")
-OUTPUT_PDF = RESULTS_DIR / "April28_preprint_figures.pdf"
+RESULTS_DIR = Path("May29_preprint_figures")
+OUTPUT_PDF = RESULTS_DIR / "May29_preprint_figures.pdf"
 SKIP_DIRS = {"bg_cache", "archive", "state_cache"}
 
 OVERVIEW_ORDER = [
@@ -98,14 +98,14 @@ CATEGORY_LABELS = {
     "dff_responders": "dF/F0 normalized traces — responders only",
     "dff_non_responders": "dF/F0 normalized traces — non-responders only",
     "dff_response_breakdown": "dF/F0 response breakdown (mean/median/percentile + per-cell peak histogram)",
-    "response_violin": "Per-stimulus Δ luminosity (peak − baseline)",
-    "response_violin_responders": "Per-stimulus Δ luminosity — responders only (|peak Δ dF/F0| ≥ 0.10)",
+    "response_violin": "Per-stimulus Δ fluorescence (peak − baseline)",
+    "response_violin_responders": "Per-stimulus Δ fluorescence — responders only (|peak Δ dF/F0| ≥ 0.10)",
     "response_violin_width": "Per-stimulus response width (frame-of-stim baseline)",
     "response_violin_width_baselines": "Per-stimulus response width — baseline-mode comparison",
-    "amplitude_width_scatter_lum": "Amplitude × width per stim (raw luminosity)",
+    "amplitude_width_scatter_lum": "Amplitude × width per stim (raw fluorescence)",
     "amplitude_width_scatter_dff": "Amplitude × width per stim (dF/F0)",
     "pca_umap_uncolored": "PCA + UMAP scatter (no clustering)",
-    "hw_lum_log": "Hardware feedback luminosity (log)",
+    "hw_lum_log": "Hardware feedback fluorescence (log)",
     "learning_habituation_height_permtest": (
         "Habituation permutation test (height) — observed vs. shuffled mean score"
     ),

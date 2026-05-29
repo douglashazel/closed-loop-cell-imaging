@@ -528,7 +528,7 @@ def plot_per_stimulus_response_violins(
     scatter point highlighted in red.
     """
     suffix = "_dff" if signal == "dff" else ""
-    signal_label = "dF/F₀" if signal == "dff" else "Δ luminosity"
+    signal_label = "dF/F₀" if signal == "dff" else "Δ fluorescence"
     for exp_name, cfg in experiments.items():
         direction = cfg.get("response_direction", "increase")
         extremum_label = "max" if direction == "increase" else "min"
@@ -617,8 +617,8 @@ def plot_per_stimulus_response_violins(
                 exp_name, f"pooled_response_violin_{metric}{suffix}"
             ),
             x_axis_label="Stimulus onset (min)",
-            stats_text=stats_text,
-            caveat=caveat,
+            # stats_text=stats_text,
+            # caveat=caveat,
         )
         if not ok:
             print(
@@ -641,7 +641,7 @@ def plot_per_stimulus_response_violins(
                     exp_name,
                     f"pooled_response_violin_{metric}{suffix}_train_means",
                 ),
-                caveat=caveat,
+                # caveat=caveat,
             )
 
         # Responder-highlighted twin: same violins, responder cells in red.
@@ -669,8 +669,8 @@ def plot_per_stimulus_response_violins(
                     f"pooled_response_violin_{metric}{suffix}_responders",
                 ),
                 x_axis_label="Stimulus onset (min)",
-                stats_text=stats_text,
-                caveat=caveat,
+                # stats_text=stats_text,
+                # caveat=caveat,
                 responder_data=responder_data,
             )
 

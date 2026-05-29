@@ -21,6 +21,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.cli import parse_args
+from common.config import cell_line_label
 from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
@@ -102,8 +103,8 @@ def plot_dff(experiments, state, *, responder_masks=None, select=None):
             )
 
             panels = [
-                (mat, "Corrected luminosity", "Corrected luminosity"),
-                (dff_mat, "dF/F₀", f"dF/F₀  ({f0_title_suffix})"),
+                (mat, "corrected fluorescence", "Corrected fluorescence"),
+                (dff_mat, "fluorescence", f"dF/F₀  ({f0_title_suffix})"),
             ]
 
             for ax, (data, ylabel, title_suffix) in zip(axes, panels):
@@ -148,7 +149,7 @@ def plot_dff(experiments, state, *, responder_masks=None, select=None):
                     fontsize=PLOT_PARAMS["legend_fontsize_large"], loc="upper right"
                 )
 
-            axes[-1].set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+            axes[-1].set_xlabel("time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
             if subset == "responders":
                 cell_str = f"{mat.shape[0]}/{n_all} responder cells"
             elif subset == "non_responders":
@@ -211,7 +212,6 @@ def plot_dff_mean_pooled(experiments, state, *, responder_masks=None, only_respo
         frame_min = frames_to_min(state, exp_name, ref_ch, ref_frame_nums)
 
         pooled_rows = []
-        per_channel_counts = []
         for ch in channels:
             df, frame_cols = per_ch_cols[ch]
             frame_cols = frame_cols[:n_common]
@@ -225,10 +225,8 @@ def plot_dff_mean_pooled(experiments, state, *, responder_masks=None, only_respo
                 if mask is None or not mask.any():
                     continue
                 pooled_rows.append(dff_mat[mask])
-                per_channel_counts.append((ch, int(mask.sum()), int(mat.shape[0])))
             else:
                 pooled_rows.append(dff_mat)
-                per_channel_counts.append((ch, int(mat.shape[0]), int(mat.shape[0])))
 
         if not pooled_rows:
             print(f"{exp_name}: no responders pooled — skipping pooled mean dF/F₀.")
@@ -263,17 +261,16 @@ def plot_dff_mean_pooled(experiments, state, *, responder_masks=None, only_respo
                 ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
             )
         ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
-        ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
-        ax.set_ylabel(
-            "Mean dF/F₀  (pooled across channels)",
-            fontsize=PLOT_PARAMS["axis_label_fontsize"],
-        )
-        suffix = " — responders only" if only_responders else ""
-        per_ch_str = ", ".join(
-            f"{ch}: {n}/{tot}" for ch, n, tot in per_channel_counts
+        ax.set_xlabel("time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+        ax.set_ylabel("fluorescence", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+        cell_line = cell_line_label(exp_name)
+        title = (
+            f"Mean fluorescence of responder cells ({cell_line})"
+            if only_responders
+            else f"Mean fluorescence ({cell_line})"
         )
         ax.set_title(
-            f"{exp_name} — pooled mean dF/F₀{suffix}\n[{per_ch_str}]",
+            title,
             fontsize=PLOT_PARAMS["title_fontsize"],
             fontweight=PLOT_PARAMS["title_fontweight"],
         )
@@ -367,7 +364,7 @@ def plot_dff_pooled_traces(experiments, state):
                 ax, spans, stim_label, PLOT_PARAMS["stim_color"], alpha=0.18,
             )
         ax.axhline(0, color="gray", lw=0.8, ls="--", alpha=0.5, zorder=1)
-        ax.set_xlabel("Time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
+        ax.set_xlabel("time (min)", fontsize=PLOT_PARAMS["axis_label_fontsize"])
         ax.set_ylabel(
             "dF/F₀  (pooled across channels)",
             fontsize=PLOT_PARAMS["axis_label_fontsize"],
