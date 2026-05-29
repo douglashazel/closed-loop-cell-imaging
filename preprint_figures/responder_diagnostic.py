@@ -59,13 +59,19 @@ from common.responders import (
 )
 from common.stim_helpers import compute_f0_baseline
 from common.time_axis import response_window_frames
+from figstyle import PLOT_PARAMS as _FIGSTYLE_PARAMS, apply_style
+
+apply_style()
 
 PLOT_PARAMS = {
-    "dpi": 300,
-    "title_fontsize": 13,
-    "title_fontweight": "bold",
-    "suptitle_fontsize": 15,
-    "panel_fontsize": 11,
+    "width_full": _FIGSTYLE_PARAMS["width_full"],
+    "dpi": _FIGSTYLE_PARAMS["dpi"],
+    # Font sizes governed by the single source (figstyle) so these diagnostic
+    # panels match the locked preprint style used everywhere else.
+    "title_fontsize": _FIGSTYLE_PARAMS["title_fontsize"],
+    "title_fontweight": _FIGSTYLE_PARAMS["title_fontweight"],
+    "suptitle_fontsize": _FIGSTYLE_PARAMS["suptitle_fontsize"],
+    "panel_fontsize": _FIGSTYLE_PARAMS["panel_label_size"],
     "nonresponder_color": "#9aa0a6",
     "responder_color": "#e74c3c",
     "threshold_color": "#111111",
@@ -314,7 +320,14 @@ INVESTIGATION_SUMMARY = [
 def _draw_distribution_figure(exp_name, channels, panels):
     """Marginal histogram + jittered strip scatter of per-cell Δ dF/F0."""
     n = len(channels)
-    fig = plt.figure(figsize=(6.2 * n, 8.4), dpi=PLOT_PARAMS["dpi"])
+    # This figure positions its axes with explicit gridspec margins below, so
+    # it opts OUT of the globally-enabled constrained layout (the two would
+    # fight and collapse the axes). A no-op layout engine is required here:
+    # constrained_layout=False alone gets silently re-applied by savefig, so we
+    # install PlaceHolderLayoutEngine which survives the save. Width stays 6.5 in.
+    fig = plt.figure(figsize=(PLOT_PARAMS["width_full"], 8.4),
+                     dpi=PLOT_PARAMS["dpi"])
+    fig.set_layout_engine("none")
     gs = fig.add_gridspec(2, n, height_ratios=[1, 3], hspace=0.07, wspace=0.26,
                           top=0.84, bottom=0.09, left=0.09, right=0.97)
     rng = np.random.default_rng(RNG_SEED)
@@ -375,7 +388,7 @@ def _draw_distribution_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=0.97);
     out = fig_path(exp_name, "responder_distribution_diagnostic")
-    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
     return out
 
@@ -383,8 +396,13 @@ def _draw_distribution_figure(exp_name, channels, panels):
 def _draw_stimlock_figure(exp_name, channels, panels):
     """Stim-aligned population trace + per-stim deltas + investigation-summary panel."""
     n = len(channels)
+    # Tall per-channel stack with manual gridspec margins -> no-op layout engine
+    # (constrained would collapse the rows) and let height grow with channel
+    # count; width stays locked at 6.5 in. Capping the height collapses the rows.
     height = 4.2 * n + 3.0
-    fig = plt.figure(figsize=(13.5, height), dpi=PLOT_PARAMS["dpi"])
+    fig = plt.figure(figsize=(PLOT_PARAMS["width_full"], height),
+                     dpi=PLOT_PARAMS["dpi"])
+    fig.set_layout_engine("none")
     gs = fig.add_gridspec(n + 1, 2, height_ratios=[*([3] * n), 2.4],
                           hspace=0.62, wspace=0.30,
                           top=1.0 - 0.95 / height, bottom=0.05,
@@ -455,7 +473,7 @@ def _draw_stimlock_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=1.0 - 0.30 / height);
     out = fig_path(exp_name, "responder_stimlock_diagnostic")
-    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
     return out
 
@@ -476,8 +494,12 @@ def _draw_artifact_figure(exp_name, channels, panels):
       and stays flat at pseudo-stims.
     """
     n = len(channels)
+    # Tallest diagnostic (2 rows per channel) with manual gridspec margins ->
+    # no-op layout engine; height grows with channel count (width 6.5 in).
     height = 7.0 * n + 4.2
-    fig = plt.figure(figsize=(13.5, height), dpi=PLOT_PARAMS["dpi"])
+    fig = plt.figure(figsize=(PLOT_PARAMS["width_full"], height),
+                     dpi=PLOT_PARAMS["dpi"])
+    fig.set_layout_engine("none")
     gs = fig.add_gridspec(2 * n + 1, 2, height_ratios=[*([3] * (2 * n)), 2.3],
                           hspace=0.66, wspace=0.27,
                           top=1.0 - 2.4 / height, bottom=0.045,
@@ -659,7 +681,7 @@ def _draw_artifact_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=1.0 - 0.85 / height);
     out = fig_path(exp_name, "responder_artifact_diagnostic")
-    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
     return out
 
@@ -682,8 +704,12 @@ def _draw_f0_figure(exp_name, channels, panels):
       proportional and F0 is not the culprit.
     """
     n = len(channels)
+    # Per-channel stack with manual gridspec margins -> no-op layout engine;
+    # height grows with channel count (width stays locked at 6.5 in).
     height = 4.7 * n + 3.0
-    fig = plt.figure(figsize=(13.0, height), dpi=PLOT_PARAMS["dpi"])
+    fig = plt.figure(figsize=(PLOT_PARAMS["width_full"], height),
+                     dpi=PLOT_PARAMS["dpi"])
+    fig.set_layout_engine("none")
     gs = fig.add_gridspec(n + 1, 2, height_ratios=[*([3] * n), 2.0],
                           hspace=0.52, wspace=0.27,
                           top=1.0 - 1.7 / height, bottom=0.06,
@@ -783,7 +809,7 @@ def _draw_f0_figure(exp_name, channels, panels):
         fontsize=PLOT_PARAMS["suptitle_fontsize"],
         fontweight=PLOT_PARAMS["title_fontweight"], y=1.0 - 0.6 / height);
     out = fig_path(exp_name, "responder_f0_diagnostic")
-    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, out, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
     return out
 

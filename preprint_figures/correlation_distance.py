@@ -36,9 +36,12 @@ from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
 from common.stats import inferential_caveat, mantel_test, one_sample_t_dz
 from common.stim_helpers import compute_f0_baseline
+from figstyle import apply_style
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
+
+apply_style()
 
 
 PIXELS_PER_UM = 180.1  # imaging calibration: 0.00555 μm/pixel
@@ -303,7 +306,9 @@ def _plot_corr_vs_dist_combined(
     if not per_channel_pairs:
         return
 
-    fig, axes = plt.subplots(2, 1, figsize=(8, 11), dpi=PLOT_PARAMS["dpi"])
+    fig, axes = plt.subplots(
+        2, 1, figsize=(PLOT_PARAMS["width_full"], 8.5), dpi=PLOT_PARAMS["dpi"],
+    )
 
     for row, method in enumerate(("pearson", "spearman")):
         ax = axes[row]
@@ -394,7 +399,6 @@ def _plot_corr_vs_dist_combined(
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="lower right")
 
     n_channels = len(per_channel_pairs)
-    plt.tight_layout(rect=(0, 0.03, 1, 1));
     fig.text(
         0.5, 0.006,
         inferential_caveat(
@@ -409,7 +413,7 @@ def _plot_corr_vs_dist_combined(
     )
     save_fig(
         fig, fig_path(exp_name, "corr_vs_dist_combined"),
-        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        dpi=PLOT_PARAMS["dpi"],
     )
 
     _apply_log1p_xaxis(axes)
@@ -423,7 +427,7 @@ def _plot_corr_vs_dist_combined(
             )
     save_fig(
         fig, fig_path(exp_name, "corr_vs_dist_combined_log1p"),
-        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        dpi=PLOT_PARAMS["dpi"],
     )
     plt.close(fig)
 
@@ -506,20 +510,23 @@ def plot_correlation_vs_distance(experiments, state):
                 "row_mask": row_mask,
             }
 
+        # Channels are stacked as ROWS (the two correlation methods are the
+        # columns) so the figure fits the locked single-column width (6.5 in)
+        # for any channel count. A 2-row x N-channel layout collapses
+        # horizontally past ~3 channels; height instead grows with channels.
         fig, axes = plt.subplots(
-            2, len(channels),
-            figsize=(6 * len(channels), 11),
-            dpi=PLOT_PARAMS["dpi"], sharey="row",
+            len(channels), 2,
+            figsize=(PLOT_PARAMS["width_full"], 2.7 * len(channels) + 1.0),
+            dpi=PLOT_PARAMS["dpi"], sharey="col",
         )
-        if len(channels) == 1:
-            axes = axes.reshape(2, 1)
+        axes = np.asarray(axes).reshape(len(channels), 2)
 
         per_channel_pairs = []
 
-        for col, ch in enumerate(channels):
+        for row, ch in enumerate(channels):
             ctx = per_channel_ctx.get(ch)
             if ctx is None:
-                for row in range(2):
+                for col in range(2):
                     axes[row, col].set_title(
                         f"{ch}: insufficient data",
                         fontsize=PLOT_PARAMS["title_fontsize"],
@@ -528,7 +535,7 @@ def plot_correlation_vs_distance(experiments, state):
 
             mat_k = ctx["mat_k"]
             if mat_k.shape[1] < MIN_FRAMES_FOR_CORR:
-                for row in range(2):
+                for col in range(2):
                     axes[row, col].set_title(
                         f"{ch}: insufficient samples",
                         fontsize=PLOT_PARAMS["title_fontsize"],
@@ -571,7 +578,7 @@ def plot_correlation_vs_distance(experiments, state):
                 "mantel": mantel_by_method,
             })
 
-            for row, method in enumerate(("pearson", "spearman")):
+            for col, method in enumerate(("pearson", "spearman")):
                 _scatter_corr_vs_dist(
                     axes[row, col],
                     ctx["pw_dist"], pw_corr_by_method[method],
@@ -586,18 +593,18 @@ def plot_correlation_vs_distance(experiments, state):
                     fontsize=PLOT_PARAMS["axis_label_fontsize"],
                 )
                 if col == 0:
+                    # Row label = channel (the method is in each panel title).
                     axes[row, col].set_ylabel(
-                        f"{METHOD_LABEL[method]} ({window_label})",
+                        f"{ch} ({window_label})",
                         fontsize=PLOT_PARAMS["axis_label_fontsize"],
                     )
 
         fig.suptitle(
             f"{exp_name} — pairwise correlation vs pairwise distance "
-            f"({window_label}, Pearson top, Spearman bottom)",
+            f"({window_label}, Pearson left, Spearman right)",
             fontsize=PLOT_PARAMS["title_fontsize"] + 1,
-            fontweight="bold", y=1.01,
+            fontweight="bold",
         )
-        plt.tight_layout(rect=(0, 0.03, 1, 1));
         fig.text(
             0.5, 0.006,
             inferential_caveat(
@@ -611,20 +618,20 @@ def plot_correlation_vs_distance(experiments, state):
         )
         save_fig(
             fig, fig_path(exp_name, "corr_vs_dist"),
-            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            dpi=PLOT_PARAMS["dpi"],
         )
 
         _apply_log1p_xaxis(axes)
         fig.suptitle(
             f"{exp_name} — pairwise correlation vs pairwise distance "
-            f"({window_label}, Pearson top, Spearman bottom)  "
+            f"({window_label}, Pearson left, Spearman right)  "
             f"[log1p distance axis]",
             fontsize=PLOT_PARAMS["title_fontsize"] + 1,
-            fontweight="bold", y=1.01,
+            fontweight="bold",
         )
         save_fig(
             fig, fig_path(exp_name, "corr_vs_dist_log1p"),
-            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            dpi=PLOT_PARAMS["dpi"],
         )
         plt.close(fig)
 

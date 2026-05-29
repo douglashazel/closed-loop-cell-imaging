@@ -35,9 +35,12 @@ from common.plot_params import PLOT_PARAMS
 from common.responders import compute_responder_masks
 from common.stim_helpers import compute_f0_baseline
 from common.time_axis import frames_to_min
+from figstyle import apply_style
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
+
+apply_style()
 
 
 # Window grabbed after each stimulus onset — the DMSO inter-stimulus interval
@@ -184,10 +187,9 @@ def _render_average_peak(exp_name, grid, all_segments, n_channels, *,
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-    plt.tight_layout()
     save_fig(
         fig, fig_path(exp_name, save_name),
-        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        dpi=PLOT_PARAMS["dpi"],
     )
     plt.close(fig)
     print(
@@ -242,14 +244,13 @@ def _render_responders_combined(grid, per_exp):
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-    plt.tight_layout()
     os.makedirs(STIM8_COMBINED_DIR, exist_ok=True)
     save_fig(
         fig,
         os.path.join(
             STIM8_COMBINED_DIR, "average_peak_responders_combined.png"
         ),
-        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        dpi=PLOT_PARAMS["dpi"],
     )
     plt.close(fig)
     print(
@@ -429,10 +430,9 @@ def _render_stim8(exp_name, grid, stacked, n_channels):
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-    plt.tight_layout()
     save_fig(
         fig, fig_path(exp_name, "average_peak_responders_stim8"),
-        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        dpi=PLOT_PARAMS["dpi"],
     )
     plt.close(fig)
     print(
@@ -483,14 +483,13 @@ def _render_stim8_combined(grid, per_exp):
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-    plt.tight_layout()
     os.makedirs(STIM8_COMBINED_DIR, exist_ok=True)
     save_fig(
         fig,
         os.path.join(
             STIM8_COMBINED_DIR, "average_peak_responders_stim8_combined.png"
         ),
-        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        dpi=PLOT_PARAMS["dpi"],
     )
     plt.close(fig)
     print(

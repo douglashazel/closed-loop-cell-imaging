@@ -32,9 +32,12 @@ from common.stim_helpers import (
     stim_timing_aligned_across_channels,
 )
 from common.time_axis import frames_to_min
+from figstyle import apply_style
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
+
+apply_style()
 
 
 def plot_dff(experiments, state, *, responder_masks=None, select=None):
@@ -94,7 +97,7 @@ def plot_dff(experiments, state, *, responder_masks=None, select=None):
 
             fig, axes = plt.subplots(
                 2, 1,
-                figsize=PLOT_PARAMS["figsize_wide"],
+                figsize=(PLOT_PARAMS["width_full"], 8.0),
                 dpi=PLOT_PARAMS["dpi"], sharex=True,
             )
 
@@ -155,9 +158,8 @@ def plot_dff(experiments, state, *, responder_masks=None, select=None):
             fig.suptitle(
                 f"{exp_name} / {ch} — {cell_str}, {len(stim_frames)} stims",
                 fontsize=PLOT_PARAMS["title_fontsize"] + 1,
-                fontweight="bold", y=1.01,
+                fontweight="bold",
             )
-            plt.tight_layout()
             name_suffix = {
                 "responders": "_dff_responders",
                 "non_responders": "_dff_non_responders",
@@ -165,7 +167,7 @@ def plot_dff(experiments, state, *, responder_masks=None, select=None):
             }[subset]
             save_fig(
                 fig, fig_path(exp_name, f"{ch}{name_suffix}"),
-                dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+                dpi=PLOT_PARAMS["dpi"],
             )
             plt.close(fig)
 
@@ -276,14 +278,13 @@ def plot_dff_mean_pooled(experiments, state, *, responder_masks=None, only_respo
             fontweight=PLOT_PARAMS["title_fontweight"],
         )
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-        plt.tight_layout()
         save_fig(
             fig,
             fig_path(
                 exp_name,
                 "dff_mean_pooled_responders" if only_responders else "dff_mean_pooled",
             ),
-            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            dpi=PLOT_PARAMS["dpi"],
         )
         plt.close(fig)
 
@@ -378,10 +379,9 @@ def plot_dff_pooled_traces(experiments, state):
             fontweight=PLOT_PARAMS["title_fontweight"],
         )
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-        plt.tight_layout()
         save_fig(
             fig, fig_path(exp_name, "dff_pooled_traces"),
-            dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+            dpi=PLOT_PARAMS["dpi"],
         )
         plt.close(fig)
 

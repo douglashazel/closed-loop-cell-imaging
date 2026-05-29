@@ -21,9 +21,12 @@ from common.io_paths import fig_path, save_fig
 from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS
 from common.time_axis import frames_to_min
+from figstyle import apply_style
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
+
+apply_style()
 
 
 def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,
@@ -139,7 +142,7 @@ def _render_pca_umap_uncolored(
 
     fig, axes = plt.subplots(
         1, 2,
-        figsize=(12, 5.5),
+        figsize=(PLOT_PARAMS["width_full"], 3.0),
         dpi=PLOT_PARAMS["dpi"],
     )
     for ax in axes.ravel():
@@ -190,12 +193,10 @@ def _render_pca_umap_uncolored(
         f"{exp_name} / {ch_label} — PCA + UMAP (no clustering, n={n_cells})",
         fontsize=PLOT_PARAMS["title_fontsize"] + 1,
         fontweight="bold",
-        y=1.02,
     )
-    plt.tight_layout()
     save_fig(
         fig, fig_path(exp_name, save_name),
-        dpi=PLOT_PARAMS["dpi"], bbox_inches="tight",
+        dpi=PLOT_PARAMS["dpi"],
     )
     plt.close(fig)
 

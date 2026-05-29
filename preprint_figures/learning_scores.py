@@ -44,9 +44,12 @@ from common.plot_params import PLOT_PARAMS
 from common.stats import bh_fdr, inferential_caveat, population_permutation_pvalue
 from common.stim_helpers import compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
+from figstyle import apply_style
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
+
+apply_style()
 
 
 # Pre-stim baseline window used for every per-stim Δ — matches the responder
@@ -570,14 +573,13 @@ def _plot_score_histogram(scores, *, title, xlabel, save_path,
     )
     if null_dist is not None and null_dist.size:
         ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best")
-    plt.tight_layout(rect=(0, 0.035, 1, 1));
     if caveat:
         fig.text(
             0.5, 0.008, caveat, ha="center", va="bottom",
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
 
 
@@ -643,14 +645,13 @@ def _plot_anticipation_zscore_histogram(real, shuffled, *, title, save_path,
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
-    plt.tight_layout(rect=(0, 0.035, 1, 1));
     if caveat:
         fig.text(
             0.5, 0.008, caveat, ha="center", va="bottom",
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
 
 
@@ -713,14 +714,13 @@ def _plot_permutation_mean_test(observed, null_mat, *, title, xlabel,
         fontweight=PLOT_PARAMS["title_fontweight"],
     )
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
-    plt.tight_layout(rect=(0, 0.035, 1, 1));
     if caveat:
         fig.text(
             0.5, 0.008, caveat, ha="center", va="bottom",
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
 
 

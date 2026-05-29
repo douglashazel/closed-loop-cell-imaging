@@ -24,6 +24,9 @@ from common.pipeline import prepare_state
 from common.plot_params import PLOT_PARAMS_HW_LOG
 from common.stim_resolve import _dedup_close_frames
 from common.time_axis import frames_to_min, setpoint_regions_from_log
+from figstyle import apply_style
+
+apply_style()
 
 
 def plot_nrk_hardware_log(experiments, state, exp_name="nrk_acid_13APR26"):
@@ -140,10 +143,9 @@ def plot_nrk_hardware_log(experiments, state, exp_name="nrk_acid_13APR26"):
         ax.set_xlabel("Time (min)", fontsize=pp["axis_label_fontsize"])
         ax.set_ylabel("Mean luminosity", fontsize=pp["axis_label_fontsize"])
         ax.legend(loc="upper left", fontsize=pp["legend_fontsize"])
-        plt.tight_layout()
         save_fig(
             fig, fig_path(exp_name, f"{ch}_hw_lum_log"),
-            dpi=pp["dpi"], bbox_inches="tight",
+            dpi=pp["dpi"],
         )
         plt.close(fig)
 

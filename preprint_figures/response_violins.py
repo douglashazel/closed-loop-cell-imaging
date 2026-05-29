@@ -33,9 +33,12 @@ from common.responders import compute_responder_masks
 from common.stats import friedman_with_posthoc, inferential_caveat, one_sample_t_dz
 from common.stim_helpers import compute_f0_baseline, compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
+from figstyle import apply_style
 
 sys.path.insert(0, "SCRIPTS")
 from io_utils import lum_dict_to_df  # noqa: E402
+
+apply_style()
 
 
 # Pre-stim baseline window used for every per-stim Δ — matches the responder
@@ -118,14 +121,13 @@ def _plot_replicate_train_means(chan_means, train_p, *, title, y_label,
         )
         ax.set_ylim(y0, bar_y + span * 0.22)
     ax.legend(fontsize=PLOT_PARAMS["legend_fontsize"], loc="best");
-    plt.tight_layout(rect=(0, 0.035, 1, 1));
     if caveat:
         fig.text(
             0.5, 0.008, caveat, ha="center", va="bottom",
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
 
 
@@ -150,7 +152,7 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
         return False
 
     fig, ax_ = plt.subplots(
-        figsize=(max(6, n_cat * 1.2), 10),
+        figsize=(PLOT_PARAMS["width_full"], 4.5),
         dpi=PLOT_PARAMS["dpi"],
     )
     ax_.spines[["top", "right"]].set_visible(False)
@@ -258,14 +260,13 @@ def _draw_half_violin_with_box(ax, violin_data, x_label, y_label, title, save_pa
     ax_.set_xticklabels([str(lbl) for lbl in x_label], fontsize=9)
     ax_.set_xlabel(x_axis_label, fontsize=PLOT_PARAMS["axis_label_fontsize"])
     ax_.set_ylabel(y_label, fontsize=PLOT_PARAMS["axis_label_fontsize"])
-    plt.tight_layout(rect=(0, 0.035, 1, 1));
     if caveat:
         fig.text(
             0.5, 0.008, caveat, ha="center", va="bottom",
             fontsize=PLOT_PARAMS["legend_fontsize"] - 2,
             style="italic", color="#555555",
         )
-    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"], bbox_inches="tight")
+    save_fig(fig, save_path, dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
     return True
 
