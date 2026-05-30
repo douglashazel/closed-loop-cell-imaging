@@ -27,7 +27,22 @@ EXPERIMENTS="all"
 
 # Space-separated mosaic names to assemble (see plots/mosaics.py MOSAICS), or
 # empty for none. e.g. MOSAICS="dff_stack_ch1 clustering_overview"
-MOSAICS=""
+# c2c12_chambers_dff_stack = Chamber A/B/C dF/F0 traces over the pooled
+# responder mean (c2c12 only; skipped for the other experiments).
+# c2c12_learning_scores = 4×2 learning panel: habituation / sensitization /
+# anticipation train1 / train2, each row a score histogram + its permutation
+# test (c2c12 only; restricted via the mosaic's "experiments" key).
+# dmso_responder_overview = 2×2 cross-experiment panel: pooled responder-mean
+# trace + stim-#8 mean response, c2c12 (top) over pc3 (bottom).
+# nrk_chambers_hw_log = 2×2 NRK hardware-feedback luminosity logs: channel 1
+# (chambers A, C) over channel 2 (chambers B, D) (NRK only).
+# nrk_chambers_dff_corr = 4×2 NRK per-chamber panel: each chamber's dF/F0 trace
+# (left) beside its Pearson-r vs distance scatter (right), one chamber per row
+# (A, C, B, D); no shared y-axis (NRK only).
+# c2c12_ch3_dff_pair = 1×2 bare channel-3 panel: corrected fluorescence (left) +
+# normalized dF/F0 (right); no title/legend/ticks/letters, x clipped to 90 min
+# (c2c12 only).
+MOSAICS="c2c12_chambers_dff_stack c2c12_corr_pca_responses c2c12_learning_scores dmso_responder_overview c2c12_ch3_dff_pair nrk_chambers_hw_log nrk_chambers_dff_corr"
 
 AGGREGATE_PDF=false       # rebuild May29_preprint_figures.pdf at the end
 # ─────────────────────────────────────────────────────────────────────────────
