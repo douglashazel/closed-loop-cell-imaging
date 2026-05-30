@@ -306,6 +306,14 @@ MOSAICS = {
         ],
         "figsize": (PLOT_PARAMS["width_full"], 9.0),
         "experiments": ["nrk_acid_13APR26"],
+        # Left column (dF/F₀ traces) legends in the bottom right; right column
+        # (r-vs-distance scatters) legends in the bottom left.
+        "legend_loc": {
+            "a": "lower right", "c": "lower right",
+            "e": "lower right", "g": "lower right",
+            "b": "lower left", "d": "lower left",
+            "f": "lower left", "h": "lower left",
+        },
         "cells": {
             "a": ("dff_norm", {"ch": "channel 1 A", "subset_suffix": ""}),
             "b": ("corr_vs_dist_channel_pearson",
