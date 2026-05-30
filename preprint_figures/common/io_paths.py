@@ -1,6 +1,8 @@
-"""Path / I/O utilities. Copied verbatim from april28_final_figures.py."""
+"""Path / I/O utilities. Originally copied from april28_final_figures.py;
+extended with the analysis-cache layer that decouples analysis from plotting."""
 
 import os
+import pickle
 import re
 
 import matplotlib as mpl
@@ -9,9 +11,84 @@ import numpy as np
 from common.config import OUT_ROOT
 
 
+# =============================================================================
+# Analysis cache — figure-ready intermediates written by analyze_*.py and read
+# by the plotting layer (make_figures.py + plots/). This is distinct from the
+# big per-experiment background pickles in bg_cache/ (see common.pipeline): the
+# analysis cache sits *between* prepare_state() and matplotlib, holding only the
+# small arrays/stats each figure needs.
+# =============================================================================
+ANALYSIS_CACHE_DIR = os.path.join(OUT_ROOT, "analysis_cache")
+# Bump whenever a cached schema changes (mirrors pipeline.PIPELINE_VERSION). The
+# plotting layer passes require_version so a stale cache fails loud instead of
+# rendering wrong numbers.
+ANALYSIS_VERSION = 1
+ANALYSIS_CACHE_PROTOCOL = pickle.HIGHEST_PROTOCOL  # matches bg_cache pickling
+
+
 def _slug(s):
     """Convert ``s`` into a filesystem-safe slug by collapsing whitespace to ``_``."""
     return re.sub(r"\s+", "_", s.strip())
+
+
+def analysis_cache_path(exp_name, analysis):
+    """Return ``May29_preprint_figures/analysis_cache/<exp>/<analysis>.pkl``.
+
+    Creates the per-experiment directory if needed.
+    """
+    out_dir = os.path.join(ANALYSIS_CACHE_DIR, _slug(exp_name))
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, f"{_slug(analysis)}.pkl")
+
+
+def save_analysis_cache(obj, exp_name, analysis, *, meta=None):
+    """Pickle a figure-ready bundle for ``(exp_name, analysis)``.
+
+    The on-disk blob wraps the payload so the plotting layer can version-check
+    and introspect::
+
+        {"ANALYSIS_VERSION": int, "analysis": str, "exp_name": str,
+         "meta": {...scalars for label templates...}, "data": <obj>}
+
+    ``meta`` holds the small scalars used to fill title/label templates at plot
+    time (n cells, % variance, p-values, ...); ``obj`` (``data``) holds the
+    arrays / ragged lists / nested dicts. Returns the written path.
+    """
+    blob = {
+        "ANALYSIS_VERSION": ANALYSIS_VERSION,
+        "analysis": analysis,
+        "exp_name": exp_name,
+        "meta": meta or {},
+        "data": obj,
+    }
+    path = analysis_cache_path(exp_name, analysis)
+    with open(path, "wb") as f:
+        pickle.dump(blob, f, protocol=ANALYSIS_CACHE_PROTOCOL)
+    return path
+
+
+def load_analysis_cache(exp_name, analysis, *, require_version=ANALYSIS_VERSION):
+    """Load and return the full blob for ``(exp_name, analysis)``.
+
+    Returns the wrapper dict (use ``blob["data"]`` / ``blob["meta"]``). Raises
+    ``FileNotFoundError`` with a run-this-first hint when the cache is missing,
+    and ``RuntimeError`` on a version mismatch when ``require_version`` is set
+    (pass ``require_version=None`` to skip the check).
+    """
+    path = analysis_cache_path(exp_name, analysis)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"No analysis cache for ({exp_name}, {analysis}) at {path}. "
+            f"Run analyze_{analysis}.py --experiments {exp_name} first."
+        )
+    with open(path, "rb") as f:
+        blob = pickle.load(f)
+    if require_version is not None and blob.get("ANALYSIS_VERSION") != require_version:
+        raise RuntimeError(
+            f"analysis cache {path} is version {blob.get('ANALYSIS_VERSION')}, "
+            f"expected {require_version}. Re-run analyze_{analysis}.py."
+        )
+    return blob
 
 
 def fig_path(exp_name, name, ext="png"):

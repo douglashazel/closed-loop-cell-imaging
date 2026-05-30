@@ -31,80 +31,103 @@ from PIL import Image
 
 RESULTS_DIR = Path("May29_preprint_figures")
 OUTPUT_PDF = RESULTS_DIR / "May29_preprint_figures.pdf"
-SKIP_DIRS = {"bg_cache", "archive", "state_cache"}
+# Skip non-experiment subfolders (caches, logs, sibling SVG archive). The
+# cross-experiment "dmso_stim8_comparison" bucket is intentionally NOT skipped.
+SKIP_DIRS = {"bg_cache", "analysis_cache", "run_logs", "svg",
+             "archive", "state_cache"}
 
+# Stem ordering after the analysis/plotting split decomposed the multi-panel
+# figures into standalone single-axis PNGs. Unknown stems still append
+# gracefully (category_sort_key sends them to the end).
 OVERVIEW_ORDER = [
-    "corrected_traces",
-    "dff_mean_combined",
     "dff_pooled_traces",
+    "dff_mean_pooled_responders",
+    "pooled_pca_only",
+    "pooled_umap_only",
     "average_peak",
     "average_peak_responders",
     "average_peak_responders_stim8",
-    "corr_vs_dist",
-    "corr_vs_dist_combined",
+    "average_peak_responders_combined",
+    "average_peak_responders_stim8_combined",
+    "corr_vs_dist_combined_pearson",
+    "corr_vs_dist_combined_pearson_log1p",
+    "corr_vs_dist_combined_spearman",
+    "corr_vs_dist_combined_spearman_log1p",
+    "pooled_response_violin_height_dff",
+    "pooled_response_violin_height_dff_responders",
+    "pooled_response_violin_height_dff_train_means",
+    "pooled_response_violin_width_dff",
+    "pooled_response_violin_width_dff_responders",
+    "pooled_response_violin_width_dff_train_means",
     "learning_habituation_height",
     "learning_habituation_height_permtest",
-    "learning_habituation_height_per_train",
-    "learning_habituation_height_split",
     "learning_habituation_width",
     "learning_habituation_width_permtest",
-    "learning_habituation_width_per_train",
-    "learning_habituation_width_split",
     "learning_sensitization_height",
     "learning_sensitization_height_permtest",
-    "learning_sensitization_height_per_train",
-    "learning_sensitization_height_split",
     "learning_sensitization_width",
     "learning_sensitization_width_permtest",
-    "learning_sensitization_width_per_train",
-    "learning_sensitization_width_split",
-    "learning_anticipation",
-    "learning_anticipation_permtest",
+    "learning_anticipation_train1",
+    "learning_anticipation_train1_permtest",
+    "learning_anticipation_train2",
+    "learning_anticipation_train2_permtest",
     "responder_distribution_diagnostic",
     "responder_stimlock_diagnostic",
     "responder_artifact_diagnostic",
     "responder_f0_diagnostic",
 ]
 PER_CHANNEL_ORDER = [
-    "dff",
-    "dff_responders",
-    "dff_non_responders",
-    "dff_response_breakdown",
-    "response_violin",
-    "response_violin_responders",
-    "response_violin_width",
-    "response_violin_width_baselines",
-    "amplitude_width_scatter_lum",
-    "amplitude_width_scatter_dff",
-    "pca_umap_uncolored",
+    "dff_raw",
+    "dff_norm",
+    "dff_raw_responders",
+    "dff_norm_responders",
+    "dff_raw_non_responders",
+    "dff_norm_non_responders",
+    "corr_vs_dist_pearson",
+    "corr_vs_dist_pearson_log1p",
+    "corr_vs_dist_spearman",
+    "corr_vs_dist_spearman_log1p",
     "hw_lum_log",
 ]
 
 CATEGORY_LABELS = {
-    "corrected_traces": "Corrected per-cell traces",
-    "dff_mean_combined": "Mean dF/F0 — all channels combined",
     "dff_pooled_traces": "dF/F0 traces pooled across channels (all cells) + mean",
+    "dff_mean_pooled_responders": "Mean dF/F0 — responders, pooled across channels",
+    "pooled_pca_only": "PCA scatter (PC1 vs PC2, no clustering)",
+    "pooled_umap_only": "UMAP embedding (no clustering)",
     "average_peak": "Average response peak — per-stimulus dF/F0 segments + mean",
     "average_peak_responders": (
         "Average response peak — responders only (per-stimulus dF/F0 segments + mean)"
     ),
     "average_peak_responders_stim8": (
-        "Average response peak — stimulus #8 only, responders (derived from "
-        "average_peak_responders)"
+        "Average response peak — stimulus #8 only, responders"
     ),
-    "corr_vs_dist": "Pairwise correlation vs. distance",
-    "corr_vs_dist_combined": "Pairwise correlation vs. distance (combined)",
-    "dff": "dF/F0 normalized traces",
-    "dff_responders": "dF/F0 normalized traces — responders only",
-    "dff_non_responders": "dF/F0 normalized traces — non-responders only",
-    "dff_response_breakdown": "dF/F0 response breakdown (mean/median/percentile + per-cell peak histogram)",
-    "response_violin": "Per-stimulus Δ fluorescence (peak − baseline)",
-    "response_violin_responders": "Per-stimulus Δ fluorescence — responders only (|peak Δ dF/F0| ≥ 0.10)",
-    "response_violin_width": "Per-stimulus response width (frame-of-stim baseline)",
-    "response_violin_width_baselines": "Per-stimulus response width — baseline-mode comparison",
-    "amplitude_width_scatter_lum": "Amplitude × width per stim (raw fluorescence)",
-    "amplitude_width_scatter_dff": "Amplitude × width per stim (dF/F0)",
-    "pca_umap_uncolored": "PCA + UMAP scatter (no clustering)",
+    "average_peak_responders_combined": (
+        "Average response peak — responders, PC3 vs C2C12 (combined)"
+    ),
+    "average_peak_responders_stim8_combined": (
+        "Average response peak — stimulus #8, PC3 vs C2C12 (combined)"
+    ),
+    "corr_vs_dist_combined_pearson": "Pairwise Pearson r vs. distance (channels combined)",
+    "corr_vs_dist_combined_spearman": "Pairwise Spearman ρ vs. distance (channels combined)",
+    "corr_vs_dist_combined_pearson_log1p": "Pairwise Pearson r vs. distance (combined, log1p axis)",
+    "corr_vs_dist_combined_spearman_log1p": "Pairwise Spearman ρ vs. distance (combined, log1p axis)",
+    "pooled_response_violin_height_dff": "Per-stimulus response height (dF/F0)",
+    "pooled_response_violin_height_dff_responders": "Per-stimulus response height — responders highlighted",
+    "pooled_response_violin_height_dff_train_means": "Per-replicate train mean (height)",
+    "pooled_response_violin_width_dff": "Per-stimulus response width (dF/F0)",
+    "pooled_response_violin_width_dff_responders": "Per-stimulus response width — responders highlighted",
+    "pooled_response_violin_width_dff_train_means": "Per-replicate train mean (width)",
+    "dff_raw": "Corrected per-cell traces",
+    "dff_norm": "dF/F0 normalized traces",
+    "dff_raw_responders": "Corrected per-cell traces — responders only",
+    "dff_norm_responders": "dF/F0 normalized traces — responders only",
+    "dff_raw_non_responders": "Corrected per-cell traces — non-responders only",
+    "dff_norm_non_responders": "dF/F0 normalized traces — non-responders only",
+    "corr_vs_dist_pearson": "Pairwise Pearson r vs. distance",
+    "corr_vs_dist_spearman": "Pairwise Spearman ρ vs. distance",
+    "corr_vs_dist_pearson_log1p": "Pairwise Pearson r vs. distance (log1p axis)",
+    "corr_vs_dist_spearman_log1p": "Pairwise Spearman ρ vs. distance (log1p axis)",
     "hw_lum_log": "Hardware feedback fluorescence (log)",
     "learning_habituation_height_permtest": (
         "Habituation permutation test (height) — observed vs. shuffled mean score"
@@ -118,8 +141,11 @@ CATEGORY_LABELS = {
     "learning_sensitization_width_permtest": (
         "Sensitization permutation test (width) — observed vs. shuffled mean score"
     ),
-    "learning_anticipation_permtest": (
-        "Anticipation permutation test — observed vs. shuffled mean event count"
+    "learning_anticipation_train1_permtest": (
+        "Anticipation permutation test — train 1 (observed vs. shuffled mean z)"
+    ),
+    "learning_anticipation_train2_permtest": (
+        "Anticipation permutation test — train 2 (observed vs. shuffled mean z)"
     ),
     "responder_distribution_diagnostic": (
         "Responder diagnostic — per-cell Δ dF/F0 distribution vs. threshold"
