@@ -1,14 +1,16 @@
-EXPERIMENTS/**
-!EXPERIMENTS/**/
-!EXPERIMENTS/**/.gitkeep
+# Global Diretories
+EXPERIMENTS
 MISCELLANEOUS/*
 _cellpose_temp
 
+# Local Directories
+May29_preprint_figures
 gifs
 archive
 __pycache__
 .claude
 
+# Extensions
 *.gif
 *.csv
 *.png
