@@ -30,7 +30,7 @@ from common.stim_helpers import (
 )
 from common.time_axis import frames_to_min
 
-sys.path.insert(0, "SCRIPTS")
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 

@@ -9,10 +9,10 @@ IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 SAVE_PATH="${GLOBAL_DIR}/analysis"
 
-SCRIPT2="SCRIPTS/trajectories.py"
+SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
 
 # -----------------------------
-# TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
+# TRAJECTORY PARAMETERS (determine using preprocess_gui.py or the WEBGUI)
 # -----------------------------
 MAX_DISTANCE=10
 GRACE_PERIOD=3

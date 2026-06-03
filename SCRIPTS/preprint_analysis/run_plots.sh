@@ -12,7 +12,7 @@ set -euo pipefail
 # this runs sequentially (no per-experiment workers, no thread capping).
 #
 # Run from the project root:
-#     ./preprint_figures/run_plots.sh
+#     ./SCRIPTS/preprint_analysis/run_plots.sh
 # =============================================================================
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
@@ -50,10 +50,11 @@ AGGREGATE_PDF=false       # rebuild May29_preprint_figures.pdf at the end
 
 # ─────── ORCHESTRATION ───────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# This script lives at SCRIPTS/preprint_analysis/, so the project root is two up.
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-CMD=(python3 preprint_figures/make_figures.py --experiments)
+CMD=(python3 SCRIPTS/preprint_analysis/make_figures.py --experiments)
 if [ "$EXPERIMENTS" = "all" ]; then
     CMD+=(all)
 else
@@ -72,18 +73,18 @@ if [ -n "$MOSAICS" ]; then
     CMD+=(--mosaics $MOSAICS)
 fi
 
-echo "=== preprint_figures PLOTTING pipeline ==="
+echo "=== preprint_analysis PLOTTING pipeline ==="
 echo "  ${CMD[*]}"
 echo
 "${CMD[@]}"
 
 if [ "$AGGREGATE_PDF" = "true" ]; then
-    if [ -f "aggregate_preprint_pdf.py" ]; then
+    if [ -f "SCRIPTS/preprint_analysis/aggregate_preprint_pdf.py" ]; then
         echo
         echo ">>> Aggregating PDF"
-        python3 aggregate_preprint_pdf.py
+        python3 SCRIPTS/preprint_analysis/aggregate_preprint_pdf.py
     else
-        echo "WARNING: aggregate_preprint_pdf.py not found — skipping PDF aggregation."
+        echo "WARNING: SCRIPTS/preprint_analysis/aggregate_preprint_pdf.py not found — skipping PDF aggregation."
     fi
 fi
 

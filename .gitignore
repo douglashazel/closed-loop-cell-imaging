@@ -1,14 +1,18 @@
-# Global Diretories
+# Data directories (not redistributed; see README "Expected data layout")
 EXPERIMENTS
 MISCELLANEOUS/*
 _cellpose_temp
 
-# Local Directories
+# Generated outputs / caches
 May29_preprint_figures
 gifs
 archive
 __pycache__
 .claude
+
+# WEBGUI runtime artifacts (regenerated on launch)
+WEBGUI/tmp/
+WEBGUI/session.json
 
 # Extensions
 *.gif
@@ -17,3 +21,5 @@ __pycache__
 *.parquet
 *.pkl
 *.svg
+*.pyc
+*.log

@@ -13,13 +13,13 @@ set -euo pipefail
 # deterministic responder mask (consumers also fall back to computing it).
 #
 # Run from the project root:
-#     ./preprint_figures/run_analysis.sh
+#     ./SCRIPTS/preprint_analysis/run_analysis.sh
 # =============================================================================
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
 # Set to "all" or a space-separated subset of analyses.
 ANALYSES="all"
-# Available (each is preprint_figures/analyze_<name>.py):
+# Available (each is SCRIPTS/preprint_analysis/analyze_<name>.py):
 #   responders            — shared responder thresholds + masks (run first)
 #   dff                   — dF/F0 stacked traces + responder-pooled mean
 #   average_peak          — per-stimulus dF/F0 peak segments (DMSO only)
@@ -41,7 +41,8 @@ PARALLEL=true             # run the experiments concurrently (one worker each)
 
 # ─────── ORCHESTRATION ───────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# This script lives at SCRIPTS/preprint_analysis/, so the project root is two up.
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # `responders` runs first so the shared responders.pkl exists before consumers.
@@ -66,7 +67,7 @@ fi
 # Resolve EXPERIMENTS to an explicit name list (expand "all" via the config).
 if [ "$EXPERIMENTS" = "all" ]; then
     read -r -a EXP_LIST <<< "$(
-        python3 -c "import sys; sys.path.insert(0, 'preprint_figures'); \
+        python3 -c "import sys; sys.path.insert(0, 'SCRIPTS/preprint_analysis'); \
 from common.config import EXPERIMENTS; print(' '.join(EXPERIMENTS))"
     )"
 else
@@ -75,13 +76,13 @@ fi
 
 # Fail fast if any selected analysis script is missing.
 for a in "${ANALYSES_LIST[@]}"; do
-    if [ ! -f "preprint_figures/analyze_${a}.py" ]; then
-        echo "ERROR: missing preprint_figures/analyze_${a}.py"
+    if [ ! -f "SCRIPTS/preprint_analysis/analyze_${a}.py" ]; then
+        echo "ERROR: missing SCRIPTS/preprint_analysis/analyze_${a}.py"
         exit 1
     fi
 done
 
-echo "=== preprint_figures ANALYSIS pipeline ==="
+echo "=== preprint_analysis ANALYSIS pipeline ==="
 echo "  analyses:    ${ANALYSES_LIST[*]}"
 echo "  experiments: ${EXP_LIST[*]}"
 echo "  parallel=${PARALLEL}, recompute_bg=${RECOMPUTE_BG}"
@@ -100,7 +101,7 @@ run_experiment() {
         fi
         first=false
         echo ">>> [${exp}] analyze ${a}"
-        python3 "preprint_figures/analyze_${a}.py" --experiments "$exp" "${extra[@]}"
+        python3 "SCRIPTS/preprint_analysis/analyze_${a}.py" --experiments "$exp" "${extra[@]}"
     done
     echo ">>> [${exp}] done"
 }
@@ -150,4 +151,4 @@ fi
 
 echo
 echo "=== Done. Caches in May29_preprint_figures/analysis_cache/<experiment>/ ==="
-echo "    Render them with ./preprint_figures/run_plots.sh"
+echo "    Render them with ./SCRIPTS/preprint_analysis/run_plots.sh"

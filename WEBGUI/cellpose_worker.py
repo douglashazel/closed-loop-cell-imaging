@@ -1,8 +1,7 @@
 """Cached Cellpose model + background segmentation thread.
 
-Pattern mirrors PE_Pipeline/V6/LaunchWebGUI.py: load the model once on first
-use, run model.eval in a daemon thread, expose status via a module-level dict
-that the Flask endpoints poll.
+Pattern: load the model once on first use, run model.eval in a daemon thread,
+expose status via a module-level dict that the Flask endpoints poll.
 """
 
 import os

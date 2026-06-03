@@ -15,7 +15,7 @@ from common.stim_helpers import per_cell_response_delta
 from common.time_axis import response_window_frames
 
 import sys
-sys.path.insert(0, "SCRIPTS")
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 

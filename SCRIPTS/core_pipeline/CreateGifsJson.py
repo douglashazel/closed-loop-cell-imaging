@@ -109,8 +109,8 @@ def process_cell(args):
     print(f"GIF saved at: {gif_path}")
     shutil.rmtree(output_dir)
 
-# ----- CHANGE HERE ----- #
-global_path = "../EXPERIMENTS/other"
+# ----- CHANGE HERE (paths are relative to the project root; run from there) ----- #
+global_path = "EXPERIMENTS/other"
 movie = "resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374"
 FIXED_CROP_SIZE = 0  # Set to 0 for entire frame size, or specify a fixed size (e.g., 128) for fixed cropping
 save_path = "gifs"

@@ -25,11 +25,11 @@ def load_cells_of_interest(txt_path):
             cells[movie].append(cell)
     return dict(cells)
 
-# ----- CHANGE HERE ----- #
-global_path = "../EXPERIMENTS/other"
+# ----- CHANGE HERE (paths are relative to the project root; run from there) ----- #
+global_path = "EXPERIMENTS/other"
 movie = "DMSO_TEST"
 FIXED_CROP_SIZE = 200
-save_path = "../gifs"
+save_path = "gifs"
 
 tif_path = f"{global_path}/{movie}/frames"
 mask_dir = f"{global_path}/{movie}/masks"

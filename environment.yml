@@ -1,0 +1,33 @@
+# Conda environment for the cell-analysis pipeline.
+# Create with:  conda env create -f environment.yml
+# Activate with: conda activate cell_analysis
+#
+# Versions mirror a known-good Python 3.12 environment. cellpose, umap-learn,
+# msgpack and the optional GUIs are installed via pip (last section).
+name: cell_analysis
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy=1.26.4
+  - scipy
+  - pandas=2.2.2
+  - matplotlib=3.9.2
+  - scikit-image
+  - scikit-learn
+  - numba
+  - pillow
+  - imageio
+  - tqdm
+  - pip
+  - pip:
+      - msgpack==1.1.2
+      - umap-learn==0.5.7
+      # Segmentation (Stage 1) — pulls in PyTorch; use a CUDA-capable GPU.
+      - cellpose==4.0.6
+      # Optional: interactive parameter-tuning GUIs.
+      - napari==0.6.4
+      - qtpy==2.4.3
+      - PyQt5==5.15.10
+      - Flask==3.1.3

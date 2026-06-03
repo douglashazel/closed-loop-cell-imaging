@@ -1,4 +1,4 @@
-"""Shared configuration for the preprint_figures pipeline.
+"""Shared configuration for the preprint analysis pipeline.
 
 Every value here is copied verbatim from april28_final_figures.py so the new
 modular pipeline produces byte-identical output to the source script.
@@ -40,7 +40,9 @@ ACID_ACTION = "add acidic media"
 
 # Root path for the acid-feedback PE pipeline outputs (used by the NRK
 # experiment to locate monitoring.log + luminosity_log_channelN.json).
-PE_PIPELINE = "/mnt/exDisk1/douglashazel/DHcode/PE_Pipeline/V5"
+# Override with the PE_PIPELINE env var to point at your own copy, e.g.
+#     export PE_PIPELINE=/path/to/PE_Pipeline/V5
+PE_PIPELINE = os.environ.get("PE_PIPELINE", "PE_Pipeline/V5")
 
 
 # =============================================================================

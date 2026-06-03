@@ -1,0 +1,215 @@
+# Cell Analysis Pipeline
+
+Segmentation, single-cell tracking, fluorescence extraction, and downstream
+statistical/figure analysis for time-lapse fluorescence microscopy of cultured
+cells under repeated stimulation.
+
+> **TODO (authors):** add a 1–2 paragraph scientific summary of the study, the
+> imaging modalities (e.g. voltage/calcium indicators), and a link to the preprint.
+
+The code is organized as a **two-stage workflow**:
+
+```
+                 ┌──────────────────────────────────────────────┐
+  raw frames ──▶ │ STAGE 1 — core per-experiment pipeline        │ ──▶ per-cell
+  (microscope)   │ SCRIPTS/core_pipeline/ + run_*.sh             │     fluorescence,
+                 │ segment → track → pre-analysis → post-analysis│     dF/F0, plots
+                 └──────────────────────────────────────────────┘
+                                      │
+                                      ▼  (many experiments)
+                 ┌──────────────────────────────────────────────┐
+                 │ STAGE 2 — detailed preprint analysis          │ ──▶ figures,
+                 │ SCRIPTS/preprint_analysis/ + run_analysis.sh, │     stats,
+                 │ run_plots.sh  (responders, dF/F0, clustering, │     mosaics
+                 │ correlation, learning scores, …)              │
+                 └──────────────────────────────────────────────┘
+```
+
+Run **Stage 1** on each experiment to turn raw frames into per-cell fluorescence
+traces; then run **Stage 2** to pool many experiments into the published figures
+and statistics.
+
+---
+
+## Repository layout
+
+```
+.
+├── run_processes.sh           # Stage 1 driver: segmentation + tracking + pre-analysis
+├── run_post_processes.sh      # Stage 1 driver: post-analysis (bg correction, dF/F0)
+├── run_segmentation.sh        # Stage 1: segmentation only
+├── run_trajectories.sh        # Stage 1: tracking only
+├── preprocess_gui.py          # Optional napari GUI to tune parameters
+│
+├── SCRIPTS/
+│   ├── core_pipeline/         # STAGE 1 code
+│   │   ├── segmentation.py        # Cellpose segmentation  → masks/*.npy
+│   │   ├── trajectories.py        # link cells, extract fluorescence → analysis/*.json
+│   │   ├── PreAnalysis.py         # QC luminosity plots
+│   │   ├── PostAnalysis.py        # background correction, derivative/STD, dF/F0
+│   │   ├── io_utils.py            # shared msgpack/DataFrame helpers
+│   │   └── CreateGifs*.py         # optional per-cell GIF renderers (edit-then-run)
+│   │
+│   └── preprint_analysis/     # STAGE 2 code (was "preprint_figures/")
+│       ├── run_analysis.sh        # compute + cache figure intermediates
+│       ├── run_plots.sh           # render figures + mosaics from caches
+│       ├── analyze_*.py           # one analysis each (responders runs first)
+│       ├── make_figures.py        # plotting orchestrator
+│       ├── make_mosaic_captions.py
+│       ├── aggregate_preprint_pdf.py
+│       ├── figures_spec.py, style.py
+│       ├── common/                # shared config + analysis library
+│       └── plots/                 # figure render modules
+│
+├── WEBGUI/                    # Optional browser GUI for parameter tuning (Flask)
+├── requirements.txt           # pip dependencies
+└── environment.yml            # conda environment
+```
+
+Input/output **data directories** (`EXPERIMENTS/`, `May29_preprint_figures/`,
+`gifs/`, …) are git-ignored and not redistributed — see
+[Expected data layout](#expected-data-layout).
+
+---
+
+## Installation
+
+Python 3.12. Either conda (recommended, for napari/Cellpose) or pip:
+
+```bash
+# conda
+conda env create -f environment.yml
+conda activate cell_analysis
+
+# or pip (into a fresh venv)
+pip install -r requirements.txt
+```
+
+**GPU:** Stage-1 segmentation uses Cellpose with `gpu=True` and defaults to
+`CUDA_VISIBLE_DEVICES=0`; a CUDA-capable GPU is strongly recommended. Everything
+else runs on CPU.
+
+> **Run all commands from the project root.** Several Stage-2 modules add
+> `SCRIPTS/core_pipeline` and `SCRIPTS/preprint_analysis` to `sys.path` using
+> paths relative to the current directory. The provided `run_*.sh` scripts
+> `cd` to the project root automatically.
+
+---
+
+## Expected data layout
+
+The pipeline reads/writes a per-experiment tree under `EXPERIMENTS/` (git-ignored):
+
+```
+EXPERIMENTS/<group>/<experiment>/[<channel>/]
+├── frames/      # input images, named "...timepoint_NNNNN.png" (or .jpg), sorted by N
+├── masks/       # Cellpose label masks, one .npy per frame (written by Stage 1)
+└── analysis/    # Stage-1 outputs: trajectories_complete.json, luminosity_complete.json,
+                 #   *_complete.csv, config.txt, bg_values_cache.npy, plots/
+```
+
+Multi-channel experiments use a `<channel>/` level (e.g. `channel 1 A/`); single
+field-of-view experiments put `frames/masks/analysis` directly under the
+experiment. Stage 2's experiment registry lives in
+[`SCRIPTS/preprint_analysis/common/config.py`](SCRIPTS/preprint_analysis/common/config.py)
+(`EXPERIMENTS` dict: data dir, channels, stim schedule, timestamps, masks).
+
+> **TODO (authors):** state where the raw imaging data is deposited (e.g.
+> Zenodo / figshare / BioImage Archive) and link it, so others can reproduce the
+> figures.
+
+---
+
+## Stage 1 — core per-experiment pipeline
+
+1. **(Optional) Tune parameters** for a new experiment with either GUI:
+   - napari: `python preprocess_gui.py`
+   - browser: `python WEBGUI/app.py` → http://localhost:5001 (see [WEBGUI/README.md](WEBGUI/README.md))
+
+   Determine the Cellpose params (`flow_threshold`, `cellprob_threshold`,
+   `niter`, `diameter`) and tracking params (`max_distance`, frame shift, ROI
+   radius, `save_interval`).
+
+2. **Edit the driver** — set `GLOBAL_DIR` and the parameters at the top of
+   `run_processes.sh` (these scripts are templates pinned to example
+   experiments). Then run segmentation + tracking + pre-analysis:
+
+   ```bash
+   bash run_processes.sh
+   ```
+
+   (`run_segmentation.sh` and `run_trajectories.sh` run those stages
+   individually.)
+
+3. **Post-analysis** — edit `GLOBAL_DIR`/`STIM_FRAMES` at the top of
+   `run_post_processes.sh`, then:
+
+   ```bash
+   bash run_post_processes.sh
+   ```
+
+   This produces background-corrected traces, derivative/STD, and dF/F0 plots
+   under `analysis/plots/`.
+
+4. **(Optional) Per-cell GIFs** — edit the `CHANGE HERE` block at the top of
+   `SCRIPTS/core_pipeline/CreateGifsJson.py` (or `CreateGifs.py`) and run it from
+   the project root.
+
+---
+
+## Stage 2 — preprint analysis
+
+Pools the Stage-1 outputs of many experiments into the published figures.
+
+1. **Register experiments** in
+   [`SCRIPTS/preprint_analysis/common/config.py`](SCRIPTS/preprint_analysis/common/config.py)
+   (the `EXPERIMENTS` dict). For the NRK acid-feedback experiment, point the
+   external feedback-log location via an env var:
+   `export PE_PIPELINE=/path/to/PE_Pipeline/V5`.
+
+2. **Compute + cache** the figure intermediates (the shared `responders` step
+   runs first):
+
+   ```bash
+   ./SCRIPTS/preprint_analysis/run_analysis.sh
+   ```
+
+3. **Render** figures and mosaics from the caches:
+
+   ```bash
+   ./SCRIPTS/preprint_analysis/run_plots.sh
+   ```
+
+   Outputs land in `May29_preprint_figures/<experiment>/` and
+   `May29_preprint_figures/mosaics/`. Set `AGGREGATE_PDF=true` in `run_plots.sh`
+   to also build a combined PDF. Both scripts have a `CONFIG` block at the top to
+   select a subset of analyses/experiments/figures.
+
+See [SCRIPTS/preprint_analysis/README.md](SCRIPTS/preprint_analysis/README.md)
+for the analysis → cache → plot contract.
+
+---
+
+## Optional: WEBGUI
+
+`WEBGUI/` is a Flask app for interactively tuning Stage-1 parameters and
+launching the pipeline from a browser. It is a **development tool, not part of
+the published analysis** — the figures are fully reproducible from the shell
+scripts above.
+
+> ⚠️ **Security:** the WebGUI binds `0.0.0.0:5001` and launches subprocesses with
+> user-supplied paths. Run it only on `localhost` or a trusted machine; do **not**
+> expose it to an untrusted network.
+
+---
+
+## License
+
+**TODO:** No license has been chosen yet. Until a `LICENSE` file is added, the
+code is "all rights reserved" by default and cannot be reused by others. Add an
+OSI-approved license (e.g. MIT or BSD-3-Clause) before public release.
+
+## Citation
+
+**TODO:** Add the preprint citation (and a `CITATION.cff`) once a DOI is
+available.

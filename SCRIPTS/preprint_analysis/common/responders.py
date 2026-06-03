@@ -27,7 +27,7 @@ from common.baseline_window import (
 from common.stim_helpers import compute_f0_baseline
 from common.time_axis import response_window_frames
 
-sys.path.insert(0, "SCRIPTS")
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 

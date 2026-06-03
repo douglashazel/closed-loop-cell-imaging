@@ -20,7 +20,7 @@ echo "--- Accessing ${GLOBAL_DIR} ---"
 # Post-analysis: background correction, derivative/STD, dF/F0
 # -----------------------------
 echo ">>> Running post-analysis for ${GLOBAL_DIR}"
-python SCRIPTS/PostAnalysis.py \
+python3 SCRIPTS/core_pipeline/PostAnalysis.py \
     --exp "$GLOBAL_DIR" \
     --image_dir "$IMAGE_DIR" \
     --analysis_dir "$ANALYSIS_DIR" \

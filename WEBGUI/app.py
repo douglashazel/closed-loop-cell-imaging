@@ -1,6 +1,6 @@
 """Flask web GUI for the Patrick cell-analysis preprocessing pipeline.
 
-Launch:  python preprocess_webgui/app.py
+Launch:  python WEBGUI/app.py
 Browse:  http://localhost:5001
 
 Ports the functionality of ../preprocess_gui.py (napari) to a browser and adds
@@ -840,8 +840,8 @@ IMAGE_DIR="${{GLOBAL_DIR}}/frames"
 MASK_DIR="${{GLOBAL_DIR}}/masks"
 SAVE_PATH="${{GLOBAL_DIR}}/analysis"
 
-SCRIPT1="SCRIPTS/segmentation.py"
-SCRIPT2="SCRIPTS/trajectories.py"
+SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
+SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
 
 FLOW_THRESHOLD={s['flow_threshold']}
 CELLPROB_THRESHOLD={s['cellprob_threshold']}
@@ -931,7 +931,7 @@ else
     wait "$PID2"
 
     echo ">>> STAGE: PRE-ANALYSIS <<<"
-    python3 -u SCRIPTS/PreAnalysis.py \\
+    python3 -u SCRIPTS/core_pipeline/PreAnalysis.py \\
         --exp "$GLOBAL_DIR" \\
         --analysis_dir "$SAVE_PATH"
 fi
@@ -957,7 +957,7 @@ STIM_FRAMES="{stim_frames}"
 
 echo "--- Accessing ${{GLOBAL_DIR}} ---"
 echo ">>> STAGE: POST-ANALYSIS <<<"
-python3 -u SCRIPTS/PostAnalysis.py \\
+python3 -u SCRIPTS/core_pipeline/PostAnalysis.py \\
     --exp "$GLOBAL_DIR" \\
     --image_dir "$IMAGE_DIR" \\
     --analysis_dir "$ANALYSIS_DIR" \\

@@ -34,7 +34,7 @@ from common.time_axis import (
     clip_experiments_to_time_window,
 )
 
-sys.path.insert(0, "SCRIPTS")
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import load_msgpack  # noqa: E402
 
 

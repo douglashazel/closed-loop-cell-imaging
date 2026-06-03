@@ -1,0 +1,31 @@
+# Python dependencies for the cell-analysis pipeline.
+# Versions are pinned to a known-good environment (Python 3.12).
+# A conda equivalent is provided in environment.yml.
+#
+# Install:  pip install -r requirements.txt
+
+# --- Core analysis (Stage 1 + Stage 2) ---------------------------------------
+numpy==1.26.4
+scipy==1.17.0
+pandas==2.2.2
+matplotlib==3.9.2
+scikit-image==0.24.0
+scikit-learn==1.5.1
+umap-learn==0.5.7
+numba==0.63.1
+Pillow==10.4.0
+imageio==2.35.1
+tqdm==4.67.1
+msgpack==1.1.2
+
+# Cellpose for segmentation (Stage 1). Pulls in PyTorch; a CUDA-capable GPU is
+# strongly recommended (segmentation.py / WEBGUI request gpu=True).
+cellpose==4.0.6
+
+# --- Optional: interactive parameter-tuning GUI (preprocess_gui.py) ----------
+napari==0.6.4
+qtpy==2.4.3
+PyQt5==5.15.10
+
+# --- Optional: browser-based preprocessing GUI (WEBGUI/) ---------------------
+Flask==3.1.3

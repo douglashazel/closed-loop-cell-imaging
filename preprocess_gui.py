@@ -888,8 +888,8 @@ IMAGE_DIR="${{GLOBAL_DIR}}/frames"
 MASK_DIR="${{GLOBAL_DIR}}/masks"
 SAVE_PATH="${{GLOBAL_DIR}}/analysis"
 
-SCRIPT1="SCRIPTS/segmentation.py"
-SCRIPT2="SCRIPTS/trajectories.py"
+SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
+SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
 
 # -----------------------------
 # CELLPOSE PARAMETERS
@@ -992,7 +992,7 @@ wait $PID1 $PID2
 # Pre-analysis plots
 # -----------------------------
 echo ">>> Running pre-analysis plots for ${{GLOBAL_DIR}}"
-python3 SCRIPTS/PreAnalysis.py \\
+python3 SCRIPTS/core_pipeline/PreAnalysis.py \\
     --exp "$GLOBAL_DIR" \\
     --analysis_dir "$SAVE_PATH"
 """
@@ -1022,7 +1022,7 @@ python3 SCRIPTS/PreAnalysis.py \\
         if self.chk_seg.isChecked():
             cmds.append((
                 "Segmentation",
-                [sys.executable, "SCRIPTS/segmentation.py",
+                [sys.executable, "SCRIPTS/core_pipeline/segmentation.py",
                  "--image_dir", s.frames_dir,
                  "--mask_dir", s.masks_dir,
                  "--flow_threshold", str(s.flow_threshold),
@@ -1034,7 +1034,7 @@ python3 SCRIPTS/PreAnalysis.py \\
         if self.chk_traj.isChecked():
             cmds.append((
                 "Trajectories",
-                [sys.executable, "SCRIPTS/trajectories.py",
+                [sys.executable, "SCRIPTS/core_pipeline/trajectories.py",
                  "--mask_dir", s.masks_dir,
                  "--image_dir", s.frames_dir,
                  "--save_path", s.save_path,
@@ -1051,7 +1051,7 @@ python3 SCRIPTS/PreAnalysis.py \\
         if self.chk_pre.isChecked():
             cmds.append((
                 "Pre-Analysis",
-                [sys.executable, "SCRIPTS/PreAnalysis.py",
+                [sys.executable, "SCRIPTS/core_pipeline/PreAnalysis.py",
                  "--exp", s.global_dir,
                  "--analysis_dir", s.save_path],
             ))

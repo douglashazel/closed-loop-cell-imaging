@@ -284,7 +284,7 @@ def build_pdf():
         # Document cover.
         add_text_page(
             pdf,
-            "April 28 Preprint Figures",
+            "Preprint Figures",
             subtitle=(
                 f"Aggregated from {len(experiments)} experiment(s): "
                 + ", ".join(e.name for e in experiments)

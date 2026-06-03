@@ -37,7 +37,7 @@ from common.stats import friedman_with_posthoc, inferential_caveat, one_sample_t
 from common.stim_helpers import compute_f0_baseline, compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
 
-sys.path.insert(0, "SCRIPTS")
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 

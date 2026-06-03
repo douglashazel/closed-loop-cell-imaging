@@ -9,11 +9,11 @@ IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
 MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
 SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
 
-SCRIPT1="SCRIPTS/segmentation.py"
-SCRIPT2="SCRIPTS/trajectories.py"
+SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
+SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
 
 # -----------------------------
-# CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
+# CELLPOSE PARAMETERS (determine using preprocess_gui.py or the WEBGUI)
 # -----------------------------
 FLOW_THRESHOLD=0.98
 CELLPROB_THRESHOLD=-6
@@ -21,7 +21,7 @@ NITER=2000
 DIAMETER=12
 
 # -----------------------------
-# TRAJECTORY PARAMETERS (determine using preprocess.ipynb)
+# TRAJECTORY PARAMETERS (determine using preprocess_gui.py or the WEBGUI)
 # -----------------------------
 MAX_DISTANCE=101
 GRACE_PERIOD=3
@@ -113,6 +113,6 @@ wait $PID1 $PID2
 # Pre-analysis plots
 # -----------------------------
 echo ">>> Running pre-analysis plots for ${GLOBAL_DIR}"
-python3 SCRIPTS/PreAnalysis.py \
+python3 SCRIPTS/core_pipeline/PreAnalysis.py \
     --exp "$GLOBAL_DIR" \
     --analysis_dir "$SAVE_PATH"

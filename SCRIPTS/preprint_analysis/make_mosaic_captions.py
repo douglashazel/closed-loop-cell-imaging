@@ -17,8 +17,8 @@ every number here matches what the figure either draws or used to draw.
 For each mosaic whose ``<OUT_ROOT>/mosaics/<name>.png`` exists, a sibling
 ``<name>.txt`` is written. Run from the repo root (where ``OUT_ROOT`` resolves):
 
-    python preprint_figures/make_mosaic_captions.py            # all saved mosaics
-    python preprint_figures/make_mosaic_captions.py nrk_chambers_dff_corr  # one
+    python SCRIPTS/preprint_analysis/make_mosaic_captions.py            # all saved mosaics
+    python SCRIPTS/preprint_analysis/make_mosaic_captions.py nrk_chambers_dff_corr  # one
 """
 import os
 import sys

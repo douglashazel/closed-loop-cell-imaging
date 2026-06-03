@@ -43,7 +43,7 @@ from common.pipeline import prepare_state
 from common.stats import inferential_caveat, mantel_test, one_sample_t_dz
 from common.stim_helpers import compute_f0_baseline
 
-sys.path.insert(0, "SCRIPTS")
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 

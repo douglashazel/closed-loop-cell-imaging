@@ -28,7 +28,7 @@ from common.responders import (
     compute_responder_thresholds,
 )
 
-sys.path.insert(0, "SCRIPTS")
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 # Responder scoring parameters (the defaults compute_responder_* already use).

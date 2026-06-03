@@ -8,10 +8,10 @@ GLOBAL_DIR="EXPERIMENTS/other/DMSO_TEST"
 IMAGE_DIR="${GLOBAL_DIR}/frames"
 MASK_DIR="${GLOBAL_DIR}/masks"
 
-SCRIPT1="SCRIPTS/segmentation.py"
+SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
 
 # -----------------------------
-# CELLPOSE PARAMETERS (determine using preprocess.ipynb or the cellpose GUI)
+# CELLPOSE PARAMETERS (determine using preprocess_gui.py or the WEBGUI)
 # -----------------------------
 FLOW_THRESHOLD=0.955
 CELLPROB_THRESHOLD=-3

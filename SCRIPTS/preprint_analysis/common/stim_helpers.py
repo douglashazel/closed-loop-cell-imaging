@@ -9,8 +9,8 @@ import numpy as np
 
 from common.time_axis import frames_to_min
 
-# io_utils lives under SCRIPTS/ at the project root.
-sys.path.insert(0, "SCRIPTS")
+# io_utils lives under SCRIPTS/core_pipeline/ at the project root.
+sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 
