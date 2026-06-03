@@ -6,13 +6,13 @@ set -euo pipefail
 # analysis cache (results/analysis_cache/) into
 # results/<experiment>/ as standalone single-axis PNGs (the four
 # responder_diagnostic figures are the multi-panel exception). Run AFTER
-# run_analysis.sh has produced the caches.
+# run_aggregate_results.sh has produced the caches.
 #
 # Rendering is fast and matplotlib's Agg backend is single-process friendly, so
 # this runs sequentially (no per-experiment workers, no thread capping).
 #
 # Run from the project root:
-#     ./run_plots.sh
+#     ./run_aggregate_plots.sh
 # =============================================================================
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────

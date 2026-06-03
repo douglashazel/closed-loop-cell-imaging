@@ -5,7 +5,7 @@ set -euo pipefail
 # ANALYSIS half of the preprint-figures pipeline: run the analyze_*.py scripts
 # to compute figure-ready intermediates and CACHE them per (experiment,
 # analysis) under results/analysis_cache/<exp>/<analysis>.pkl.
-# NO plotting happens here — render with run_plots.sh afterward.
+# NO plotting happens here — render with run_aggregate_plots.sh afterward.
 #
 # Background-correction state is cached per experiment in
 # results/bg_cache/; repeated runs hit the warm cache and are
@@ -13,7 +13,7 @@ set -euo pipefail
 # deterministic responder mask (consumers also fall back to computing it).
 #
 # Run from the project root:
-#     ./run_analysis.sh
+#     ./run_aggregate_results.sh
 # =============================================================================
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
@@ -150,4 +150,4 @@ fi
 
 echo
 echo "=== Done. Caches in results/analysis_cache/<experiment>/ ==="
-echo "    Render them with ./run_plots.sh"
+echo "    Render them with ./run_aggregate_plots.sh"

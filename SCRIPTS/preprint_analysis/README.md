@@ -3,7 +3,7 @@
 Pools the Stage-1 outputs of many experiments into the published figures,
 statistics, and multi-panel mosaics.
 
-The two driver scripts — `run_analysis.sh` and `run_plots.sh` — live at the
+The two driver scripts — `run_aggregate_results.sh` and `run_aggregate_plots.sh` — live at the
 **project root** (alongside the Stage-1 `run_*.sh`); this directory holds the
 Python they invoke. Run them from the project root (they `cd` there
 automatically regardless).
@@ -11,16 +11,16 @@ automatically regardless).
 ## Two-step flow: analyze → cache → plot
 
 ```
-run_analysis.sh ──▶ analyze_*.py ──▶ <OUT_ROOT>/analysis_cache/<exp>/<analysis>.pkl
-run_plots.sh    ──▶ make_figures.py ─▶ <OUT_ROOT>/<exp>/*.png  (+ /mosaics/*.png)
+run_aggregate_results.sh ──▶ analyze_*.py ──▶ <OUT_ROOT>/analysis_cache/<exp>/<analysis>.pkl
+run_aggregate_plots.sh   ──▶ make_figures.py ─▶ <OUT_ROOT>/<exp>/*.png  (+ /mosaics/*.png)
 ```
 
-1. **`run_analysis.sh`** runs each `analyze_<name>.py` per experiment and caches
+1. **`run_aggregate_results.sh`** runs each `analyze_<name>.py` per experiment and caches
    figure-ready intermediates. `analyze_responders.py` **must run first** (it
    produces the shared responder masks every other analysis reads); the script
    enforces this order. Background-correction state is cached per experiment so
    repeat runs are fast.
-2. **`run_plots.sh`** runs `make_figures.py`, which loads each cache and renders
+2. **`run_aggregate_plots.sh`** runs `make_figures.py`, which loads each cache and renders
    standalone PNGs plus the named mosaics. Optionally runs
    `aggregate_preprint_pdf.py` (set `AGGREGATE_PDF=true`).
 3. **`make_mosaic_captions.py`** (optional) writes a `.txt` caption beside each

@@ -19,9 +19,10 @@ The code is organized as a **two-stage workflow**:
                                       ▼  (many experiments)
                  ┌──────────────────────────────────────────────┐
                  │ STAGE 2 — detailed preprint analysis          │ ──▶ figures,
-                 │ SCRIPTS/preprint_analysis/ + run_analysis.sh, │     stats,
-                 │ run_plots.sh  (responders, dF/F0, clustering, │     mosaics
-                 │ correlation, learning scores, …)              │
+                 │ SCRIPTS/preprint_analysis/ +                  │     stats,
+                 │ run_aggregate_results.sh,                     │     mosaics
+                 │ run_aggregate_plots.sh  (responders, dF/F0,   │
+                 │ clustering, correlation, learning scores, …)  │
                  └──────────────────────────────────────────────┘
 ```
 
@@ -39,8 +40,8 @@ and statistics.
 ├── run_post_processes.sh      # Stage 1 driver: post-analysis (bg correction, dF/F0)
 ├── run_segmentation.sh        # Stage 1: segmentation only
 ├── run_trajectories.sh        # Stage 1: tracking only
-├── run_analysis.sh            # Stage 2 driver: compute + cache figure intermediates
-├── run_plots.sh               # Stage 2 driver: render figures + mosaics from caches
+├── run_aggregate_results.sh   # Stage 2 driver: compute + cache figure intermediates
+├── run_aggregate_plots.sh     # Stage 2 driver: render figures + mosaics from caches
 ├── preprocess_gui.py          # Optional napari GUI to tune parameters
 │
 ├── SCRIPTS/
@@ -53,7 +54,7 @@ and statistics.
 │   │   └── CreateGifs*.py         # optional per-cell GIF renderers (edit-then-run)
 │   │
 │   └── preprint_analysis/     # STAGE 2 code (was "preprint_figures/"); driven by
-│       │                      #   the root run_analysis.sh / run_plots.sh
+│       │                      #   the root run_aggregate_results.sh / run_aggregate_plots.sh
 │       ├── analyze_*.py           # one analysis each (responders runs first)
 │       ├── make_figures.py        # plotting orchestrator
 │       ├── make_mosaic_captions.py
@@ -172,17 +173,17 @@ Pools the Stage-1 outputs of many experiments into the published figures.
    runs first):
 
    ```bash
-   ./run_analysis.sh
+   ./run_aggregate_results.sh
    ```
 
 3. **Render** figures and mosaics from the caches:
 
    ```bash
-   ./run_plots.sh
+   ./run_aggregate_plots.sh
    ```
 
    Outputs land in `results/<experiment>/` and
-   `results/mosaics/`. Set `AGGREGATE_PDF=true` in `run_plots.sh`
+   `results/mosaics/`. Set `AGGREGATE_PDF=true` in `run_aggregate_plots.sh`
    to also build a combined PDF. Both scripts have a `CONFIG` block at the top to
    select a subset of analyses/experiments/figures.
 

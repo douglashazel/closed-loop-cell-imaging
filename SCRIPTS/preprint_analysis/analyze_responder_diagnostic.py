@@ -221,7 +221,7 @@ def _focus_by_col(cfg, ch, col_to_frame, needed_cols, n_cols):
     # Decode frames in a THREAD pool, not a process pool: PIL decode and the
     # SciPy Laplacian/variance release the GIL, so threads parallelize the work
     # without fork()ing the multi-GB analysis process — which fails with
-    # ENOMEM under strict memory overcommit when run_analysis.sh runs the
+    # ENOMEM under strict memory overcommit when run_aggregate_results.sh runs the
     # experiments concurrently. Respect the per-worker thread budget it sets;
     # fall back to the full CPU count.
     n_workers = int(os.environ.get("OMP_NUM_THREADS") or 0) or os.cpu_count() or 1
