@@ -39,6 +39,8 @@ and statistics.
 ├── run_post_processes.sh      # Stage 1 driver: post-analysis (bg correction, dF/F0)
 ├── run_segmentation.sh        # Stage 1: segmentation only
 ├── run_trajectories.sh        # Stage 1: tracking only
+├── run_analysis.sh            # Stage 2 driver: compute + cache figure intermediates
+├── run_plots.sh               # Stage 2 driver: render figures + mosaics from caches
 ├── preprocess_gui.py          # Optional napari GUI to tune parameters
 │
 ├── SCRIPTS/
@@ -50,9 +52,8 @@ and statistics.
 │   │   ├── io_utils.py            # shared msgpack/DataFrame helpers
 │   │   └── CreateGifs*.py         # optional per-cell GIF renderers (edit-then-run)
 │   │
-│   └── preprint_analysis/     # STAGE 2 code (was "preprint_figures/")
-│       ├── run_analysis.sh        # compute + cache figure intermediates
-│       ├── run_plots.sh           # render figures + mosaics from caches
+│   └── preprint_analysis/     # STAGE 2 code (was "preprint_figures/"); driven by
+│       │                      #   the root run_analysis.sh / run_plots.sh
 │       ├── analyze_*.py           # one analysis each (responders runs first)
 │       ├── make_figures.py        # plotting orchestrator
 │       ├── make_mosaic_captions.py
@@ -66,7 +67,7 @@ and statistics.
 └── environment.yml            # conda environment
 ```
 
-Input/output **data directories** (`EXPERIMENTS/`, `May29_preprint_figures/`,
+Input/output **data directories** (`EXPERIMENTS/`, `results/`,
 `gifs/`, …) are git-ignored and not redistributed — see
 [Expected data layout](#expected-data-layout).
 
@@ -171,17 +172,17 @@ Pools the Stage-1 outputs of many experiments into the published figures.
    runs first):
 
    ```bash
-   ./SCRIPTS/preprint_analysis/run_analysis.sh
+   ./run_analysis.sh
    ```
 
 3. **Render** figures and mosaics from the caches:
 
    ```bash
-   ./SCRIPTS/preprint_analysis/run_plots.sh
+   ./run_plots.sh
    ```
 
-   Outputs land in `May29_preprint_figures/<experiment>/` and
-   `May29_preprint_figures/mosaics/`. Set `AGGREGATE_PDF=true` in `run_plots.sh`
+   Outputs land in `results/<experiment>/` and
+   `results/mosaics/`. Set `AGGREGATE_PDF=true` in `run_plots.sh`
    to also build a combined PDF. Both scripts have a `CONFIG` block at the top to
    select a subset of analyses/experiments/figures.
 

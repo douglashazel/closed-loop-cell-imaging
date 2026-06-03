@@ -4,16 +4,16 @@ set -euo pipefail
 # =============================================================================
 # ANALYSIS half of the preprint-figures pipeline: run the analyze_*.py scripts
 # to compute figure-ready intermediates and CACHE them per (experiment,
-# analysis) under May29_preprint_figures/analysis_cache/<exp>/<analysis>.pkl.
+# analysis) under results/analysis_cache/<exp>/<analysis>.pkl.
 # NO plotting happens here — render with run_plots.sh afterward.
 #
 # Background-correction state is cached per experiment in
-# May29_preprint_figures/bg_cache/; repeated runs hit the warm cache and are
+# results/bg_cache/; repeated runs hit the warm cache and are
 # fast. The shared `responders` step runs first so every consumer reads one
 # deterministic responder mask (consumers also fall back to computing it).
 #
 # Run from the project root:
-#     ./SCRIPTS/preprint_analysis/run_analysis.sh
+#     ./run_analysis.sh
 # =============================================================================
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
@@ -40,9 +40,8 @@ PARALLEL=true             # run the experiments concurrently (one worker each)
 
 
 # ─────── ORCHESTRATION ───────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# This script lives at SCRIPTS/preprint_analysis/, so the project root is two up.
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# This script lives at the project root; run paths are relative to it.
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
 # `responders` runs first so the shared responders.pkl exists before consumers.
@@ -117,7 +116,7 @@ if [ "$PARALLEL" = "true" ] && [ "${#EXP_LIST[@]}" -gt 1 ]; then
            MKL_NUM_THREADS="$THREADS_PER_WORKER" \
            NUMEXPR_NUM_THREADS="$THREADS_PER_WORKER"
 
-    LOG_DIR="May29_preprint_figures/run_logs"
+    LOG_DIR="results/run_logs"
     mkdir -p "$LOG_DIR"
     echo ">>> Launching ${NWORKERS} workers (${THREADS_PER_WORKER} threads each); logs in ${LOG_DIR}/"
 
@@ -150,5 +149,5 @@ else
 fi
 
 echo
-echo "=== Done. Caches in May29_preprint_figures/analysis_cache/<experiment>/ ==="
-echo "    Render them with ./SCRIPTS/preprint_analysis/run_plots.sh"
+echo "=== Done. Caches in results/analysis_cache/<experiment>/ ==="
+echo "    Render them with ./run_plots.sh"

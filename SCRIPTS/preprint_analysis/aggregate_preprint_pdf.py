@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Aggregate every figure under ``May29_preprint_figures/<experiment>/`` into a
+Aggregate every figure under ``results/<experiment>/`` into a
 single, organized multi-page PDF.
 
 Layout
@@ -29,8 +29,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 
 
-RESULTS_DIR = Path("May29_preprint_figures")
-OUTPUT_PDF = RESULTS_DIR / "May29_preprint_figures.pdf"
+RESULTS_DIR = Path("results")
+OUTPUT_PDF = RESULTS_DIR / "preprint_figures.pdf"
 # Skip non-experiment subfolders (caches, logs, sibling SVG archive). The
 # cross-experiment "dmso_stim8_comparison" bucket is intentionally NOT skipped.
 SKIP_DIRS = {"bg_cache", "analysis_cache", "run_logs", "svg",

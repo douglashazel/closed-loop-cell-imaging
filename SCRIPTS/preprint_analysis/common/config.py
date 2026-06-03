@@ -10,7 +10,7 @@ import os
 # =============================================================================
 # Output / cache locations
 # =============================================================================
-OUT_ROOT = "May29_preprint_figures"
+OUT_ROOT = "results"
 CACHE_DIR = os.path.join(OUT_ROOT, "bg_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -37,12 +37,6 @@ PULSE_DEDUP_FRAMES = 10
 
 # Marker string in monitoring.log that identifies a stimulus event.
 ACID_ACTION = "add acidic media"
-
-# Root path for the acid-feedback PE pipeline outputs (used by the NRK
-# experiment to locate monitoring.log + luminosity_log_channelN.json).
-# Override with the PE_PIPELINE env var to point at your own copy, e.g.
-#     export PE_PIPELINE=/path/to/PE_Pipeline/V5
-PE_PIPELINE = os.environ.get("PE_PIPELINE", "PE_Pipeline/V5")
 
 
 # =============================================================================
@@ -169,7 +163,7 @@ EXPERIMENTS = {
         # NaN and fill_dead_frames() linearly interpolates over them.
         "filter_dead_frames": True,
         "bad_frames_file": (
-            "May29_preprint_figures/pc3_dmso_23MAR26/"
+            f"{OUT_ROOT}/pc3_dmso_23MAR26/"
             "PC3 bad frames light and dark.txt"
         ),
         "timestamps": {
@@ -193,11 +187,17 @@ EXPERIMENTS = {
         # this is dropped from corrected_lum/bg_trace/stim_frames before any
         # plot runs (see clip_experiments_to_time_window).
         "time_window_minutes": 30.0,
+        # Per-channel copies of the PE-pipeline hardware logs, vendored beside
+        # each channel's data so the repo is self-contained. Each monitoring.log
+        # holds both channels of its run (the log-channel number below selects
+        # one); analyze_nrk_hardware_log also reads the sibling
+        # luminosity_log_channel{N}.json, copied into the same folder.
+        # Source: PE_Pipeline/V5/resultsApril13_exp2 (1A,2B) / _exp3 (1C,2D).
         "stim_logs": {
-            "channel 1 A": (f"{PE_PIPELINE}/resultsApril13_exp2_channel1A_channel2B/monitoring.log", 1),
-            "channel 2 B": (f"{PE_PIPELINE}/resultsApril13_exp2_channel1A_channel2B/monitoring.log", 2),
-            "channel 1 C": (f"{PE_PIPELINE}/resultsApril13_exp3_channel1C_channel2D/monitoring.log", 1),
-            "channel 2 D": (f"{PE_PIPELINE}/resultsApril13_exp3_channel1C_channel2D/monitoring.log", 2),
+            "channel 1 A": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 1 A/monitoring.log", 1),
+            "channel 2 B": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 2 B/monitoring.log", 2),
+            "channel 1 C": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 1 C/monitoring.log", 1),
+            "channel 2 D": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 2 D/monitoring.log", 2),
         },
     },
 }

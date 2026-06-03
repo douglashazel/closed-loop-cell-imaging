@@ -1,8 +1,12 @@
 # Stage 2 — preprint analysis
 
 Pools the Stage-1 outputs of many experiments into the published figures,
-statistics, and multi-panel mosaics. Run **from the project root** (the shell
-scripts `cd` there automatically).
+statistics, and multi-panel mosaics.
+
+The two driver scripts — `run_analysis.sh` and `run_plots.sh` — live at the
+**project root** (alongside the Stage-1 `run_*.sh`); this directory holds the
+Python they invoke. Run them from the project root (they `cd` there
+automatically regardless).
 
 ## Two-step flow: analyze → cache → plot
 

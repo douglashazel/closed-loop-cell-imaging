@@ -3,8 +3,8 @@ set -euo pipefail
 
 # =============================================================================
 # PLOTTING half of the preprint-figures pipeline: render every figure from the
-# analysis cache (May29_preprint_figures/analysis_cache/) into
-# May29_preprint_figures/<experiment>/ as standalone single-axis PNGs (the four
+# analysis cache (results/analysis_cache/) into
+# results/<experiment>/ as standalone single-axis PNGs (the four
 # responder_diagnostic figures are the multi-panel exception). Run AFTER
 # run_analysis.sh has produced the caches.
 #
@@ -12,7 +12,7 @@ set -euo pipefail
 # this runs sequentially (no per-experiment workers, no thread capping).
 #
 # Run from the project root:
-#     ./SCRIPTS/preprint_analysis/run_plots.sh
+#     ./run_plots.sh
 # =============================================================================
 
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
@@ -44,14 +44,13 @@ EXPERIMENTS="all"
 # (c2c12 only).
 MOSAICS="c2c12_chambers_dff_stack c2c12_corr_pca_responses c2c12_learning_scores dmso_responder_overview c2c12_ch3_dff_pair nrk_chambers_hw_log nrk_chambers_dff_corr"
 
-AGGREGATE_PDF=false       # rebuild May29_preprint_figures.pdf at the end
+AGGREGATE_PDF=false       # rebuild results/preprint_figures.pdf at the end
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 # ─────── ORCHESTRATION ───────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# This script lives at SCRIPTS/preprint_analysis/, so the project root is two up.
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# This script lives at the project root; run paths are relative to it.
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
 CMD=(python3 SCRIPTS/preprint_analysis/make_figures.py --experiments)
@@ -89,4 +88,4 @@ if [ "$AGGREGATE_PDF" = "true" ]; then
 fi
 
 echo
-echo "=== Done. Figures in May29_preprint_figures/<experiment>/ ==="
+echo "=== Done. Figures in results/<experiment>/ ==="

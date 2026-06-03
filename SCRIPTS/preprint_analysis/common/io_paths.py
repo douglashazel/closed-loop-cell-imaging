@@ -32,7 +32,7 @@ def _slug(s):
 
 
 def analysis_cache_path(exp_name, analysis):
-    """Return ``May29_preprint_figures/analysis_cache/<exp>/<analysis>.pkl``.
+    """Return ``results/analysis_cache/<exp>/<analysis>.pkl``.
 
     Creates the per-experiment directory if needed.
     """
@@ -92,7 +92,7 @@ def load_analysis_cache(exp_name, analysis, *, require_version=ANALYSIS_VERSION)
 
 
 def fig_path(exp_name, name, ext="png"):
-    """Return the save path ``May29_preprint_figures/<exp_name>/<name>.<ext>``."""
+    """Return the save path ``results/<exp_name>/<name>.<ext>``."""
     out_dir = os.path.join(OUT_ROOT, exp_name)
     os.makedirs(out_dir, exist_ok=True)
     return os.path.join(out_dir, f"{_slug(name)}.{ext}")
