@@ -1,6 +1,6 @@
 # Data directories (not redistributed; see README "Expected data layout")
 EXPERIMENTS
-MISCELLANEOUS/*
+MISCELLANEOUS
 _cellpose_temp
 
 # Generated outputs / caches
@@ -13,6 +13,10 @@ __pycache__
 # WEBGUI runtime artifacts (regenerated on launch)
 WEBGUI/tmp/
 WEBGUI/session.json
+
+# CLOSED_LOOP pipeline runtime artifacts (regenerated on launch; not redistributed)
+CLOSED_LOOP/config.json
+resultsApril*/
 
 # Extensions
 *.gif

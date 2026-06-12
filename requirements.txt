@@ -29,3 +29,11 @@ PyQt5==5.15.10
 
 # --- Optional: browser-based preprocessing GUI (WEBGUI/) ---------------------
 Flask==3.1.3
+
+# --- Optional: live closed-loop microscopy/perturbation pipeline (CLOSED_LOOP/) -
+# Reuses napari/cellpose/qtpy/PyQt5/Pillow/scipy/matplotlib above; these are the
+# only additional dependencies (magicgui ships with napari; requests drives the
+# ONIX hardware HTTP API; tomlkit reads/writes the decision actions.toml).
+tomlkit==0.13.3
+requests==2.32.3
+magicgui==0.10.1

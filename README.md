@@ -30,6 +30,12 @@ Run **Stage 1** on each experiment to turn raw frames into per-cell fluorescence
 traces; then run **Stage 2** to pool many experiments into the published figures
 and statistics.
 
+The raw frames are produced upstream by a separate **live closed-loop acquisition
++ perturbation system** (`CLOSED_LOOP/`), published here alongside the analysis
+code. It is optional and hardware-dependent (napari + Cellpose GPU + an ONIX
+microscopy controller) and is **not required to reproduce the figures** — see
+[CLOSED_LOOP/README.md](CLOSED_LOOP/README.md).
+
 ---
 
 ## Repository layout
@@ -63,6 +69,7 @@ and statistics.
 │       ├── common/                # shared config + analysis library
 │       └── plots/                 # figure render modules
 │
+├── CLOSED_LOOP/               # Live closed-loop microscopy + ONIX perturbation (napari; optional, hardware)
 ├── WEBGUI/                    # Optional browser GUI for parameter tuning (Flask)
 ├── requirements.txt           # pip dependencies
 └── environment.yml            # conda environment
@@ -189,6 +196,34 @@ Pools the Stage-1 outputs of many experiments into the published figures.
 
 See [SCRIPTS/preprint_analysis/README.md](SCRIPTS/preprint_analysis/README.md)
 for the analysis → cache → plot contract.
+
+---
+
+## Live closed-loop microscopy / perturbation pipeline
+
+`CLOSED_LOOP/` is the **live acquisition + feedback system** that generated the
+acid-feedback experiments analysed above. A napari GUI watches incoming microscope
+frames, segments cells with Cellpose, measures per-cell fluorescence, and drives an
+**ONIX hardware controller** (over HTTP) to dose acidic / neutral media in a closed
+loop. It is **optional and hardware-dependent** — it needs a CUDA GPU and a
+networked ONIX2 server — and is **not required to reproduce the figures**.
+
+```bash
+python CLOSED_LOOP/LaunchNapari.py     # napari "Closed-Loop Bio-Control Hub"
+```
+
+The GUI bootstraps `CLOSED_LOOP/config.json`, lets you set the run parameters, and
+starts/stops the pipeline (`run_system.sh`, which launches the segmentation,
+decision, ONIX-actuation, and monitoring daemons). All paths derive from a single
+`global_path` in `CLOSED_LOOP/config.py`; edit it (and the ONIX endpoint /
+experiment templates) before first use.
+
+See [CLOSED_LOOP/README.md](CLOSED_LOOP/README.md) for file roles, the data-flow
+contract, configuration knobs, and hardware/security notes.
+
+> ⚠️ **Security:** `CLOSED_LOOP/` issues HTTP requests that create and run
+> experiments on networked lab hardware, and the GUI spawns subprocesses. Point it
+> only at hardware you control, on a trusted network.
 
 ---
 
