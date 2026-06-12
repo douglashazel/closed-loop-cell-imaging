@@ -16,6 +16,7 @@ WEBGUI/session.json
 
 # CLOSED_LOOP pipeline runtime artifacts (regenerated on launch; not redistributed)
 CLOSED_LOOP/config.json
+CLOSED_LOOP_V2/config.json
 resultsApril*/
 
 # Extensions
