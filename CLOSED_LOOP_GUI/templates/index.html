@@ -9,15 +9,14 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body data-theme="dark" data-accent="teal" data-layout="split">
+<body data-theme="dark" data-accent="blue" data-layout="tabs">
 
 <div class="app">
   <!-- ============================== TOPBAR ============================== -->
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark" aria-hidden="true"></div>
       <span>Bio-Control Hub</span>
-      <small>Closed-Loop System · v6</small>
+      <small>Closed-Loop System</small>
     </div>
 
     <nav>
@@ -36,10 +35,6 @@
 
     <button class="icon-btn" id="btn-theme" title="Toggle theme">
       <svg id="ic-theme" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-    </button>
-
-    <button class="icon-btn" id="btn-tweaks" title="Tweaks">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
   </header>
 
@@ -83,56 +78,34 @@
 
           <div class="pipeline-diagram" id="pipeline-diagram">
             <div class="stage active" data-stage="watch">
-              <div class="stage-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              </div>
               <div class="stage-label">01 · Ingest</div>
               <div class="stage-title">Watch</div>
               <div class="stage-desc">Poll <code>watch_dir</code> for new TIFFs</div>
               <div class="stage-meta"><b id="m-watch">—</b></div>
             </div>
             <div class="stage" data-stage="segment">
-              <div class="stage-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
-              </div>
               <div class="stage-label">02 · Segment</div>
               <div class="stage-title">Cellpose</div>
               <div class="stage-desc">Instance masks per channel</div>
               <div class="stage-meta"><b id="m-segment">—</b></div>
             </div>
             <div class="stage" data-stage="decide">
-              <div class="stage-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4"/><path d="M9 11l2 2 4-4"/></svg>
-              </div>
               <div class="stage-label">03 · Decide</div>
               <div class="stage-title">Luminosity Δ</div>
               <div class="stage-desc">Compare against reference mask</div>
               <div class="stage-meta"><b id="m-decide">—</b></div>
             </div>
             <div class="stage" data-stage="onix">
-              <div class="stage-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 0-8 8"/><path d="M20 12h-5M20 12l-3-3M20 12l-3 3"/></svg>
-              </div>
               <div class="stage-label">04 · Actuate</div>
               <div class="stage-title">ONIX</div>
               <div class="stage-desc">Switch experiment template</div>
               <div class="stage-meta">exp <b id="m-onix">—</b></div>
             </div>
             <div class="stage" data-stage="media">
-              <div class="stage-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 22v-6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M2 12h6M22 12h-6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/></svg>
-              </div>
               <div class="stage-label">05 · Effect</div>
               <div class="stage-title">Media</div>
               <div class="stage-desc">Neutral · Acidic · Basic</div>
               <div class="stage-meta"><b id="m-media">—</b></div>
-            </div>
-
-            <!-- Flowing particles (purely decorative) -->
-            <div class="flow-particles" aria-hidden="true">
-              <span class="particle" style="animation-delay: 0s"></span>
-              <span class="particle" style="animation-delay: 1.1s"></span>
-              <span class="particle" style="animation-delay: 2.2s"></span>
             </div>
           </div>
 
@@ -387,19 +360,19 @@
 
         <div class="card">
           <div class="card-head">
-            <h2>Pulse Timeline <span class="chip">last 30 min</span></h2>
-            <div class="sub">30s bins · 60 bins</div>
+            <h2>Pulse Timeline <span class="chip">last 2 hr</span></h2>
+            <div class="sub">30s bins · 240 bins</div>
           </div>
           <div class="card-body">
             <div id="timeline-ch1">
               <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">CH1</div>
               <div class="timeline" id="tl-ch1"></div>
-              <div class="timeline-labels"><span>−30 min</span><span>−15 min</span><span>now</span></div>
+              <div class="timeline-labels"><span>−2 hr</span><span>−1 hr</span><span>now</span></div>
             </div>
             <div style="margin-top: 16px;" id="timeline-ch2">
               <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">CH2</div>
               <div class="timeline" id="tl-ch2"></div>
-              <div class="timeline-labels"><span>−30 min</span><span>−15 min</span><span>now</span></div>
+              <div class="timeline-labels"><span>−2 hr</span><span>−1 hr</span><span>now</span></div>
             </div>
           </div>
         </div>
@@ -422,63 +395,12 @@
           <div class="card-head">
             <h2>Luminosity Plot <span class="chip">luminosity_log_channel*.json</span></h2>
             <div style="display:flex; gap:8px;">
-              <button class="btn" id="btn-toggle-lumi-mode">Use rendered plot</button>
               <button class="btn btn-primary" id="btn-refresh-lumi">Refresh</button>
             </div>
           </div>
           <div class="card-body" style="display: flex; flex-direction: column; gap: 12px;">
-            <!-- CH1 trace -->
-            <div class="lumi-panel">
-              <div class="lumi-head">
-                <span class="lumi-title"><span class="lumi-dot" style="background: var(--accent)"></span> CH1</span>
-                <span class="lumi-meta">setpoint <b id="lumi-sp-1">—</b> · thr ±<span id="lumi-thr-1">—</span></span>
-              </div>
-              <svg viewBox="0 0 600 120" style="width:100%; height:auto; border:1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle);">
-                <g stroke="var(--border)" stroke-width="0.5">
-                  <line x1="44" x2="590" y1="30" y2="30"/>
-                  <line x1="44" x2="590" y1="60" y2="60" stroke-dasharray="2 3" opacity="0.6"/>
-                  <line x1="44" x2="590" y1="90" y2="90"/>
-                </g>
-                <rect x="44" y="42" width="546" height="36" fill="color-mix(in oklab, var(--accent) 10%, transparent)" opacity="0.5"/>
-                <polyline id="trace-ch1" fill="none" stroke="var(--accent)" stroke-width="1.6" points=""/>
-                <g font-family="IBM Plex Mono" font-size="9" fill="var(--text-faint)">
-                  <text x="6" y="33">0.195</text>
-                  <text x="6" y="63">0.185</text>
-                  <text x="6" y="93">0.175</text>
-                </g>
-                <g font-family="IBM Plex Mono" font-size="9" fill="var(--text-faint)">
-                  <text x="44" y="114">−30m</text>
-                  <text x="294" y="114">−15m</text>
-                  <text x="564" y="114">now</text>
-                </g>
-              </svg>
-            </div>
-
-            <!-- CH2 trace -->
-            <div class="lumi-panel">
-              <div class="lumi-head">
-                <span class="lumi-title"><span class="lumi-dot" style="background: var(--amber)"></span> CH2</span>
-                <span class="lumi-meta">setpoint <b id="lumi-sp-2">—</b> · thr ±<span id="lumi-thr-2">—</span></span>
-              </div>
-              <svg viewBox="0 0 600 120" style="width:100%; height:auto; border:1px solid var(--border); border-radius: var(--radius); background: var(--bg-subtle);">
-                <g stroke="var(--border)" stroke-width="0.5">
-                  <line x1="44" x2="590" y1="30" y2="30"/>
-                  <line x1="44" x2="590" y1="60" y2="60" stroke-dasharray="2 3" opacity="0.6"/>
-                  <line x1="44" x2="590" y1="90" y2="90"/>
-                </g>
-                <rect x="44" y="42" width="546" height="36" fill="color-mix(in oklab, var(--amber) 10%, transparent)" opacity="0.5"/>
-                <polyline id="trace-ch2" fill="none" stroke="var(--amber)" stroke-width="1.6" points=""/>
-                <g font-family="IBM Plex Mono" font-size="9" fill="var(--text-faint)">
-                  <text x="6" y="33">0.222</text>
-                  <text x="6" y="63">0.212</text>
-                  <text x="6" y="93">0.202</text>
-                </g>
-                <g font-family="IBM Plex Mono" font-size="9" fill="var(--text-faint)">
-                  <text x="44" y="114">−30m</text>
-                  <text x="294" y="114">−15m</text>
-                  <text x="564" y="114">now</text>
-                </g>
-              </svg>
+            <div id="lumi-image-wrap" style="display:flex; justify-content:center;">
+              <img id="lumi-image" alt="Luminosity plot" style="max-width:100%; border:1px solid var(--border); border-radius: var(--radius); background: #fff;"/>
             </div>
           </div>
         </div>
@@ -507,7 +429,7 @@
           <div class="card-body" style="display:grid; grid-template-columns: 1fr 1fr; gap: 24px;">
             <div>
               <p style="margin: 0 0 12px; font-family: var(--font-serif); font-size: 20px; line-height: 1.35; color: var(--text); font-style: italic;">
-                A live microscope feeds cell images into a pipeline that decides — every few seconds — whether to pulse acidic media at the dish.
+                Frames arrive in <code>watch_dir</code>, get segmented by Cellpose, decisions are computed against the reference mask, and ONIX switches media on the matching channel.
               </p>
               <p style="font-size: 13px; color: var(--text-dim); line-height: 1.65;">
                 Five Python processes run in parallel, coordinated through shared directories on disk. <code>HandleSegmentations.py</code> segments frames with Cellpose; <code>CreateDecisions.py</code> compares live masked luminosity against a reference; <code>SendDecisions.py</code> drives ONIX to switch experiment templates.
@@ -600,40 +522,6 @@
         </div>
       </div>
     </aside>
-  </div>
-</div>
-
-<!-- ============================== TWEAKS PANEL ============================== -->
-<div class="tweaks" id="tweaks">
-  <div class="tweaks-head">
-    <h4>Tweaks</h4>
-    <button class="icon-btn" id="btn-tweaks-close" style="width: 24px; height: 24px;">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-    </button>
-  </div>
-  <div class="tweaks-body">
-    <div class="tweak-row">
-      <div class="k">Theme</div>
-      <div class="seg-group" data-key="theme">
-        <button data-val="light" class="on">Light</button>
-        <button data-val="dark">Dark</button>
-      </div>
-    </div>
-    <div class="tweak-row">
-      <div class="k">Layout</div>
-      <div class="seg-group" data-key="layout">
-        <button data-val="split" class="on">Split</button>
-        <button data-val="tabs">Tabs only</button>
-      </div>
-    </div>
-    <div class="tweak-row">
-      <div class="k">Accent</div>
-      <div class="swatch-row" data-key="accent">
-        <div class="swatch on" data-val="teal" title="Teal"></div>
-        <div class="swatch" data-val="indigo" title="Indigo"></div>
-        <div class="swatch" data-val="amber" title="Amber"></div>
-      </div>
-    </div>
   </div>
 </div>
 

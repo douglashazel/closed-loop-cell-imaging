@@ -9,16 +9,20 @@ const $ = (id) => document.getElementById(id);
 // Tweaks (theme / layout / accent) — persists via Composer host when hosted,
 // falls back to localStorage when running under Flask.
 // -----------------------------------------------------------------------------
-const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+// Fixed defaults: tabs-only layout, pastel light-blue accent. Only the theme
+// (light/dark) is user-toggleable now, via the topbar button.
+const TWEAK_DEFAULTS = {
   "theme": "dark",
-  "layout": "split",
-  "accent": "teal"
-}/*EDITMODE-END*/;
+  "layout": "tabs",
+  "accent": "blue"
+};
 
 function loadTweaks() {
   try {
-    const stored = localStorage.getItem('biohub.tweaks');
-    if (stored) return { ...TWEAK_DEFAULTS, ...JSON.parse(stored) };
+    const stored = localStorage.getItem('biohub.theme');
+    if (stored === 'light' || stored === 'dark') {
+      return { ...TWEAK_DEFAULTS, theme: stored };
+    }
   } catch (e) {}
   return { ...TWEAK_DEFAULTS };
 }
@@ -26,28 +30,13 @@ function loadTweaks() {
 const tweakState = loadTweaks();
 
 function persistTweaks() {
-  try { localStorage.setItem('biohub.tweaks', JSON.stringify(tweakState)); } catch (e) {}
-  try {
-    window.parent.postMessage(
-      { type: '__edit_mode_set_keys', edits: { ...tweakState } }, '*'
-    );
-  } catch (e) {}
+  try { localStorage.setItem('biohub.theme', tweakState.theme); } catch (e) {}
 }
 
 function applyTweaks() {
   document.body.setAttribute('data-theme', tweakState.theme);
   document.body.setAttribute('data-layout', tweakState.layout);
   document.body.setAttribute('data-accent', tweakState.accent);
-  document.querySelectorAll('.seg-group').forEach(g => {
-    const k = g.dataset.key;
-    g.querySelectorAll('button').forEach(b =>
-      b.classList.toggle('on', b.dataset.val === tweakState[k]));
-  });
-  document.querySelectorAll('.swatch-row').forEach(r => {
-    const k = r.dataset.key;
-    r.querySelectorAll('.swatch').forEach(s =>
-      s.classList.toggle('on', s.dataset.val === tweakState[k]));
-  });
 }
 
 function setTweak(key, val) {
@@ -56,31 +45,8 @@ function setTweak(key, val) {
   persistTweaks();
 }
 
-document.querySelectorAll('.seg-group').forEach(g => {
-  g.addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    setTweak(g.dataset.key, b.dataset.val);
-  });
-});
-document.querySelectorAll('.swatch-row').forEach(r => {
-  r.addEventListener('click', e => {
-    const s = e.target.closest('.swatch'); if (!s) return;
-    setTweak(r.dataset.key, s.dataset.val);
-  });
-});
-
-const tweaksEl = $('tweaks');
-$('btn-tweaks').addEventListener('click', () => tweaksEl.classList.toggle('on'));
-$('btn-tweaks-close').addEventListener('click', () => tweaksEl.classList.remove('on'));
 $('btn-theme').addEventListener('click', () =>
   setTweak('theme', tweakState.theme === 'light' ? 'dark' : 'light'));
-
-window.addEventListener('message', (e) => {
-  const d = e.data || {};
-  if (d.type === '__activate_edit_mode') tweaksEl.classList.add('on');
-  if (d.type === '__deactivate_edit_mode') tweaksEl.classList.remove('on');
-});
-try { window.parent.postMessage({ type: '__edit_mode_available' }, '*'); } catch (e) {}
 
 applyTweaks();
 
@@ -97,23 +63,20 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // -----------------------------------------------------------------------------
-// Pipeline diagram: cycle an "active" stage for the aura effect while running
+// Pipeline diagram: highlight each stage's border for 1s, stepping left→right
+// and looping. Runs continuously (independent of pipeline run state).
 // -----------------------------------------------------------------------------
 const stageIds = ['watch', 'segment', 'decide', 'onix', 'media'];
 let stageIdx = 0;
 let pipelineRunning = false;
 
 function advanceStage() {
-  if (!pipelineRunning) {
-    document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
-    return;
-  }
   document.querySelectorAll('.stage').forEach(s => s.classList.remove('active'));
   const s = document.querySelector(`.stage[data-stage="${stageIds[stageIdx]}"]`);
   if (s) s.classList.add('active');
   stageIdx = (stageIdx + 1) % stageIds.length;
 }
-setInterval(advanceStage, 1100);
+setInterval(advanceStage, 1000);
 
 // -----------------------------------------------------------------------------
 // Start / Stop buttons + status pill (driven by real pipeline status poll)
@@ -298,11 +261,44 @@ function readyCount(map) {
   return [ok, keys.length];
 }
 
+// Per-dot hover copy explaining what each color means for that component.
+const STRIP_TIPS = {
+  'strip-config': {
+    ok: 'Healthy — config.json is present and loaded.',
+    bad: 'Missing — config.json not found. Set the Global Data Path and save.',
+  },
+  'strip-watch': {
+    ok: 'Healthy — watch_dir exists and is readable.',
+    bad: 'Not found — watch_dir does not exist. Check the Global Data Path.',
+  },
+  'strip-frame0': {
+    ok: 'Healthy — frame 0 has arrived for every channel.',
+    warn: 'Partial — frame 0 present for some channels but not all.',
+    bad: 'Waiting — no frame 0 images in watch_dir yet.',
+  },
+  'strip-masks': {
+    ok: 'Healthy — a reference mask has been pushed for every channel.',
+    warn: 'Partial — reference mask pushed for some channels but not all.',
+    bad: 'Not pushed — no reference masks yet. Push one from the Segmentation tab.',
+  },
+  'strip-onix': {
+    ok: 'Healthy — connected to the ONIX device.',
+    bad: 'No connection to the ONIX device. Check the ONIX server IP / port.',
+  },
+  'strip-pipeline': {
+    ok: 'Healthy — the pipeline is running.',
+    warn: 'Stopped — the pipeline is not running.',
+    bad: 'Stopped — the pipeline is not running.',
+  },
+};
+
 function setStripDot(id, state) {
   const el = $(id);
   if (!el) return;
   el.classList.remove('ok', 'warn', 'bad');
   el.classList.add(state);
+  const tips = STRIP_TIPS[id];
+  if (tips) el.dataset.tip = tips[state] || '';
 }
 
 function renderReadinessStrip(r) {
@@ -653,8 +649,8 @@ function pushStateHistory(ch) {
     h.push({ t: Date.now() / 1000, state: ch.state });
     stateHistory.set(ch.id, h);
   }
-  // Prune entries older than 30 minutes
-  const cutoff = Date.now() / 1000 - 30 * 60;
+  // Prune entries older than the timeline window (2 hours)
+  const cutoff = Date.now() / 1000 - 120 * 60;
   stateHistory.set(ch.id, h.filter(e => e.t >= cutoff));
 }
 
@@ -662,12 +658,12 @@ function renderTimeline(containerId, chId) {
   const wrap = $(containerId);
   if (!wrap) return;
   wrap.innerHTML = '';
-  const N = 60;
+  const N = 240;                 // 240 × 30s bins = 2 hours
   const now = Date.now() / 1000;
-  const start = now - 30 * 60;
+  const start = now - 120 * 60;
   const history = stateHistory.get(chId) || [];
   for (let i = 0; i < N; i++) {
-    const bucketT = start + (i / N) * 30 * 60;
+    const bucketT = start + (i / N) * 120 * 60;
     const seg = document.createElement('div');
     seg.className = 'timeline-seg';
     // Find state at bucketT: last transition before or equal to bucketT
@@ -684,13 +680,8 @@ function renderTimeline(containerId, chId) {
 }
 
 // -----------------------------------------------------------------------------
-// Luminosity traces (SVG). Two modes:
-//   A) "live svg" — we read recent records from the JSON logs via a tiny endpoint
-//      (not present in the backend yet) OR derive from media-status stub.
-//   B) "rendered plot" — fall back to the /api/luminosity-plot.png.
-// For V6.1 we default to mode B since that endpoint already exists, and offer
-// a toggle to show the PNG inside the card. The inline SVGs render a live
-// sparkline from recent media-status.
+// Luminosity plot — always the rendered matplotlib figure (/api/luminosity-plot.png).
+// recentLumi is still tracked to feed the rail sparkline.
 // -----------------------------------------------------------------------------
 const recentLumi = new Map(); // ch id -> [value, ...] last N ticks
 
@@ -701,52 +692,11 @@ function pushLumi(ch, v) {
   recentLumi.set(ch, arr);
 }
 
-function renderTrace(polyId, chId, setpoint) {
-  const line = document.getElementById(polyId);
-  if (!line) return;
-  const arr = recentLumi.get(chId) || [];
-  if (arr.length < 2) { line.setAttribute('points', ''); return; }
-  const halfRange = 0.010;
-  const pts = [];
-  for (let i = 0; i < arr.length; i++) {
-    const t = i / Math.max(1, arr.length - 1);
-    const x = 44 + t * (590 - 44);
-    const y = 60 - ((arr[i] - setpoint) / halfRange) * 30;
-    pts.push(`${x.toFixed(1)},${Math.max(2, Math.min(118, y)).toFixed(1)}`);
-  }
-  line.setAttribute('points', pts.join(' '));
-}
-
-// Render a fallback image-mode toggle
-let lumiImageMode = false;
-$('btn-toggle-lumi-mode').addEventListener('click', () => {
-  lumiImageMode = !lumiImageMode;
-  $('btn-toggle-lumi-mode').textContent = lumiImageMode
-    ? 'Use inline trace' : 'Use rendered plot';
-  refreshLumi();
-});
 $('btn-refresh-lumi').addEventListener('click', refreshLumi);
 
 function refreshLumi() {
-  const panels = document.querySelectorAll('.lumi-panel');
-  // Find or create a single <img id="lumi-image"> that replaces the inline SVGs
-  // when in image mode.
-  let container = document.getElementById('lumi-image-wrap');
-  if (lumiImageMode) {
-    panels.forEach(p => p.style.display = 'none');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'lumi-image-wrap';
-      container.style.cssText = 'display:flex; justify-content:center;';
-      container.innerHTML = `<img id="lumi-image" alt="Luminosity plot" style="max-width:100%; border:1px solid var(--border); border-radius: var(--radius); background: #fff;"/>`;
-      panels[panels.length - 1].parentNode.appendChild(container);
-    }
-    container.style.display = 'flex';
-    $('lumi-image').src = `/api/luminosity-plot.png?t=${Date.now()}`;
-  } else {
-    panels.forEach(p => p.style.display = '');
-    if (container) container.style.display = 'none';
-  }
+  const img = $('lumi-image');
+  if (img) img.src = `/api/luminosity-plot.png?t=${Date.now()}`;
 }
 
 // -----------------------------------------------------------------------------
@@ -1023,13 +973,6 @@ async function pollAll() {
   renderTimeline('tl-ch1', 1);
   renderTimeline('tl-ch2', 2);
   renderRailSpark();
-  // Setpoint values drive the luminosity trace baselines
-  const sp1Input = document.getElementById('sp-ch-1');
-  const sp2Input = document.getElementById('sp-ch-2');
-  const sp1 = sp1Input ? parseFloat(sp1Input.value) || 0.185 : 0.185;
-  const sp2 = sp2Input ? parseFloat(sp2Input.value) || 0.212 : 0.212;
-  renderTrace('trace-ch1', 1, sp1);
-  renderTrace('trace-ch2', 2, sp2);
 }
 
 setInterval(pollAll, 1000);
@@ -1045,4 +988,5 @@ setInterval(pollAll, 1000);
   await pollFrames();
   await pollReadiness();
   await pollLuminosity();
+  refreshLumi();
 })();

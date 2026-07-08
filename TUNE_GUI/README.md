@@ -1,4 +1,4 @@
-# WEBGUI — browser-based parameter tuning (optional)
+# TUNE_GUI — browser-based parameter tuning (optional)
 
 A Flask single-page app for interactively tuning Stage-1 parameters (Cellpose
 preview, ROI, frame-shift, Delaunay max-distance) and launching the core

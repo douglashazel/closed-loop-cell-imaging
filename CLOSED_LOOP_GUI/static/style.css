@@ -12,11 +12,13 @@
     --text-muted: #6b7280;
     --text-faint: #9aa1ab;
 
-    /* Accent — teal lab-instrument */
-    --accent: #0f766e;
-    --accent-hover: #0b5d56;
-    --accent-tint: #e6f4f1;
-    --accent-ring: rgba(15,118,110,.18);
+    /* Accent — pastel light blue */
+    --accent: #3b9fe0;
+    --accent-hover: #2b86c4;
+    --accent-tint: #e8f4fc;
+    --accent-ring: rgba(59,159,224,.2);
+    /* Fixed dark ink for text sitting on the (light) accent fill */
+    --accent-ink: #0b2540;
 
     /* Semantic */
     --green: #16a34a;
@@ -56,10 +58,11 @@
     --text-muted: #8a93a0;
     --text-faint: #616b78;
 
-    --accent: #2dd4bf;
-    --accent-hover: #5eead4;
-    --accent-tint: #0c2623;
-    --accent-ring: rgba(45,212,191,.25);
+    --accent: #7dd3fc;
+    --accent-hover: #a5e0fd;
+    --accent-tint: #0c2233;
+    --accent-ring: rgba(125,211,252,.28);
+    --accent-ink: #06263b;
 
     --green: #22c55e;
     --green-tint: #0f2418;
@@ -314,11 +317,11 @@
     color: var(--text-dim); margin-bottom: 10px;
   }
   .stage-label {
-    font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.01em;
     text-transform: uppercase; color: var(--text-muted);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
   }
-  .stage-title { font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+  .stage-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.01em; }
   .stage-desc { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
   .stage-meta {
     margin-top: auto;
@@ -347,47 +350,6 @@
   @keyframes stage-ring {
     0% { transform: scale(1); opacity: .6; }
     100% { transform: scale(1.5); opacity: 0; }
-  }
-
-  /* Connector arrows between stages */
-  .stage::after {
-    content: "";
-    position: absolute; right: -10px; top: 50%; transform: translateY(-50%);
-    width: 10px; height: 2px;
-    background: var(--border-strong);
-    z-index: 1;
-  }
-  .stage::before {
-    content: "";
-    position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
-    width: 0; height: 0;
-    border-left: 6px solid var(--border-strong);
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    z-index: 1;
-  }
-  .stage:last-child::after, .stage:last-child::before { display: none; }
-
-  /* Flowing particles */
-  .flow-particles {
-    position: absolute; inset: 0; pointer-events: none;
-    overflow: visible;
-  }
-  .particle {
-    position: absolute;
-    top: 60px; /* centered vertically on stage icon */
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent), 0 0 2px rgba(255,255,255,.8);
-    offset-path: path("M 0 0 L 1000 0");
-    animation: flow 3.2s linear infinite;
-    opacity: 0;
-  }
-  @keyframes flow {
-    0% { left: 0%; opacity: 0; }
-    5% { opacity: 1; }
-    95% { opacity: 1; }
-    100% { left: 100%; opacity: 0; }
   }
 
   .hero-stats {
@@ -425,7 +387,7 @@
   .btn:hover { background: var(--bg-subtle); border-color: var(--border-strong); }
   .btn:active { transform: translateY(0.5px); }
   .btn-primary {
-    background: var(--accent); color: #fff;
+    background: var(--accent); color: var(--accent-ink);
     border-color: color-mix(in oklab, var(--accent) 85%, black);
     box-shadow: 0 1px 0 rgba(255,255,255,.15) inset, var(--shadow-sm);
   }
@@ -905,6 +867,30 @@ body[data-theme="dark"] .seg-img.seg-mask { mix-blend-mode: screen; }
 .status-dot.ok   { background: var(--green); box-shadow: 0 0 0 2px var(--green-ring); }
 .status-dot.warn { background: #d97706;       box-shadow: 0 0 0 2px rgba(217,119,6,.2); }
 .status-dot.bad  { background: var(--red);   box-shadow: 0 0 0 2px var(--red-ring); }
+
+/* Hover info-card explaining what each readiness dot's color means */
+.status-dot[data-tip] { cursor: help; position: relative; }
+.status-dot[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; top: calc(100% + 9px); left: 0;
+  background: #1a1e24; color: #e7eaee;
+  font-family: var(--font-sans); font-size: 11.5px; font-weight: 400;
+  line-height: 1.5; text-align: left;
+  padding: 8px 10px; border-radius: 6px;
+  width: max-content; max-width: 240px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.28);
+  opacity: 0; pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity .15s, transform .15s;
+  z-index: 200;
+}
+.status-dot[data-tip]::before {
+  content: ""; position: absolute; top: calc(100% + 3px); left: 3px;
+  border: 5px solid transparent; border-bottom-color: #1a1e24;
+  opacity: 0; transition: opacity .15s; pointer-events: none; z-index: 200;
+}
+.status-dot[data-tip]:hover::after { opacity: 1; transform: translateY(0); }
+.status-dot[data-tip]:hover::before { opacity: 1; }
 
 /* ---- Per-channel mask chips (Segmentation tab) -------------------------- */
 .mask-chip-row {
