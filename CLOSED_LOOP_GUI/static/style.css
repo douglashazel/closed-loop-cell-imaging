@@ -17,8 +17,8 @@
     --accent-hover: #2b86c4;
     --accent-tint: #e8f4fc;
     --accent-ring: rgba(59,159,224,.2);
-    /* Fixed dark ink for text sitting on the (light) accent fill */
-    --accent-ink: #0b2540;
+    /* Text sitting on the accent fill — white in light mode */
+    --accent-ink: #ffffff;
 
     /* Semantic */
     --green: #16a34a;
