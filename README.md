@@ -31,10 +31,10 @@ traces; then run **Stage 2** to pool many experiments into the published figures
 and statistics.
 
 The raw frames are produced upstream by a separate **live closed-loop acquisition
-+ perturbation system** (`CLOSED_LOOP/`), published here alongside the analysis
-code. It is optional and hardware-dependent (napari + Cellpose GPU + an ONIX
-microscopy controller) and is **not required to reproduce the figures** — see
-[CLOSED_LOOP/README.md](CLOSED_LOOP/README.md).
++ perturbation system** (`CLOSED_LOOP_GUI/`), published here alongside the analysis
+code. It is optional and hardware-dependent (a Flask web GUI + Cellpose GPU + an
+ONIX microscopy controller) and is **not required to reproduce the figures** — see
+[CLOSED_LOOP_GUI/README.md](CLOSED_LOOP_GUI/README.md).
 
 ---
 
@@ -69,8 +69,8 @@ microscopy controller) and is **not required to reproduce the figures** — see
 │       ├── common/                # shared config + analysis library
 │       └── plots/                 # figure render modules
 │
-├── CLOSED_LOOP/               # Live closed-loop microscopy + ONIX perturbation (napari; optional, hardware)
-├── WEBGUI/                    # Optional browser GUI for parameter tuning (Flask)
+├── CLOSED_LOOP_GUI/           # Live closed-loop microscopy + ONIX perturbation (Flask web GUI; optional, hardware)
+├── TUNE_GUI/                  # Optional browser GUI for parameter tuning (Flask)
 ├── requirements.txt           # pip dependencies
 └── environment.yml            # conda environment
 ```
@@ -133,7 +133,7 @@ experiment. Stage 2's experiment registry lives in
 
 1. **(Optional) Tune parameters** for a new experiment with either GUI:
    - napari: `python preprocess_gui.py`
-   - browser: `python WEBGUI/app.py` → http://localhost:5001 (see [WEBGUI/README.md](WEBGUI/README.md))
+   - browser: `python TUNE_GUI/app.py` → http://localhost:5001 (see [TUNE_GUI/README.md](TUNE_GUI/README.md))
 
    Determine the Cellpose params (`flow_threshold`, `cellprob_threshold`,
    `niter`, `diameter`) and tracking params (`max_distance`, frame shift, ROI
@@ -201,40 +201,40 @@ for the analysis → cache → plot contract.
 
 ## Live closed-loop microscopy / perturbation pipeline
 
-`CLOSED_LOOP/` is the **live acquisition + feedback system** that generated the
-acid-feedback experiments analysed above. A napari GUI watches incoming microscope
+`CLOSED_LOOP_GUI/` is the **live acquisition + feedback system** that generated the
+acid-feedback experiments analysed above. A Flask web GUI watches incoming microscope
 frames, segments cells with Cellpose, measures per-cell fluorescence, and drives an
 **ONIX hardware controller** (over HTTP) to dose acidic / neutral media in a closed
 loop. It is **optional and hardware-dependent** — it needs a CUDA GPU and a
 networked ONIX2 server — and is **not required to reproduce the figures**.
 
 ```bash
-python CLOSED_LOOP/LaunchNapari.py     # napari "Closed-Loop Bio-Control Hub"
+python CLOSED_LOOP_GUI/LaunchWebGUI.py   # Flask "Closed-Loop Bio-Control Hub" on http://localhost:5000
 ```
 
-The GUI bootstraps `CLOSED_LOOP/config.json`, lets you set the run parameters, and
+The GUI bootstraps `CLOSED_LOOP_GUI/config.json`, lets you set the run parameters, and
 starts/stops the pipeline (`run_system.sh`, which launches the segmentation,
 decision, ONIX-actuation, and monitoring daemons). All paths derive from a single
-`global_path` in `CLOSED_LOOP/config.py`; edit it (and the ONIX endpoint /
+`global_path` in `CLOSED_LOOP_GUI/config.py`; edit it (and the ONIX endpoint /
 experiment templates) before first use.
 
-See [CLOSED_LOOP/README.md](CLOSED_LOOP/README.md) for file roles, the data-flow
+See [CLOSED_LOOP_GUI/README.md](CLOSED_LOOP_GUI/README.md) for file roles, the data-flow
 contract, configuration knobs, and hardware/security notes.
 
-> ⚠️ **Security:** `CLOSED_LOOP/` issues HTTP requests that create and run
+> ⚠️ **Security:** `CLOSED_LOOP_GUI/` issues HTTP requests that create and run
 > experiments on networked lab hardware, and the GUI spawns subprocesses. Point it
 > only at hardware you control, on a trusted network.
 
 ---
 
-## Optional: WEBGUI
+## Optional: TUNE_GUI
 
-`WEBGUI/` is a Flask app for interactively tuning Stage-1 parameters and
+`TUNE_GUI/` is a Flask app for interactively tuning Stage-1 parameters and
 launching the pipeline from a browser. It is a **development tool, not part of
 the published analysis** — the figures are fully reproducible from the shell
 scripts above.
 
-> ⚠️ **Security:** the WebGUI binds `0.0.0.0:5001` and launches subprocesses with
+> ⚠️ **Security:** the tuning GUI binds `0.0.0.0:5001` and launches subprocesses with
 > user-supplied paths. Run it only on `localhost` or a trusted machine; do **not**
 > expose it to an untrusted network.
 
