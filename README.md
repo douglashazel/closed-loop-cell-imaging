@@ -7,6 +7,22 @@ cells under repeated stimulation.
 > **TODO (authors):** add a 1–2 paragraph scientific summary of the study, the
 > imaging modalities (e.g. voltage/calcium indicators), and a link to the preprint.
 
+## Authors
+
+Patrick Erickson¹, Douglas Hazel¹, Ramses Martinez², Kostyantyn Shcherbina²,
+Susan Marquez², Thomas Ferrante², Hananel Hazan¹, Katarina Johnson¹,
+Angelina Pimkina¹, Juanita Mathews¹, Adama Sesay², Michael Levin¹˒²
+
+1. Allen Discovery Center at Tufts University, Medford, Massachusetts, USA
+2. Wyss Institute for Biologically Inspired Engineering, Harvard University, Boston, Massachusetts, USA
+
+### Software authorship & contact
+
+The analysis and closed-loop code in this repository was written by
+**Douglas Hazel**, with contributions from **Hananel Hazan**. For questions
+about the code, please open a GitHub issue or contact Douglas Hazel
+(douglas.hazel@tufts.edu).
+
 The code is organized as a **two-stage workflow**:
 
 ```
@@ -250,3 +266,6 @@ OSI-approved license (e.g. MIT or BSD-3-Clause) before public release.
 
 **TODO:** Add the preprint citation (and a `CITATION.cff`) once a DOI is
 available.
+
+For the software specifically, please cite this repository and contact
+Douglas Hazel (douglas.hazel@tufts.edu).
