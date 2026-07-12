@@ -47,7 +47,7 @@ sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 
-PIXELS_PER_UM = 180.1  # imaging calibration: 0.00555 μm/pixel
+PIXELS_PER_UM = 1.801  # imaging calibration: 0.555 μm/pixel
 MIN_FRAMES_FOR_CORR = 5
 METHODS = ("pearson", "spearman")
 WINDOW_LABEL = "full dF/F0 time series"
