@@ -256,12 +256,6 @@ scripts above.
 
 ---
 
-## License
-
-**TODO:** No license has been chosen yet. Until a `LICENSE` file is added, the
-code is "all rights reserved" by default and cannot be reused by others. Add an
-OSI-approved license (e.g. MIT or BSD-3-Clause) before public release.
-
 ## Citation
 
 **TODO:** Add the preprint citation (and a `CITATION.cff`) once a DOI is
