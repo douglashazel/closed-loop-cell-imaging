@@ -139,10 +139,6 @@ experiment. Stage 2's experiment registry lives in
 [`SCRIPTS/preprint_analysis/common/config.py`](SCRIPTS/preprint_analysis/common/config.py)
 (`EXPERIMENTS` dict: data dir, channels, stim schedule, timestamps, masks).
 
-> **TODO (authors):** state where the raw imaging data is deposited (e.g.
-> Zenodo / figshare / BioImage Archive) and link it, so others can reproduce the
-> figures.
-
 ---
 
 ## Stage 1 — core per-experiment pipeline
