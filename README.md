@@ -4,8 +4,35 @@ Segmentation, single-cell tracking, fluorescence extraction, and downstream
 statistical/figure analysis for time-lapse fluorescence microscopy of cultured
 cells under repeated stimulation.
 
-> **TODO (authors):** add a 1–2 paragraph scientific summary of the study, the
-> imaging modalities (e.g. voltage/calcium indicators), and a link to the preprint.
+## About the study
+
+Cells have a remarkable ability to adapt to the perturbations we impose on them —
+often faster than mutation and selection can explain — producing challenges such
+as drug resistance and transgene silencing. Accumulating evidence suggests that
+this adaptation resembles classical forms of learning defined in behavioral
+science, motivating the idea that **training techniques can be brought to bear as
+a complementary approach for controlling cell physiology**. This project supports
+a device that runs automated training experiments on non-neural mammalian cells,
+using timed drug pulses as the stimulus and a moving fluorescence microscope to
+image responses across replicate cultures. The device operates in either a
+feedforward or feedback-controlled (closed-loop) manner, and the analysis code in
+this repository reports the behavior of individual cells throughout each
+experiment and characterizes population heterogeneity.
+
+Two experiments are showcased. First, repeated pulses of DMSO produce
+**sensitization-like behavior in the calcium response** of myoblast cells. Second,
+the device maintains the **fluorescence of kidney cells carrying a pH/voltage
+reporter** within a specified range by administering pulses of acidic medium in a
+closed loop. The imaging modalities are therefore a calcium indicator (myoblast
+experiment) and a genetically encoded pH/voltage reporter (kidney experiment).
+Stage 1 of the pipeline segments, tracks, and extracts per-cell fluorescence
+(dF/F0) from the raw frames; Stage 2 pools many experiments into the published
+figures and statistics (responders, clustering, correlation, learning scores).
+The device schematics and software are shared openly to accelerate research on
+cell training, learning, and memory.
+
+> **TODO (authors):** add a link to the preprint once a DOI is available (see also
+> the [Citation](#citation) section).
 
 ## Authors
 
