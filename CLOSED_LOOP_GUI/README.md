@@ -90,10 +90,10 @@ config in the web UI) before first use. Key knobs:
   control PC.
 - `decision_key` — media-action → integer mapping.
 
-> **TODO (authors):** before public release, replace the machine-specific defaults
-> in `config.py` (`global_path`, `onix_server_ip`/`port`, `experiment_templates`)
-> and the default values in `config.json` / `templates/index.html` with
-> placeholders or environment variables, and scrub identifying values.
+> **Note:** the shipped defaults in `config.py` / `templates/index.html`
+> (`global_path`, `onix_server_ip`/`port`, `experiment_templates`) are
+> non-identifying placeholders (e.g. the `192.0.2.10` documentation IP). Replace
+> them with your own machine's values before first use.
 
 ## ⚠️ Security / hardware
 
