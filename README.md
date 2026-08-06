@@ -1,4 +1,4 @@
-# Cell Analysis Pipeline
+# Cell Analysis Pipeline - Cell Trainer
 
 Segmentation, single-cell tracking, fluorescence extraction, and downstream
 statistical/figure analysis for time-lapse fluorescence microscopy of cultured
