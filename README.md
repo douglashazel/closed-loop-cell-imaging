@@ -53,19 +53,19 @@ about the code, please open a GitHub issue or contact Douglas Hazel
 The code is organized as a **two-stage workflow**:
 
 ```
-                 ┌──────────────────────────────────────────────┐
+                 ┌───────────────────────────────────────────────┐
   raw frames ──▶ │ STAGE 1 — core per-experiment pipeline        │ ──▶ per-cell
   (microscope)   │ SCRIPTS/core_pipeline/ + run_*.sh             │     fluorescence,
                  │ segment → track → pre-analysis → post-analysis│     dF/F0, plots
-                 └──────────────────────────────────────────────┘
+                 └───────────────────────────────────────────────┘
                                       │
                                       ▼  (many experiments)
                  ┌──────────────────────────────────────────────┐
-                 │ STAGE 2 — detailed preprint analysis          │ ──▶ figures,
-                 │ SCRIPTS/preprint_analysis/ +                  │     stats,
-                 │ run_aggregate_results.sh,                     │     mosaics
-                 │ run_aggregate_plots.sh  (responders, dF/F0,   │
-                 │ clustering, correlation, learning scores, …)  │
+                 │ STAGE 2 — detailed preprint analysis         │ ──▶ figures,
+                 │ SCRIPTS/preprint_analysis/ +                 │     stats,
+                 │ run_aggregate_results.sh,                    │     mosaics
+                 │ run_aggregate_plots.sh  (responders, dF/F0,  │
+                 │ clustering, correlation, learning scores, …) │
                  └──────────────────────────────────────────────┘
 ```
 
