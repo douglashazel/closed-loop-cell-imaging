@@ -131,7 +131,7 @@ Python 3.12. Either conda (recommended, for napari/Cellpose) or pip:
 ```bash
 # conda
 conda env create -f environment.yml
-conda activate cell_analysis
+conda activate cell_trainer
 
 # or pip (into a fresh venv)
 pip install -r requirements.txt

@@ -1,10 +1,10 @@
 # Conda environment for the cell-analysis pipeline.
 # Create with:  conda env create -f environment.yml
-# Activate with: conda activate cell_analysis
+# Activate with: conda activate cell_trainer
 #
 # Versions mirror a known-good Python 3.12 environment. cellpose, umap-learn,
 # msgpack and the optional GUIs are installed via pip (last section).
-name: cell_analysis
+name: cell_trainer
 channels:
   - conda-forge
   - defaults
