@@ -37,8 +37,8 @@ cell training, learning, and memory.
 ## Authors
 
 Patrick Erickson¹, Douglas Hazel¹, Ramses Martinez², Kostyantyn Shcherbina²,
-Susan Marquez², Thomas Ferrante², Hananel Hazan¹, Katarina Johnson¹,
-Angelina Pimkina¹, Juanita Mathews¹, Adama Sesay², Michael Levin¹˒²
+Susan Marquez², Thomas Ferrante², Katarina Johnson¹, Angelina Pimkina¹,
+Hananel Hazan¹, Juanita Mathews¹, Adama Sesay², Michael Levin¹˒²
 
 1. Allen Discovery Center at Tufts University, Medford, Massachusetts, USA
 2. Wyss Institute for Biologically Inspired Engineering, Harvard University, Boston, Massachusetts, USA
