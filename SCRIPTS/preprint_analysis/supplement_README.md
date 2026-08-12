@@ -4,6 +4,10 @@ Processed single-cell time series, Cellpose segmentation masks, and the
 metadata needed to reproduce the secondary analyses in the accompanying
 manuscript, for each of the 8 CellASIC chambers featured in the paper.
 
+This bundle ships inside the analysis repository, at `supplement/`, so it
+arrives with the code that produced it — no separate download, and the version
+of the data always matches the version of the analysis scripts beside it.
+
 The raw microscope frames (~100 GB) are not redistributed. **Everything in the
 manuscript downstream of segmentation can still be reproduced from this
 bundle** — see [Reproducing the analyses](#reproducing-the-analyses).
@@ -128,17 +132,21 @@ redistribute.
 
 `load_supplement.py` (included) rebuilds the analysis pipeline's internal state
 from these tables, so the repository's analysis scripts run unchanged without
-the raw frames. From the analysis repository root, with this bundle at
-`results/supplement_export/`:
+the raw frames. `supplement/` is the default location, so from the repository
+root, after installing the environment (see the top-level `README.md`):
 
 ```bash
 python SCRIPTS/preprint_analysis/load_supplement.py \
-    --root results/supplement_export \
     --analyses responders dff average_peak correlation_distance \
                clustering response_violins learning_scores
 
 ./run_aggregate_plots.sh        # render the figures
 ```
+
+Pass `--root <path>` only if you moved the bundle elsewhere. Analyses write
+their caches to `results/analysis_cache/`; add `--analysis-cache-dir <path>` to
+write them somewhere else instead (useful for a side-by-side comparison against
+a run made from the raw frames).
 
 This reproduces the responder classification, dF/F0 traces, per-stimulus peak
 analysis, PCA/UMAP embeddings, correlation-vs-distance and Mantel tests,

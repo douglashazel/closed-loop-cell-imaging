@@ -1,4 +1,4 @@
-# Data directories (not redistributed; see README "Expected data layout")
+# Data directories
 EXPERIMENTS
 MISCELLANEOUS
 _cellpose_temp
@@ -14,7 +14,7 @@ __pycache__
 TUNE_GUI/tmp/
 TUNE_GUI/session.json
 
-# CLOSED_LOOP_GUI pipeline runtime artifacts (regenerated on launch; not redistributed)
+# CLOSED_LOOP_GUI pipeline runtime artifacts (regenerated on launch)
 CLOSED_LOOP_GUI/config.json
 resultsApril*/
 
@@ -27,3 +27,6 @@ resultsApril*/
 *.svg
 *.pyc
 *.log
+
+# Published supplementary data bundle
+!supplement/**

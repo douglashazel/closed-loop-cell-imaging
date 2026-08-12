@@ -1,0 +1,821 @@
+[
+ {
+  "frame": 0,
+  "channel": 1,
+  "mean_luminosity": 61.0389,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 1,
+  "channel": 1,
+  "mean_luminosity": 60.7586,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 2,
+  "channel": 1,
+  "mean_luminosity": 60.7257,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 3,
+  "channel": 1,
+  "mean_luminosity": 60.6853,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 4,
+  "channel": 1,
+  "mean_luminosity": 60.728,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 5,
+  "channel": 1,
+  "mean_luminosity": 60.4591,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 6,
+  "channel": 1,
+  "mean_luminosity": 60.8913,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 7,
+  "channel": 1,
+  "mean_luminosity": 60.3342,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 8,
+  "channel": 1,
+  "mean_luminosity": 60.6996,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 9,
+  "channel": 1,
+  "mean_luminosity": 60.5685,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 10,
+  "channel": 1,
+  "mean_luminosity": 60.4946,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 11,
+  "channel": 1,
+  "mean_luminosity": 60.5257,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 12,
+  "channel": 1,
+  "mean_luminosity": 60.5881,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 13,
+  "channel": 1,
+  "mean_luminosity": 60.6982,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 14,
+  "channel": 1,
+  "mean_luminosity": 60.4753,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 15,
+  "channel": 1,
+  "mean_luminosity": 60.6577,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 16,
+  "channel": 1,
+  "mean_luminosity": 60.6942,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 17,
+  "channel": 1,
+  "mean_luminosity": 60.7695,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 18,
+  "channel": 1,
+  "mean_luminosity": 60.7402,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 19,
+  "channel": 1,
+  "mean_luminosity": 60.6944,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 20,
+  "channel": 1,
+  "mean_luminosity": 60.6043,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 21,
+  "channel": 1,
+  "mean_luminosity": 60.3912,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 22,
+  "channel": 1,
+  "mean_luminosity": 60.6489,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 23,
+  "channel": 1,
+  "mean_luminosity": 60.4639,
+  "setpoint": 122.0779,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 24,
+  "channel": 1,
+  "mean_luminosity": 60.314,
+  "setpoint": 60.2,
+  "decision": "add acidic media"
+ },
+ {
+  "frame": 25,
+  "channel": 1,
+  "mean_luminosity": 60.3976,
+  "setpoint": 60.2,
+  "decision": "add acidic media"
+ },
+ {
+  "frame": 26,
+  "channel": 1,
+  "mean_luminosity": 59.6925,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 27,
+  "channel": 1,
+  "mean_luminosity": 58.6753,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 28,
+  "channel": 1,
+  "mean_luminosity": 58.3038,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 29,
+  "channel": 1,
+  "mean_luminosity": 58.637,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 30,
+  "channel": 1,
+  "mean_luminosity": 58.7743,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 31,
+  "channel": 1,
+  "mean_luminosity": 59.427,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 32,
+  "channel": 1,
+  "mean_luminosity": 59.2488,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 33,
+  "channel": 1,
+  "mean_luminosity": 59.147,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 34,
+  "channel": 1,
+  "mean_luminosity": 59.7579,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 35,
+  "channel": 1,
+  "mean_luminosity": 59.8992,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 36,
+  "channel": 1,
+  "mean_luminosity": 59.78,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 37,
+  "channel": 1,
+  "mean_luminosity": 59.5619,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 38,
+  "channel": 1,
+  "mean_luminosity": 59.8536,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 39,
+  "channel": 1,
+  "mean_luminosity": 59.987,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 40,
+  "channel": 1,
+  "mean_luminosity": 59.7978,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 41,
+  "channel": 1,
+  "mean_luminosity": 60.333,
+  "setpoint": 60.2,
+  "decision": "add acidic media"
+ },
+ {
+  "frame": 42,
+  "channel": 1,
+  "mean_luminosity": 60.0623,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 43,
+  "channel": 1,
+  "mean_luminosity": 59.0663,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 44,
+  "channel": 1,
+  "mean_luminosity": 57.6121,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 45,
+  "channel": 1,
+  "mean_luminosity": 57.807,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 46,
+  "channel": 1,
+  "mean_luminosity": 58.0173,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 47,
+  "channel": 1,
+  "mean_luminosity": 58.5608,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 48,
+  "channel": 1,
+  "mean_luminosity": 58.817,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 49,
+  "channel": 1,
+  "mean_luminosity": 58.7155,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 50,
+  "channel": 1,
+  "mean_luminosity": 58.9078,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 51,
+  "channel": 1,
+  "mean_luminosity": 58.99,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 52,
+  "channel": 1,
+  "mean_luminosity": 59.3663,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 53,
+  "channel": 1,
+  "mean_luminosity": 59.2401,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 54,
+  "channel": 1,
+  "mean_luminosity": 59.2327,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 55,
+  "channel": 1,
+  "mean_luminosity": 59.5418,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 56,
+  "channel": 1,
+  "mean_luminosity": 59.58,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 57,
+  "channel": 1,
+  "mean_luminosity": 59.5018,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 58,
+  "channel": 1,
+  "mean_luminosity": 59.6099,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 59,
+  "channel": 1,
+  "mean_luminosity": 59.5392,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 60,
+  "channel": 1,
+  "mean_luminosity": 59.6096,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 61,
+  "channel": 1,
+  "mean_luminosity": 59.4494,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 62,
+  "channel": 1,
+  "mean_luminosity": 59.8968,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 63,
+  "channel": 1,
+  "mean_luminosity": 59.8953,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 64,
+  "channel": 1,
+  "mean_luminosity": 59.5048,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 65,
+  "channel": 1,
+  "mean_luminosity": 59.9105,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 66,
+  "channel": 1,
+  "mean_luminosity": 60.0513,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 67,
+  "channel": 1,
+  "mean_luminosity": 59.5223,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 68,
+  "channel": 1,
+  "mean_luminosity": 59.9052,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 69,
+  "channel": 1,
+  "mean_luminosity": 59.8548,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 70,
+  "channel": 1,
+  "mean_luminosity": 59.9934,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 71,
+  "channel": 1,
+  "mean_luminosity": 59.6908,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 72,
+  "channel": 1,
+  "mean_luminosity": 59.7738,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 73,
+  "channel": 1,
+  "mean_luminosity": 59.8423,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 74,
+  "channel": 1,
+  "mean_luminosity": 59.8392,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 75,
+  "channel": 1,
+  "mean_luminosity": 59.7555,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 76,
+  "channel": 1,
+  "mean_luminosity": 59.8851,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 77,
+  "channel": 1,
+  "mean_luminosity": 59.7886,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 78,
+  "channel": 1,
+  "mean_luminosity": 59.7348,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 79,
+  "channel": 1,
+  "mean_luminosity": 59.8349,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 80,
+  "channel": 1,
+  "mean_luminosity": 59.9469,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 81,
+  "channel": 1,
+  "mean_luminosity": 59.8177,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 82,
+  "channel": 1,
+  "mean_luminosity": 59.9233,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 83,
+  "channel": 1,
+  "mean_luminosity": 59.7864,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 84,
+  "channel": 1,
+  "mean_luminosity": 59.882,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 85,
+  "channel": 1,
+  "mean_luminosity": 59.8304,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 86,
+  "channel": 1,
+  "mean_luminosity": 59.9111,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 87,
+  "channel": 1,
+  "mean_luminosity": 59.6925,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 88,
+  "channel": 1,
+  "mean_luminosity": 59.822,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 89,
+  "channel": 1,
+  "mean_luminosity": 59.7582,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 90,
+  "channel": 1,
+  "mean_luminosity": 59.8169,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 91,
+  "channel": 1,
+  "mean_luminosity": 59.8182,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 92,
+  "channel": 1,
+  "mean_luminosity": 59.9015,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 93,
+  "channel": 1,
+  "mean_luminosity": 59.5208,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 94,
+  "channel": 1,
+  "mean_luminosity": 59.8223,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 95,
+  "channel": 1,
+  "mean_luminosity": 59.9498,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 96,
+  "channel": 1,
+  "mean_luminosity": 59.7216,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 97,
+  "channel": 1,
+  "mean_luminosity": 59.5189,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 98,
+  "channel": 1,
+  "mean_luminosity": 59.6534,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 99,
+  "channel": 1,
+  "mean_luminosity": 59.6887,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 100,
+  "channel": 1,
+  "mean_luminosity": 59.8711,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 101,
+  "channel": 1,
+  "mean_luminosity": 59.7554,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 102,
+  "channel": 1,
+  "mean_luminosity": 59.6723,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 103,
+  "channel": 1,
+  "mean_luminosity": 59.857,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 104,
+  "channel": 1,
+  "mean_luminosity": 59.7708,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 105,
+  "channel": 1,
+  "mean_luminosity": 59.4831,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 106,
+  "channel": 1,
+  "mean_luminosity": 59.747,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 107,
+  "channel": 1,
+  "mean_luminosity": 59.6431,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 108,
+  "channel": 1,
+  "mean_luminosity": 59.7588,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 109,
+  "channel": 1,
+  "mean_luminosity": 59.4005,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 110,
+  "channel": 1,
+  "mean_luminosity": 59.678,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 111,
+  "channel": 1,
+  "mean_luminosity": 59.6749,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 112,
+  "channel": 1,
+  "mean_luminosity": 59.8685,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 113,
+  "channel": 1,
+  "mean_luminosity": 59.4702,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 114,
+  "channel": 1,
+  "mean_luminosity": 59.6174,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 115,
+  "channel": 1,
+  "mean_luminosity": 59.6329,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ },
+ {
+  "frame": 116,
+  "channel": 1,
+  "mean_luminosity": 59.8025,
+  "setpoint": 60.2,
+  "decision": "add neutral media"
+ }
+]

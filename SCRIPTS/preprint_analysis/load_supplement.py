@@ -13,7 +13,7 @@ Typical use, from the project root::
 
     # rebuild state and run the secondary analyses from the exported tables
     python SCRIPTS/preprint_analysis/load_supplement.py \
-        --root results/supplement_export \
+        --root supplement \
         --analyses responders dff clustering learning_scores
 
     # then render figures as usual
@@ -22,7 +22,7 @@ Typical use, from the project root::
 Or programmatically::
 
     import load_supplement
-    experiments, state = load_supplement.load_state("results/supplement_export")
+    experiments, state = load_supplement.load_state("supplement")
 
 Analyses that additionally need the raw images (``responder_diagnostic``'s
 frame-sharpness panel, and the frame mosaics) cannot be reproduced from this
@@ -129,7 +129,7 @@ def _load_chamber(root, entry):
     return meta, corrected, traj, bg_trace, bg_min, frame_minutes_src
 
 
-def load_state(root="results/supplement_export", experiments=None):
+def load_state(root="supplement", experiments=None):
     """Return ``(experiments_cfg, state)`` rebuilt from the bundle at ``root``.
 
     ``experiments_cfg`` is a deep copy of ``common.config.EXPERIMENTS`` holding
@@ -192,7 +192,7 @@ def load_state(root="results/supplement_export", experiments=None):
 # =============================================================================
 # running the analyses off the bundle
 # =============================================================================
-def install(root="results/supplement_export"):
+def install(root="supplement"):
     """Monkeypatch ``prepare_state`` so ``analyze_*.py`` read the bundle.
 
     Patches ``common.pipeline`` and any ``analyze_*`` module already imported
@@ -241,7 +241,7 @@ def _run(analyses, root, cache_dir):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--root", default="results/supplement_export")
+    ap.add_argument("--root", default="supplement")
     ap.add_argument(
         "--analyses", nargs="+", default=RUNNABLE,
         help=f"subset of: {' '.join(RUNNABLE)}",

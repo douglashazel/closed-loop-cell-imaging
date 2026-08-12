@@ -1,0 +1,69 @@
+{
+  "EXPORT_VERSION": 1,
+  "chambers": [
+    {
+      "chamber": "C2C12_A",
+      "experiment": "c2c12_dmso_09APR26",
+      "channel": "channel 1",
+      "cell_line": "C2C12",
+      "n_cells_analyzed": 185,
+      "n_frames_analyzed": 553
+    },
+    {
+      "chamber": "C2C12_B",
+      "experiment": "c2c12_dmso_09APR26",
+      "channel": "channel 2",
+      "cell_line": "C2C12",
+      "n_cells_analyzed": 276,
+      "n_frames_analyzed": 553
+    },
+    {
+      "chamber": "C2C12_C",
+      "experiment": "c2c12_dmso_09APR26",
+      "channel": "channel 3",
+      "cell_line": "C2C12",
+      "n_cells_analyzed": 232,
+      "n_frames_analyzed": 553
+    },
+    {
+      "chamber": "PC3",
+      "experiment": "pc3_dmso_23MAR26",
+      "channel": "channel 1",
+      "cell_line": "PC-3",
+      "n_cells_analyzed": 338,
+      "n_frames_analyzed": 1952
+    },
+    {
+      "chamber": "NRK_A",
+      "experiment": "nrk_acid_13APR26",
+      "channel": "channel 1 A",
+      "cell_line": "NRK",
+      "n_cells_analyzed": 64,
+      "n_frames_analyzed": 94
+    },
+    {
+      "chamber": "NRK_B",
+      "experiment": "nrk_acid_13APR26",
+      "channel": "channel 2 B",
+      "cell_line": "NRK",
+      "n_cells_analyzed": 76,
+      "n_frames_analyzed": 94
+    },
+    {
+      "chamber": "NRK_C",
+      "experiment": "nrk_acid_13APR26",
+      "channel": "channel 1 C",
+      "cell_line": "NRK",
+      "n_cells_analyzed": 59,
+      "n_frames_analyzed": 93
+    },
+    {
+      "chamber": "NRK_D",
+      "experiment": "nrk_acid_13APR26",
+      "channel": "channel 2 D",
+      "cell_line": "NRK",
+      "n_cells_analyzed": 42,
+      "n_frames_analyzed": 93
+    }
+  ]
+}
