@@ -112,6 +112,8 @@ ONIX microscopy controller) and is **not required to reproduce the figures** —
 │       ├── common/                # shared config + analysis library
 │       └── plots/                 # figure render modules
 │
+├── supplement/                # PUBLISHED supplementary data (8 chambers, tracked in git)
+│
 ├── CLOSED_LOOP_GUI/           # Live closed-loop microscopy + ONIX perturbation (Flask web GUI; optional, hardware)
 ├── TUNE_GUI/                  # Optional browser GUI for parameter tuning (Flask)
 ├── requirements.txt           # pip dependencies
@@ -120,7 +122,9 @@ ONIX microscopy controller) and is **not required to reproduce the figures** —
 
 Input/output **data directories** (`EXPERIMENTS/`, `results/`,
 `gifs/`, …) are git-ignored and not redistributed — see
-[Expected data layout](#expected-data-layout).
+[Expected data layout](#expected-data-layout). The one exception is
+`supplement/`, the published supplementary data bundle, which **is** tracked
+here — see [Supplementary data](#supplementary-data).
 
 ---
 
@@ -235,6 +239,43 @@ Pools the Stage-1 outputs of many experiments into the published figures.
 
 See [SCRIPTS/preprint_analysis/README.md](SCRIPTS/preprint_analysis/README.md)
 for the analysis → cache → plot contract.
+
+---
+
+## Supplementary data
+
+The processed single-cell data behind the manuscript is published **in this
+repository** under [`supplement/`](supplement/) (~89 MB), covering all 8
+CellASIC chambers in the paper. Per chamber it contains raw and
+background-corrected fluorescence tables, dF/F0, cell-position tracks, the
+per-frame background and time axis, the frame-0 Cellpose masks, and a
+`metadata.json` recording the stimulus schedule, F₀ window, and response window.
+
+The raw microscope frames (~100 GB) are **not** redistributed. They are only
+needed for Stage 1 (segmentation and tracking); everything the manuscript
+reports downstream of segmentation is reproducible from the bundle alone:
+
+```bash
+python SCRIPTS/preprint_analysis/load_supplement.py \
+    --analyses responders dff average_peak correlation_distance \
+               clustering response_violins learning_scores
+
+./run_aggregate_plots.sh        # render the figures
+```
+
+`load_supplement.py` rebuilds the Stage-2 pipeline state from the exported
+tables, so the `analyze_*.py` scripts run unchanged without the raw frames. Two
+things cannot be reproduced from the bundle because they read the images
+directly: the frame-sharpness panel of the responder diagnostic, and the frame
+mosaics.
+
+See [`supplement/README.md`](supplement/README.md) for the full column-by-column
+description, the chamber table, and notes on reading the label masks.
+Integrity: `cd supplement && sha256sum -c CHECKSUMS.sha256`.
+
+Maintainers regenerate the bundle with
+`python SCRIPTS/preprint_analysis/export_supplement.py` (writes `supplement/`);
+this requires the raw experiment tree and the warm `results/bg_cache/` pickles.
 
 ---
 

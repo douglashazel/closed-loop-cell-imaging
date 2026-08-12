@@ -3,7 +3,7 @@
 
 Writes, for each of the 8 CellASIC chambers featured in the paper, a
 self-contained bundle of CSV/NPZ/JSON files under
-``results/supplement_export/<CHAMBER>/``:
+``supplement/<CHAMBER>/``:
 
     <CHAMBER>_fluorescence_raw.csv          all segmented cells x all frames,
                                             uncorrected ROI mean intensity
@@ -27,7 +27,7 @@ them -- see ``load_supplement.py``.
 
 This script is read-only with respect to every existing pipeline output: it
 reads the warm ``results/bg_cache/`` pickles and writes only under
-``results/supplement_export/``.
+``supplement/``.
 
 Run from the project root:
 
@@ -57,7 +57,7 @@ sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import load_msgpack, lum_dict_to_df  # noqa: E402
 
 
-DEFAULT_OUT = os.path.join("results", "supplement_export")
+DEFAULT_OUT = "supplement"
 
 # Public chamber name for each (experiment, internal channel). The letters are
 # the chamber labels used in the manuscript; the internal channel strings are

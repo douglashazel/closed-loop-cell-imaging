@@ -37,6 +37,35 @@ analyses / experiments / figures / mosaics.
 - `plots/` — figure render modules (one per analysis) + `mosaics.py`.
 - `figures_spec.py`, `style.py` — figure metadata and the locked figure style.
 
+## Supplementary data bundle
+
+Two scripts publish and consume the per-chamber data bundle at `supplement/`
+(tracked in git; see the top-level `README.md`):
+
+- `export_supplement.py` — **maintainers only.** Writes `supplement/` from the
+  warm `results/bg_cache/` pickles: raw + background-corrected fluorescence,
+  dF/F0, cell positions, background, time axis, frame-0 masks, and a
+  `metadata.json` per chamber, plus `index.json` and `CHECKSUMS.sha256`. It is
+  read-only with respect to every existing pipeline output. Requires the raw
+  experiment tree.
+- `load_supplement.py` — **third parties.** Rebuilds the Stage-2 `state` dict
+  from the exported tables and monkeypatches `common.pipeline.prepare_state`, so
+  the `analyze_*.py` scripts run unchanged without the ~100 GB of raw frames:
+
+  ```bash
+  python SCRIPTS/preprint_analysis/load_supplement.py \
+      --analyses responders dff average_peak correlation_distance \
+                 clustering response_violins learning_scores
+  ./run_aggregate_plots.sh
+  ```
+
+  `responder_diagnostic` (frame-sharpness panel) and `mosaics` read the images
+  directly and are skipped with a notice. Both scripts share an
+  `EXPORT_VERSION` constant; the loader refuses a bundle it does not recognise.
+
+`supplement_README.md` is the bundle's own documentation — `export_supplement.py`
+copies it to `supplement/README.md`, so **edit it here**, not in `supplement/`.
+
 ## Notes
 
 - Imports of `common`/`plots` resolve via `sys.path` inserts computed from each
