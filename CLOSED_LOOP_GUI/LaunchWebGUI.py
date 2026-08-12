@@ -1,7 +1,7 @@
 """
 Flask-based web GUI for the Closed-Loop Bio-Control Pipeline.
 
-Replaces LaunchNapari.py. Serves a single-page HTML dashboard on port 5000
+Serves a single-page HTML dashboard on port 5000
 with the same Pipeline / Segmentation / Log controls. Intended for access
 via SSH port-forward:
 
@@ -60,7 +60,7 @@ _FILENAME_RE = re.compile(r"channel_(\d+).*timepoint_(\d+)\.png$", re.IGNORECASE
 
 
 # ---------------------------------------------------------------------------
-# Helpers (file lookup, image/mask loading) — lifted from LaunchNapari
+# Helpers (file lookup, image/mask loading)
 # ---------------------------------------------------------------------------
 def _load_cfg():
     return load_config(_CONFIG_PATH)
@@ -163,9 +163,8 @@ def api_get_config():
 def api_save_config():
     """Rebuild config from posted fields and save to config.json.
 
-    Mirrors LaunchNapari._save_config: uses build_config() to regenerate
-    derived paths when global_path changes, then save_config() to ensure
-    directories and write the file atomically via the stdlib pattern."""
+    Uses build_config() to regenerate derived paths when global_path changes, 
+    then save_config() to ensure directories and write the file atomically via the stdlib pattern."""
     body = request.get_json(force=True) or {}
     global_path = body.get("global_path") or _load_cfg().get("global_path")
 
@@ -364,8 +363,7 @@ def api_luminosity():
 def api_log_tail():
     """Seek monitoring.log from byte offset ?pos=N and return new text.
 
-    Matches LaunchNapari._update_log semantics exactly: client keeps the
-    last returned position and passes it back on the next poll."""
+    Cclient keeps the last returned position and passes it back on the next poll."""
     cfg = _load_cfg()
     log_path = cfg.get("log_path") or os.path.join(cfg["global_path"], "monitoring.log")
     pos = int(request.args.get("pos", 0))
@@ -622,7 +620,7 @@ def _get_cellpose_model():
 
 def _segmentation_worker(img_path, channel, frame, mask_dir, temp_overlays,
                          diameter, flow_threshold, cellprob_threshold, niter):
-    """Cellpose worker — lifted from LaunchNapari._segmentation_worker."""
+    """Cellpose worker"""
     global seg_status
     try:
         from cellpose import io as cpio, utils
@@ -682,10 +680,7 @@ def api_segmentation_status():
 
 @app.route("/api/segmentation/update-masks", methods=["POST"])
 def api_segmentation_update_masks():
-    """Copy mask_dir/{frame}_channel{ch}.npy -> curr_mask_dir/00000_channel{ch}.npy.
-
-    Mirrors LaunchNapari._update_masks — the signal that unblocks
-    CreateDecisions.py."""
+    """Copy mask_dir/{frame}_channel{ch}.npy -> curr_mask_dir/00000_channel{ch}.npy."""
     body = request.get_json(force=True) or {}
     channel = int(body.get("channel", 1))
     frame = int(body.get("frame", 0))

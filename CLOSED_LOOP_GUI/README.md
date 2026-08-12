@@ -1,4 +1,4 @@
-# CLOSED_LOOP_V2 — live closed-loop microscopy / perturbation pipeline (web GUI)
+# CLOSED_LOOP_GUI — live closed-loop microscopy / perturbation pipeline (web GUI)
 
 A **browser-based** control system that runs a **closed feedback loop** on live
 cells: it watches incoming microscope frames, segments cells with Cellpose,
@@ -6,15 +6,12 @@ measures per-cell mean fluorescence, compares each channel to a setpoint, and
 drives an **ONIX hardware controller** (over HTTP) to dose acidic / neutral media
 in response.
 
-This is the same live acquisition + perturbation system as the sibling
-`CLOSED_LOOP/` folder, but the napari desktop GUI (`LaunchNapari.py`) is replaced
-by a **Flask web GUI** (`LaunchWebGUI.py`, served on port 5000) so the hub can be
-driven from a browser — typically over an SSH port-forward. The
-decision/actuation backend (`config.py`, `HandleSegmentations.py`,
-`CreateDecisions.py`, `SendDecisions.py`, `MonitorPerformance.py`, `io_utils.py`,
-`run_system.sh`) is otherwise the same. Like `CLOSED_LOOP/`, this is a
-**separate, hardware-dependent system, not part of the reproducible figure
-analysis** in `SCRIPTS/`.
+The hub is driven from a browser — typically over an SSH port-forward — by a
+**Flask web GUI** (`LaunchWebGUI.py`, served on port 5000) sitting on top of a
+daemon backend (`config.py`, `HandleSegmentations.py`, `CreateDecisions.py`,
+`SendDecisions.py`, `MonitorPerformance.py`, `io_utils.py`, `run_system.sh`).
+This is a **separate, hardware-dependent system, not part of the reproducible
+figure analysis** in `SCRIPTS/`.
 
 > ⚠️ This pipeline requires lab hardware (an ONIX2 perfusion/microscopy server
 > reachable over the network) and a CUDA GPU. It will not run end-to-end on a
@@ -24,7 +21,7 @@ analysis** in `SCRIPTS/`.
 ## Launch
 
 ```bash
-cd CLOSED_LOOP_V2
+cd CLOSED_LOOP_GUI
 python LaunchWebGUI.py            # serves http://0.0.0.0:5000
 ```
 
@@ -55,7 +52,6 @@ Cellpose + push reference masks, set per-channel setpoints, tail the log, and
 | `SendDecisions.py` | Actuation stage. Consumes `actions.toml`, manages per-channel pulse timers, maps channel state → ONIX experiment (`NN`/`AN`/`NA`/`AA`), and drives the ONIX server over HTTP. Writes `media_status.json` + a timestamped hardware-telemetry CSV. | (launched by `run_system.sh`) |
 | `MonitorPerformance.py` | Watches ROI-count metadata for per-channel cell gains/losses (flags >`threshold_ratio` changes) and periodically zips/cleans old files from `directories_to_clean`. | (launched by `run_system.sh`) |
 | `io_utils.py` | Shared helpers (`log`, `load_config`, `parse_filename`, `wait_for_file`). Imported by the scripts above. | — |
-| `system_overview.html` | Standalone single-page architecture reference for the whole system. | open in any browser |
 
 ## Data flow
 
@@ -118,8 +114,8 @@ and are not redistributed.
 - **Run from this directory.** The daemons load `config.json` via a relative path;
   `run_system.sh` and the web server `cd`/resolve here automatically. `io_utils.py`
   is imported as a bare module — keep these files co-located and **do not** put
-  this directory on the same `sys.path` as `SCRIPTS/core_pipeline/` or the sibling
-  `CLOSED_LOOP/` (each has its *own* `io_utils.py`).
+  this directory on the same `sys.path` as `SCRIPTS/core_pipeline/` (each has its
+  *own* `io_utils.py`).
 - **GPU required** for segmentation: `CUDA_VISIBLE_DEVICES=0` and
   `CellposeModel(gpu=True)`.
 - **POSIX-only** process management (`os.setsid` / `killpg`) in the launcher.
