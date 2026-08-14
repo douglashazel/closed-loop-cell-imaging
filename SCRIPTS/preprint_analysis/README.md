@@ -1,7 +1,8 @@
 # Stage 2 — preprint analysis
 
 Pools the Stage-1 outputs of many experiments into the published figures,
-statistics, and multi-panel mosaics.
+statistics, and multi-panel mosaics of the preprint
+(<https://doi.org/10.64898/2026.08.13.744473>).
 
 The two driver scripts — `run_aggregate_results.sh` and `run_aggregate_plots.sh` — live at the
 **project root** (alongside the Stage-1 `run_*.sh`); this directory holds the
