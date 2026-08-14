@@ -4,6 +4,10 @@ Processed single-cell time series, Cellpose segmentation masks, and the
 metadata needed to reproduce the secondary analyses in the accompanying
 manuscript, for each of the 8 CellASIC chambers featured in the paper.
 
+Manuscript: Erickson, Hazel, Martinez, *et al.* "A platform for automated
+training of mammalian cell physiology," bioRxiv (2026),
+<https://doi.org/10.64898/2026.08.13.744473>.
+
 This bundle ships inside the analysis repository, at `supplement/`, so it
 arrives with the code that produced it — no separate download, and the version
 of the data always matches the version of the analysis scripts beside it.

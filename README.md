@@ -31,8 +31,11 @@ figures and statistics (responders, clustering, correlation, learning scores).
 The device schematics and software are shared openly to accelerate research on
 cell training, learning, and memory.
 
-> **TODO (authors):** add a link to the preprint once a DOI is available (see also
-> the [Citation](#citation) section).
+> 📄 **Preprint:** Erickson, Hazel, Martinez, *et al.* "A platform for automated
+> training of mammalian cell physiology," bioRxiv (2026).
+> <https://doi.org/10.64898/2026.08.13.744473>
+>
+> See also the [Citation](#citation) section.
 
 ## Authors
 
@@ -322,8 +325,26 @@ scripts above.
 
 ## Citation
 
-**TODO:** Add the preprint citation (and a `CITATION.cff`) once a DOI is
-available.
+If you use this code or the accompanying data, please cite the preprint:
+
+> Erickson, P., Hazel, D., Martinez, R., Shcherbina, K., Marquez, S. L.,
+> Ferrante, T., Johnson, K., Pimkina, A., Hazan, H., Mathews, J., Sesay, A. M.,
+> & Levin, M. (2026). *A platform for automated training of mammalian cell
+> physiology.* bioRxiv. https://doi.org/10.64898/2026.08.13.744473
+
+```bibtex
+@article{erickson2026celltrainer,
+  title   = {A platform for automated training of mammalian cell physiology},
+  author  = {Erickson, Patrick and Hazel, Douglas and Martinez, Ramses and
+             Shcherbina, Kostyantyn and Marquez, Susan L. and Ferrante, Thomas and
+             Johnson, Katarina and Pimkina, Angelina and Hazan, Hananel and
+             Mathews, Juanita and Sesay, Adama Marie and Levin, Michael},
+  year    = {2026},
+  journal = {bioRxiv},
+  doi     = {10.64898/2026.08.13.744473},
+  url     = {https://doi.org/10.64898/2026.08.13.744473}
+}
+```
 
 For the software specifically, please cite this repository and contact
 Douglas Hazel (douglas.hazel@tufts.edu).
