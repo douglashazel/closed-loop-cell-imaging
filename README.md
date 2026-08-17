@@ -98,16 +98,15 @@ ONIX microscopy controller) and is **not required to reproduce the figures** —
 │
 ├── SCRIPTS/
 │   ├── core_pipeline/         # STAGE 1 code
-│   │   ├── segmentation.py        # Cellpose segmentation  → masks/*.npy
+│   │   ├── segmentation.py        # Cellpose segmentation → masks/*.npy
 │   │   ├── trajectories.py        # link cells, extract fluorescence → analysis/*.json
 │   │   ├── PreAnalysis.py         # QC luminosity plots
 │   │   ├── PostAnalysis.py        # background correction, derivative/STD, dF/F0
 │   │   ├── io_utils.py            # shared msgpack/DataFrame helpers
-│   │   └── CreateGifs*.py         # optional per-cell GIF renderers (edit-then-run)
+│   │   └── CreateGifs*.py         # optional per-cell GIF renderers
 │   │
-│   └── preprint_analysis/     # STAGE 2 code (was "preprint_figures/"); driven by
-│       │                      #   the root run_aggregate_results.sh / run_aggregate_plots.sh
-│       ├── analyze_*.py           # one analysis each (responders runs first)
+│   └── preprint_analysis/     # STAGE 2 code; driven by run_aggregate_results.sh & run_aggregate_plots.sh
+│       ├── analyze_*.py           # main analyses (responders runs first)
 │       ├── make_figures.py        # plotting orchestrator
 │       ├── make_mosaic_captions.py
 │       ├── aggregate_preprint_pdf.py
@@ -117,8 +116,8 @@ ONIX microscopy controller) and is **not required to reproduce the figures** —
 │
 ├── supplement/                # PUBLISHED supplementary data (8 chambers, tracked in git)
 │
-├── CLOSED_LOOP_GUI/           # Live closed-loop microscopy + ONIX perturbation (Flask web GUI; optional, hardware)
-├── TUNE_GUI/                  # Optional browser GUI for parameter tuning (Flask)
+├── CLOSED_LOOP_GUI/           # Live closed-loop microscopy + ONIX perturbation
+├── TUNE_GUI/                  # Optional browser GUI for parameter tuning
 ├── requirements.txt           # pip dependencies
 └── environment.yml            # conda environment
 ```
