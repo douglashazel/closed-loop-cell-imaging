@@ -19,7 +19,7 @@ tqdm==4.67.1
 msgpack==1.1.2
 
 # Cellpose for segmentation (Stage 1). Pulls in PyTorch; a CUDA-capable GPU is
-# strongly recommended (segmentation.py / WEBGUI request gpu=True).
+# strongly recommended (segmentation.py / TUNE_GUI request gpu=True).
 cellpose==4.0.6
 
 # --- Optional: interactive parameter-tuning GUI (preprocess_gui.py) ----------
@@ -27,7 +27,7 @@ napari==0.6.4
 qtpy==2.4.3
 PyQt5==5.15.10
 
-# --- Optional: browser-based preprocessing GUI (WEBGUI/) ---------------------
+# --- Optional: browser-based preprocessing GUI (TUNE_GUI/) ---------------------
 Flask==3.1.3
 
 # --- Optional: live closed-loop microscopy/perturbation pipeline (CLOSED_LOOP/) -

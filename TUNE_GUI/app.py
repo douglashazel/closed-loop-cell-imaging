@@ -1,6 +1,6 @@
 """Flask web GUI for the Patrick cell-analysis preprocessing pipeline.
 
-Launch:  python WEBGUI/app.py
+Launch:  python TUNE_GUI/app.py
 Browse:  http://localhost:5001
 
 Ports the functionality of ../preprocess_gui.py (napari) to a browser and adds
