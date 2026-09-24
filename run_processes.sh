@@ -13,7 +13,7 @@ SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
 SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
 
 # -----------------------------
-# CELLPOSE PARAMETERS (determine using preprocess_gui.py or the WEBGUI)
+# CELLPOSE PARAMETERS (determine using preprocess_gui.py or the TUNE_GUI)
 # -----------------------------
 FLOW_THRESHOLD=0.98
 CELLPROB_THRESHOLD=-6
@@ -21,7 +21,7 @@ NITER=2000
 DIAMETER=12
 
 # -----------------------------
-# TRAJECTORY PARAMETERS (determine using preprocess_gui.py or the WEBGUI)
+# TRAJECTORY PARAMETERS (determine using preprocess_gui.py or the TUNE_GUI)
 # -----------------------------
 MAX_DISTANCE=101
 GRACE_PERIOD=3

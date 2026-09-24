@@ -12,7 +12,7 @@ without it.
 ## Launch
 
 ```bash
-python WEBGUI/app.py        # then open http://localhost:5001
+python TUNE_GUI/app.py        # then open http://localhost:5001
 ```
 
 Override the port with `PORT=<n>`. The app scans `EXPERIMENTS/` and launches
@@ -38,6 +38,6 @@ never expose it to an untrusted network.**
 
 ## Runtime artifacts
 
-`WEBGUI/tmp/` (logs, caches, the generated `current_run.sh`) and
-`WEBGUI/session.json` are created at runtime and are git-ignored — do not commit
+`TUNE_GUI/tmp/` (logs, caches, the generated `current_run.sh`) and
+`TUNE_GUI/session.json` are created at runtime and are git-ignored — do not commit
 them.

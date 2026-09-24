@@ -11,7 +11,7 @@ MASK_DIR="${GLOBAL_DIR}/masks"
 SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
 
 # -----------------------------
-# CELLPOSE PARAMETERS (determine using preprocess_gui.py or the WEBGUI)
+# CELLPOSE PARAMETERS (determine using preprocess_gui.py or the TUNE_GUI)
 # -----------------------------
 FLOW_THRESHOLD=0.955
 CELLPROB_THRESHOLD=-3
