@@ -1,0 +1,52 @@
+# Cell Trainer pipeline parameters: documented example.
+#
+# These are the values recorded for C2C12 chamber A of the paper (its
+# analysis/config.txt). TUNE_GUI writes the same layout to
+# <experiment>/pipeline_config.yaml when you save or run from its Review & Run
+# tab. To set up an experiment by hand, copy this file into the experiment
+# folder as pipeline_config.yaml, delete the experiment_dir line, and edit the
+# values. Then, from the project root:
+#
+#   bash run_processes.sh      "<experiment folder>"   # segmentation + tracking + pre-analysis
+#   bash run_segmentation.sh   "<experiment folder>"   # segmentation only
+#   bash run_trajectories.sh   "<experiment folder>"   # tracking only
+#   bash run_post_processes.sh "<experiment folder>"   # post-analysis
+#
+# Each script also accepts the path of a config file instead of a folder, and
+# saves the values it used under <experiment>/analysis/run_history/.
+#
+# Check a config without running anything:
+#   python3 SCRIPTS/core_pipeline/pipeline_config.py check "<experiment folder>"
+#
+# Running this example as-is writes into that published chamber's folder;
+# point experiment_dir at a copy to experiment.
+
+# The folder holding frames/ (masks/ and analysis/ are created next to it).
+# Relative to this file's folder. Leave it out when this file sits in the
+# experiment folder.
+experiment_dir: ../EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26/channel 1
+
+# Cellpose (segmentation.py; run_processes.sh, run_segmentation.sh)
+segmentation:
+  flow_threshold: 0.97
+  cellprob_threshold: -5
+  niter: 2250
+  diameter: 20            # pixels; 0 lets Cellpose estimate it
+
+# Tracking (trajectories.py; run_processes.sh, run_trajectories.sh)
+tracking:
+  max_distance: 174       # pixels a cell may move between frames
+  grace_period: 3         # frames a lost cell is kept before its track ends
+  radius: 2300            # circular ROI radius in pixels; 0 = no ROI
+  radius_y: 0             # ROI centre offset from the image centre
+  radius_x: 0
+  shift_frame: 358        # timepoint_NNNNN of the frame where the stage moved
+  shift_xy: [0, 0]        # [dx, dy] applied from shift_frame on; [0, 0] = no shift
+  save_interval: 100      # checkpoint every N frames
+  workers: 6              # optional (default 6): processes for cell-centre extraction
+
+# Quick-look post-analysis (PostAnalysis.py; run_post_processes.sh). Not
+# recorded for chamber A, so these are placeholders.
+post_analysis:
+  f0_frame: 1             # timepoint_NNNNN of the F0 frame for dF/F0
+  stim_frames: []         # timepoint_NNNNN of each stimulus, e.g. [77, 112, 148]

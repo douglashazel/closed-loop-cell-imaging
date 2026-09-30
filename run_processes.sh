@@ -1,118 +1,90 @@
 #!/bin/bash
+# Stage 1 for one experiment: Cellpose segmentation and tracking side by side,
+# then the pre-analysis plots.
+#
+#   bash run_processes.sh [--skip-segmentation] <experiment_dir | config.yaml>
+#
+# Parameters come from <experiment_dir>/pipeline_config.yaml (sections
+# segmentation and tracking), written by TUNE_GUI or copied from
+# configs/example_c2c12_chamber_A.yaml, so this script needs no edits. The
+# values used are saved under <experiment_dir>/analysis/run_history/.
+# --skip-segmentation tracks the masks already in masks/.
 set -euo pipefail
 
-# -----------------------------
-# PATHS
-# -----------------------------
-GLOBAL_DIR="EXPERIMENTS/ht29/ht29_serotonin_1"
-IMAGE_DIR="${GLOBAL_DIR}/frames" # where the images are located
-MASK_DIR="${GLOBAL_DIR}/masks"  # where you want to save the masks
-SAVE_PATH="${GLOBAL_DIR}/analysis" # where you want to save the analysis results
-
-SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
-SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
-
-# -----------------------------
-# CELLPOSE PARAMETERS (determine using preprocess_gui.py or the TUNE_GUI)
-# -----------------------------
-FLOW_THRESHOLD=0.98
-CELLPROB_THRESHOLD=-6
-NITER=2000
-DIAMETER=12
-
-# -----------------------------
-# TRAJECTORY PARAMETERS (determine using preprocess_gui.py or the TUNE_GUI)
-# -----------------------------
-MAX_DISTANCE=101
-GRACE_PERIOD=3
-RADIUS=1520
-RADIUS_Y=-387
-RADIUS_X=-1262
-SHIFT_FRAME=3
-SHIFT_XY="-15 -25"
-SAVE_INTERVAL=10
-
-# -----------------------------
-# Ensure scripts exist
-# -----------------------------
-if [[ ! -f "$SCRIPT1" || ! -f "$SCRIPT2" ]]; then
-    echo "One or more scripts not found."
-    exit 1
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUN_LABEL="run_processes.sh"
+SECTIONS="segmentation tracking"
+if [[ "${1:-}" == "--skip-segmentation" ]]; then
+    RUN_LABEL="run_processes.sh --skip-segmentation"
+    SECTIONS="tracking"
+    shift
+fi
+if [[ $# -ne 1 ]]; then
+    echo "Usage: bash run_processes.sh [--skip-segmentation] <experiment_dir | config.yaml>" >&2
+    exit 2
 fi
 
 # -----------------------------
-# Log config
+# Parameters (stops here if the config is missing or invalid)
 # -----------------------------
-mkdir -p "$SAVE_PATH"
-CONFIG_FILE="${SAVE_PATH}/config.txt"
-cat > "$CONFIG_FILE" <<EOF
-Run date: $(date)
+PARAMS=$(python3 "$ROOT/SCRIPTS/core_pipeline/pipeline_config.py" prepare "$1" "$RUN_LABEL" $SECTIONS)
+eval "$PARAMS"
+cd "$ROOT"
 
-[PATHS]
-GLOBAL_DIR=$GLOBAL_DIR
-IMAGE_DIR=$IMAGE_DIR
-MASK_DIR=$MASK_DIR
-SAVE_PATH=$SAVE_PATH
-
-[CELLPOSE]
-FLOW_THRESHOLD=$FLOW_THRESHOLD
-CELLPROB_THRESHOLD=$CELLPROB_THRESHOLD
-NITER=$NITER
-DIAMETER=$DIAMETER
-
-[TRAJECTORIES]
-MAX_DISTANCE=$MAX_DISTANCE
-GRACE_PERIOD=$GRACE_PERIOD
-RADIUS=$RADIUS
-RADIUS_Y=$RADIUS_Y
-RADIUS_X=$RADIUS_X
-SHIFT_FRAME=$SHIFT_FRAME
-SHIFT_XY=$SHIFT_XY
-SAVE_INTERVAL=$SAVE_INTERVAL
-EOF
-echo "Config saved to $CONFIG_FILE"
-
-echo "--- Accessing ${GLOBAL_DIR} ---"
+echo "--- Accessing ${EXP_DIR} ---"
+echo "Parameters from ${CONFIG_FILE}; saved to ${RUN_RECORD}"
 
 # -----------------------------
 # Run segmentation
 # -----------------------------
-echo "Starting cellpose segmentation..."
-python3 "$SCRIPT1" \
-    --image_dir "$IMAGE_DIR" \
-    --mask_dir "$MASK_DIR" \
-    --flow_threshold "$FLOW_THRESHOLD" \
-    --cellprob_threshold "$CELLPROB_THRESHOLD" \
-    --niter "$NITER" \
-    --diameter "$DIAMETER" &
-PID1=$!
-
-sleep 5 # small buffer
+PID1=""
+echo ">>> STAGE: SEGMENTATION <<<"
+if [[ "$SECTIONS" == *segmentation* ]]; then
+    python3 -u SCRIPTS/core_pipeline/segmentation.py \
+        --image_dir "$IMAGE_DIR" \
+        --mask_dir "$MASK_DIR" \
+        --flow_threshold "$FLOW_THRESHOLD" \
+        --cellprob_threshold "$CELLPROB_THRESHOLD" \
+        --niter "$NITER" \
+        --diameter "$DIAMETER" &
+    PID1=$!
+    sleep 5 # small buffer
+else
+    echo "Skipping segmentation; tracking the masks already in $MASK_DIR"
+fi
 
 # -----------------------------
 # Run trajectory processing
 # -----------------------------
-echo "Starting trajectory processing..."
-python3 "$SCRIPT2" \
+echo ">>> STAGE: TRAJECTORIES <<<"
+python3 -u SCRIPTS/core_pipeline/trajectories.py \
     --mask_dir "$MASK_DIR" \
     --image_dir "$IMAGE_DIR" \
-    --save_path "$SAVE_PATH" \
+    --save_path "$ANALYSIS_DIR" \
     --max_distance "$MAX_DISTANCE" \
     --grace_period "$GRACE_PERIOD" \
     --radius "$RADIUS" \
     --radius_y "$RADIUS_Y" \
     --radius_x "$RADIUS_X" \
     --shift_frame "$SHIFT_FRAME" \
-    --shift_xy $SHIFT_XY \
-    --save_interval "$SAVE_INTERVAL" &
+    --shift_xy "$SHIFT_X" "$SHIFT_Y" \
+    --save_interval "$SAVE_INTERVAL" \
+    --workers "$WORKERS" &
 PID2=$!
 
-wait $PID1 $PID2
+# `wait $PID1 $PID2` would only report the last status. If segmentation fails,
+# stop tracking too (it would otherwise wait for masks that never come).
+if [[ -n "$PID1" ]]; then
+    wait "$PID1" || { echo "Segmentation failed."; kill "$PID2" 2>/dev/null; exit 1; }
+fi
+wait "$PID2"
 
 # -----------------------------
 # Pre-analysis plots
 # -----------------------------
-echo ">>> Running pre-analysis plots for ${GLOBAL_DIR}"
-python3 SCRIPTS/core_pipeline/PreAnalysis.py \
-    --exp "$GLOBAL_DIR" \
-    --analysis_dir "$SAVE_PATH"
+echo ">>> STAGE: PRE-ANALYSIS <<<"
+python3 -u SCRIPTS/core_pipeline/PreAnalysis.py \
+    --exp "$EXP_DIR" \
+    --analysis_dir "$ANALYSIS_DIR"
+
+echo ">>> DONE <<<"

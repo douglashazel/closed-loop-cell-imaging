@@ -1,38 +1,39 @@
-# Conda environment for the cell-analysis pipeline.
+# Conda environment for the Cell Trainer pipeline.
 # Create with:  conda env create -f environment.yml
 # Activate with: conda activate cell_trainer
 #
-# Versions mirror a known-good Python 3.12 environment. cellpose, umap-learn,
+# Versions mirror a known-good environment and match requirements.txt.
+# Python 3.11 or 3.12 (scipy 1.17 needs Python >= 3.11). cellpose, umap-learn,
 # msgpack and the optional GUIs are installed via pip (last section).
 name: cell_trainer
 channels:
   - conda-forge
-  - defaults
 dependencies:
-  - python=3.12
+  - python>=3.11,<3.13
   - numpy=1.26.4
-  - scipy
+  - scipy=1.17.0
   - pandas=2.2.2
   - matplotlib=3.9.2
-  - scikit-image
-  - scikit-learn
-  - numba
-  - pillow
-  - imageio
-  - tqdm
+  - scikit-image=0.24.0
+  - scikit-learn=1.5.1
+  - numba=0.63.1
+  - pillow=10.4.0
+  - imageio=2.35.1
+  - tqdm=4.67.1
+  - pyyaml=6.0.1
   - pip
   - pip:
       - msgpack==1.1.2
       - umap-learn==0.5.7
       # Segmentation (Stage 1) — pulls in PyTorch; use a CUDA-capable GPU.
       - cellpose==4.0.6
-      # Optional: interactive parameter-tuning GUIs.
+      # Optional, instrument side: preprocess_gui.py (napari/Qt, deprecated).
       - napari==0.6.4
       - qtpy==2.4.3
       - PyQt5==5.15.10
+      # Optional, instrument side: the browser GUIs (TUNE_GUI/, CLOSED_LOOP_GUI/).
       - Flask==3.1.3
-      # Optional: live closed-loop microscopy/perturbation pipeline (CLOSED_LOOP/).
-      # Reuses napari/cellpose/qtpy/PyQt5 above; only these three are extra.
+      # Optional: live closed-loop pipeline (CLOSED_LOOP_GUI/). requests drives
+      # the ONIX hardware HTTP API; tomlkit reads/writes the decision actions.toml.
       - tomlkit==0.13.3
       - requests==2.32.3
-      - magicgui==0.10.1
