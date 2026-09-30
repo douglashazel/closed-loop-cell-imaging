@@ -11,13 +11,6 @@ DMSO (``response_direction == "increase"``) experiments only:
   * a single metric-independent anticipation blob: per train {1, 2}, the real /
     shuffled per-cell rest-region z-scores, the null matrix, and the channel
     index.
-
-This is a near-verbatim port of the source ``learning_scores.py``'s
-``compute_learning_scores`` + ``_compute_anticipation_blob`` (and their helpers)
-with ALL matplotlib stripped. The *_null matrices are cached because the
-permutation-test figures need them. Seeds match the source exactly
-(habituation rng_seed=42, sensitization rng_seed=43; anticipation seed_base =
-1000*ch_ix + 100*train_idx, overlay = seed_base, null = seed_base + 1).
 """
 
 import os
@@ -43,12 +36,10 @@ from common.stim_helpers import compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
 
-# Pre-stim baseline window used for every per-stim Δ — matches the responder
-# gate in common/responders.py so the descriptive figures and the responder
-# classification share the same baseline definition.
+# Pre-stim baseline window used for every per-stim Δ
 _PRESTIM_BASELINE_FRAMES = 5
 
 
@@ -161,7 +152,7 @@ def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
     last_sc = train[-1]
     next_first_sc = stim_cols[(t + 1) * LEARNING_STIMS_PER_TRAIN]
 
-    # Last response peak of the train: median peak column across cells.
+    # Last response peak of the train: median peak column across cells
     pk_lo = max(0, last_sc + win_lo_off)
     pk_hi = min(n_cols, last_sc + win_hi_off)
     if pk_lo >= pk_hi:
@@ -173,12 +164,11 @@ def _anticipation_train_spec(t, stim_cols, mat, all_minutes, direction,
         peak_offsets = np.argmax(np.where(np.isnan(seg), -np.inf, seg), axis=1)
     peak_col = int(np.round(np.nanmedian(pk_lo + peak_offsets)))
 
-    # Rest region: end of last response → start of next train's first stim.
+    # Rest region: end of last response → start of next train's first stim
     end_resp_col = min(last_sc + win_hi_off, n_cols - 1)
     ref_lo = end_resp_col
     ref_hi = int(next_first_sc)
-    # Need at least 2 frames so the shuffled pick can be different from the
-    # real anticipation frame.
+    # Need at least 2 frames so the shuffled pick can be different from the real anticipation frame.
     if ref_hi - ref_lo < 2:
         return None
 
@@ -335,7 +325,7 @@ def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
             "shuffled": np.concatenate(entries["shuffled"]),
             "null": np.concatenate(entries["null"], axis=1),
         }
-        # Population-mean permutation test, the p the figures print.
+        # Population-mean permutation test, the p the figures print
         trains_blob[train_idx]["pop"] = population_permutation_pvalue(
             trains_blob[train_idx]["real"], trains_blob[train_idx]["null"],
         )
@@ -435,10 +425,7 @@ def compute_learning_scores(experiments, state, *, n_perm=10000):
                 "habituation": np.concatenate(hab_chunks),
                 "sensitization": np.concatenate(sen_chunks),
             }
-            # Keep replicate identity: which channel each pooled cell came
-            # from (channels are biological replicates). Null matrices below
-            # are concatenated in the same channel order, so this one index
-            # aligns the score vectors and the null columns alike.
+            # Keep replicate identity: which channel each pooled cell came from (channels are biological replicates)
             blob["channel_index"] = np.concatenate(
                 [np.full(len(c), ci, dtype=int)
                  for ci, c in enumerate(hab_chunks)]
@@ -481,8 +468,7 @@ def analyze(experiments, state, *, n_perm=10000):
     scores = compute_learning_scores(experiments, state, n_perm=n_perm)
     for exp_name, by_key in scores.items():
         cfg = experiments[exp_name]
-        # Channel count for the inferential caveat: prefer a metric blob's
-        # used-channel list (height, then width), fall back to anticipation.
+        # Channel count for the inferential caveat: prefer a metric blob's used-channel list (height, then width), fall back to anticipation
         n_channels = 0
         for metric in ("height", "width"):
             blob = by_key.get(metric)

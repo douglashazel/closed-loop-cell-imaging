@@ -1,10 +1,6 @@
 # Conda environment for the Cell Trainer pipeline.
 # Create with:  conda env create -f environment.yml
-# Activate with: conda activate cell_trainer
-#
-# Versions mirror a known-good environment and match requirements.txt.
-# Python 3.11 or 3.12 (scipy 1.17 needs Python >= 3.11). cellpose, umap-learn,
-# msgpack and the optional GUIs are installed via pip (last section).
+
 name: cell_trainer
 channels:
   - conda-forge
@@ -25,7 +21,7 @@ dependencies:
   - pip:
       - msgpack==1.1.2
       - umap-learn==0.5.7
-      # Segmentation (Stage 1) — pulls in PyTorch; use a CUDA-capable GPU.
+      # Segmentation (Stage 1)
       - cellpose==4.0.6
       # Optional, instrument side: preprocess_gui.py (napari/Qt, deprecated).
       - napari==0.6.4

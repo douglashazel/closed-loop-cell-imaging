@@ -191,7 +191,7 @@ def one_sample_t_dz(diffs):
 
 
 # =============================================================================
-# Mantel test — distance vs correlation without pair pseudoreplication
+# Mantel test: distance vs correlation without pair pseudoreplication
 # =============================================================================
 def _safe_pearson(x, y):
     """Pearson r that returns NaN instead of raising on a constant input."""

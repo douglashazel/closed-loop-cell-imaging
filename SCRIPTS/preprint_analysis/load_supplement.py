@@ -1,19 +1,6 @@
 #!/usr/bin/env python3
 """Rebuild the Stage-2 pipeline state from an exported supplement bundle.
 
-``common.pipeline.prepare_state`` normally regenerates the background-corrected
-fluorescence by re-reading every raw microscope frame (~100 GB, not
-redistributed) to fit a per-frame 2-D polynomial background. This module skips
-that step: it reads the already-corrected tables written by
-``export_supplement.py`` and assembles a ``state`` dict that is numerically
-identical to the one ``prepare_state`` produces, so the ``analyze_*.py``
-scripts run unchanged.
-
-The loader imports ``common.config`` from ``SCRIPTS/preprint_analysis`` and
-the ``analyze_*.py`` modules next to it, so it needs a checkout of the
-repository and is run from the repository root, even when this copy sits inside
-the ``supplement/`` bundle.
-
 Typical use, from the project root::
 
     # rebuild state and run the secondary analyses from the exported tables
@@ -23,16 +10,6 @@ Typical use, from the project root::
 
     # then render figures as usual
     ./run_aggregate_plots.sh
-
-Or programmatically::
-
-    import load_supplement
-    experiments, state = load_supplement.load_state("supplement")
-
-The one analysis that needs the raw images, ``responder_diagnostic`` (its
-frame-sharpness panel), cannot be reproduced from this bundle; everything else
-can, including the NRK hardware-feedback log figure, which reads each NRK
-chamber's ``*_hardware_feedback_log.json``.
 """
 
 import argparse
@@ -49,10 +26,9 @@ from common.config import EXPERIMENTS
 
 EXPORT_VERSION = 1
 
-# Analyses reproducible from an exported bundle, in dependency order
-# (``responders`` writes the shared mask other analyses read).
+# Analyses reproducible from an exported bundle
 RUNNABLE = [
-    "responders",
+    "responders", # run first
     "dff",
     "average_peak",
     "correlation_distance",
@@ -62,17 +38,12 @@ RUNNABLE = [
     "nrk_hardware_log",
 ]
 
-# Analyses that need the raw frames and therefore cannot run from the bundle.
 NEEDS_RAW_FRAMES = ["responder_diagnostic"]
 
 
 # =============================================================================
-# state reconstruction
+# State reconstruction
 # =============================================================================
-# pandas' default CSV reader uses a fast but not correctly-rounded float
-# parser, which costs ~1 ULP per value. The tables are written with Python's
-# shortest round-trip repr, so reading with float_precision="round_trip"
-# recovers the exact float64 bits the pipeline produced.
 _READ = {"float_precision": "round_trip"}
 
 
@@ -104,8 +75,7 @@ def _load_chamber(root, entry):
     ids, frame_nums, mat = _read_matrix_csv(
         os.path.join(d, f"{chamber}_fluorescence_bgcorrected.csv")
     )
-    # Cell IDs are strings in the pipeline's dicts (they originate as JSON
-    # object keys); keep that so downstream key lookups behave identically.
+    # Cell IDs are strings in the pipeline's dicts
     corrected = {
         str(cid): {f"f{int(n)}": float(v) for n, v in zip(frame_nums, row)}
         for cid, row in zip(ids, mat)
@@ -122,8 +92,7 @@ def _load_chamber(root, entry):
 
     bg = pd.read_csv(os.path.join(d, f"{chamber}_background.csv"), **_READ)
     n_analyzed = int(meta["n_frames_analyzed"])
-    # bg_trace is clipped to the analysis window (as prepare_state leaves it);
-    # bg_fit_min stays at full recording length.
+
     bg_trace = bg["bg_sampled_mean"].values[:n_analyzed].astype(np.float32)
     bg_min = bg["bg_fit_min"].values.astype(np.float64)
 
@@ -133,8 +102,7 @@ def _load_chamber(root, entry):
         np.asarray(src["minutes"], dtype=float),
     )
 
-    # NRK only: verbatim copy of the controller's luminosity_log_channel<N>.json
-    # entries for this chamber (what analyze_nrk_hardware_log reads).
+    # NRK only:
     hw_path = os.path.join(d, f"{chamber}_hardware_feedback_log.json")
     hw_log = None
     if os.path.exists(hw_path):
@@ -208,7 +176,7 @@ def load_state(root="supplement", experiments=None):
 
 
 # =============================================================================
-# running the analyses off the bundle
+# Running the analyses off the bundle
 # =============================================================================
 def install(root="supplement"):
     """Monkeypatch ``prepare_state`` so ``analyze_*.py`` read the bundle.

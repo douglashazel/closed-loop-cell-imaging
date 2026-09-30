@@ -9,19 +9,13 @@ import os
 OUT_ROOT = "results"
 CACHE_DIR = os.path.join(OUT_ROOT, "bg_cache")  # created when a cache is first written
 
-# Small non-image inputs (frame timestamps, the C2C12 cell-selection masks, the
-# PC-3 bad-frame list, the NRK controller logs) live in the repository, so a
-# checkout plus the raw frames is enough to rerun Stage 2. Like OUT_ROOT, the
-# paths are relative to the project root. See data/README.md.
 DATA_DIR = "SCRIPTS/preprint_analysis/data"
 
 
 # =============================================================================
 # Pipeline toggles
 # =============================================================================
-# Set to True to force a rebuild of the per-experiment background cache.
-# Otherwise, cached pickles in ``CACHE_DIR`` are reused. Cache is also
-# invalidated automatically whenever ``BG_FIT`` differs from the cached values.
+# Set to True to force a rebuild of the per-experiment background cache
 RECOMPUTE_BG = False
 
 # Fallback peak window used only when an experiment defines neither

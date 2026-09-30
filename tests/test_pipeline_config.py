@@ -10,7 +10,7 @@ import yaml
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "SCRIPTS", "core_pipeline"))
 
-import pipeline_config as pc  # noqa: E402
+import pipeline_config as pc
 
 CONFIG = {
     "segmentation": {"flow_threshold": 0.95, "cellprob_threshold": -4,
@@ -94,8 +94,7 @@ def test_example_config_is_valid():
 def test_run_processes_passes_the_config_values(tmp_path):
     exp = _experiment(tmp_path)
     env, calls = _fake_python(tmp_path)
-    # Relative experiment path from another directory: the driver must resolve
-    # it before it changes to the project root.
+    # Relative experiment path from another directory
     res = _run_driver("run_processes.sh", ["exp one"], env, cwd=tmp_path)
     assert res.returncode == 0, res.stderr
     assert _called(calls, "segmentation.py") == [
@@ -111,7 +110,7 @@ def test_run_processes_passes_the_config_values(tmp_path):
     assert _called(calls, "PreAnalysis.py") == [
         "--exp", str(exp), "--analysis_dir", f"{exp}/analysis"]
 
-    # The run left a record of exactly the sections it used.
+    # The run left a record of exactly the sections it used
     (record,) = (exp / "analysis" / pc.HISTORY_DIR).iterdir()
     saved = yaml.safe_load(record.read_text())
     assert saved["run"] == "run_processes.sh"

@@ -13,12 +13,6 @@ functions:
         anticipation permtests.
   * ``render_anticipation_zscore_histogram`` — real-vs-shuffled rest-region
         z-score histogram (``_plot_anticipation_zscore_histogram``)
-
-Title/axis-label text lives centrally in ``figures_spec.py`` and is pulled from
-the passed ``spec``. The two number-bearing legend labels of the permutation
-test (observed mean = …, two-tailed p …; shuffled mean (N perms)) are recomputed
-from the cached null/observed inside the render — deterministic, since the null
-matrices are cached verbatim.
 """
 import numpy as np
 
@@ -33,11 +27,9 @@ from plots._base import (
 
 NAME = "learning_scores"
 
-# Fixed discrete score axis for the habituation/sensitization histograms — the
-# source hard-codes x_max=12 (0..12 whole-number bins).
+# Fixed discrete score axis for the habituation/sensitization histograms
 _SCORE_X_MAX = 12
 
-# Null-overlay gray (matches the source's "#7a7a7a" example-shuffle histogram).
 _NULL_COLOR = "#7a7a7a"
 _NULL_EDGE = "#444444"
 _OBS_EDGE = "#222222"
@@ -60,8 +52,6 @@ def render_score_histogram(ax, payload, spec, *, fill):
     bins = np.arange(-0.5, max_v + 1.5, 1)
 
     if null_dist is not None and np.size(null_dist):
-        # A single representative shuffle (one shuffled score per cell), not
-        # the mean over all permutations — an example null draw.
         example_null = np.asarray(null_dist)[0]
         ax.hist(
             example_null, bins=bins,
@@ -173,7 +163,7 @@ def render_permutation_mean_test(ax, payload, spec, *, fill):
     ax.legend(fontsize=P["legend_fontsize"], loc="best");
 
 
-# (measure_key, label_word) for the two running-extremum learning scores.
+# (measure_key, label_word) for the two running-extremum learning scores
 _MEASURES = (
     ("habituation", "Habituation"),
     ("sensitization", "Sensitization"),
@@ -191,8 +181,7 @@ def iter_figures(blob, exp_name):
         mblob = data.get(metric)
         if mblob is None:
             continue
-        # Height carries the bare titles/labels requested for the preprint;
-        # width keeps a suffix so the two metrics stay distinct.
+        # Height carries the bare titles/labels requested for the preprint
         metric_suffix = "" if metric == "height" else f" ({metric})"
         for measure_key, label_word in _MEASURES:
             summed = mblob[measure_key]

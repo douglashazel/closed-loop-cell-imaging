@@ -1,8 +1,4 @@
-"""Consistency checks on the published supplement bundle (supplement/).
-
-Every check reads only the bundle. The last test reruns the responder
-classification from the bundle and compares it with the published counts.
-"""
+"""Consistency checks on the published supplement bundle (supplement/)."""
 import hashlib
 import json
 import os
@@ -24,7 +20,7 @@ with open(os.path.join(BUNDLE, "index.json")) as _f:
     INDEX = json.load(_f)
 CHAMBERS = [e["chamber"] for e in INDEX["chambers"]]
 
-# Responders per chamber as published (preprint figures and supplement README).
+# Responders per chamber as published
 PUBLISHED_RESPONDERS = {
     "C2C12_A": 14, "C2C12_B": 38, "C2C12_C": 23, "PC3": 136,
     "NRK_A": 28, "NRK_B": 57, "NRK_C": 33, "NRK_D": 41,

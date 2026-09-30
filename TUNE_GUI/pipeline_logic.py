@@ -1,4 +1,4 @@
-"""Pure-numpy helpers lifted from preprocess_gui.py.
+"""Pure-numpy helpers from preprocess_gui.py.
 
 Kept backend-only (no Qt, no napari) so the Flask endpoints can reuse them
 directly.

@@ -340,9 +340,7 @@ pytest -q tests/
 `tests/test_supplement.py` checks the bundle's internal consistency (checksums,
 cell and frame counts, masks, dF/F0 recomputed exactly, no duplicated cells)
 and reruns the responder classification from the bundle against the published
-counts. `tests/test_tracking.py` covers the Stage 1 tracker. They need only the
-core analysis packages, and run in CI on every push
-(`.github/workflows/tests.yml`).
+counts. `tests/test_tracking.py` covers the Stage 1 tracker.
 
 ---
 

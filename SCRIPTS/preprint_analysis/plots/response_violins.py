@@ -13,11 +13,6 @@ verbatim from the original ``response_violins.py``, retargeted from a
 self-created figure onto the passed-in ``ax`` (the driver owns the figure and
 saves it). Label/title/legend text lives centrally in ``figures_spec.py``; these
 functions pull it from the passed ``spec``.
-
-The source rendered ``stats_text`` and the inferential ``caveat`` as
-commented-out elements (upper-left box / figure footnote); they are cached but
-NOT drawn here, matching the source's visible output. The caveat is wired into
-each FigureSpec.caveat so re-enabling it is a one-line change.
 """
 import numpy as np
 
@@ -32,10 +27,9 @@ from plots._base import (
 
 NAME = "response_violins"
 
-# (filename suffix, responder-highlight flag) for the two violin variants.
 VIOLIN_SUBSETS = [("", False), ("_responders", True)]
 
-# Asymmetric-violin geometry — verbatim from the source module constants.
+# Asymmetric-violin geometry
 _VIOLIN_BOX_OFFSET = 0.18
 _VIOLIN_BOX_WIDTH = 0.18
 _VIOLIN_SCATTER_JITTER = 0.045
@@ -204,7 +198,7 @@ def render_train_means(ax, payload, spec, *, fill):
     ax.set_title(title_of(spec, fill), fontsize=P["title_fontsize"],
                  fontweight=P["title_fontweight"])
 
-    # Significance bracket for the first→last train change (replicate level).
+    # Significance bracket for the first→last train change (replicate level)
     if n_tr >= 2:
         y0, y1 = ax.get_ylim()
         span = (y1 - y0) or 1.0
@@ -239,7 +233,7 @@ def iter_figures(blob, exp_name):
             "n_total_responders": bundle["n_total_responders"],
         }
 
-        # The two violin variants (all cells / responders highlighted).
+        # The two violin variants (all cells / responders highlighted)
         for suffix, highlight in VIOLIN_SUBSETS:
             payload = {
                 "violin_data": bundle["violin_data"],
@@ -252,7 +246,7 @@ def iter_figures(blob, exp_name):
             yield (spec_key, payload, dict(base_fill))
 
         # Per-replicate train means — only when a replicate-level structure
-        # exists (>= 2 channels and fixed trains; matches the source guard).
+        # exists (>= 2 channels and fixed trains; matches the source guard)
         ctm = bundle["chan_train_means"]
         if ctm is not None and np.asarray(ctm).size:
             yield (

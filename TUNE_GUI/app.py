@@ -3,9 +3,6 @@
 Launch:  python TUNE_GUI/app.py
 Browse:  http://localhost:5001
 
-Ports the functionality of ../preprocess_gui.py (napari) to a browser and adds
-a "Run & Monitor" tab that saves the tuned parameters to the experiment's
-pipeline_config.yaml and launches run_processes.sh / run_post_processes.sh on it.
 """
 
 import atexit
@@ -56,10 +53,9 @@ _TMP_DIR = os.path.join(_HERE, "tmp")
 _CACHE_DIR = os.path.join(_TMP_DIR, "cache")
 _PIPELINE_LOG = os.path.join(_TMP_DIR, "pipeline.log")
 
-# The pipeline_config.yaml schema the run_*.sh drivers read lives with the
-# core scripts.
+# The pipeline_config.yaml schema the run_*.sh drivers read lives with the core scripts
 sys.path.append(os.path.join(_PROJECT_ROOT, "SCRIPTS", "core_pipeline"))
-import pipeline_config  # noqa: E402
+import pipeline_config
 
 os.makedirs(_TMP_DIR, exist_ok=True)
 os.makedirs(_CACHE_DIR, exist_ok=True)
@@ -236,11 +232,10 @@ def api_experiment_select():
         "validation_warnings": [],
     }
 
-    # Stimulus frames belong to one experiment; don't carry them over.
+    # Stimulus frames belong to one experiment
     patch.update({"f0_frame": 1, "stim_frames": ""})
 
-    # Resume from the experiment's pipeline_config.yaml, else from the
-    # analysis/config.txt that runs before it wrote.
+    # Resume from the experiment's pipeline_config.yaml
     cfg_path = os.path.join(path, pipeline_config.CONFIG_NAME)
     prefill, config_error = {}, None
     if os.path.isfile(cfg_path):
@@ -260,7 +255,7 @@ def api_experiment_select():
     if prefill:
         try:
             snapshot = session.apply_patch(prefill)
-        except ValueError as e:  # e.g. a fractional shift_xy the GUI can't hold
+        except ValueError as e:  # e.g. a fractional shift_xy
             config_error, prefill = f"{cfg_path}: {e}", {}
     snapshot["resumed_from_config"] = bool(prefill)
     snapshot["config_path"] = cfg_path if prefill else None
@@ -320,9 +315,7 @@ def api_thumbnail_png(idx):
 def api_mask_preview_png():
     if session.temp_segmentation is None:
         abort(404)
-    # Default alpha is 255 (fully opaque colour fill); the browser applies the
-    # opacity slider via CSS, so we don't want to bake a fractional alpha into
-    # the PNG and end up multiplying it.
+    # Default alpha is 255 (fully opaque color fill)
     alpha = int(request.args.get("alpha", 255))
     cache = _cache_path("mask", session.temp_segmentation_version, alpha)
     if not os.path.isfile(cache):
@@ -390,8 +383,7 @@ def api_cellpose_run():
             "segmentation_reviewed": False,
             "last_roi_count": 0,
         })
-        # Pre-render the default-alpha preview PNG so the first GET hits the
-        # disk cache instead of paying the colorize + encode cost inline.
+        # Pre-render the default-alpha preview PNG so the first GET hits the disk cache instead of paying the colorize + encode cost inline
         try:
             cache = _cache_path("mask", session.temp_segmentation_version, 255)
             if not os.path.isfile(cache):
@@ -434,7 +426,7 @@ def api_cellpose_stream():
         last_status_version = -1
         last_mask_version = -1
         last_keepalive = time.time()
-        # Send an initial snapshot so the client doesn't have to GET /status.
+        # Send an initial snapshot so the client doesn't have to GET /status
         snap = _cellpose_status_snapshot()
         last_status_version = snap.get("status_version", 0)
         last_mask_version = snap.get("mask_version", 0)
@@ -814,8 +806,6 @@ def _config_updates(s: dict) -> dict:
     shift_x, shift_y = (int(v) for v in s["shift_xy"])
     shift_idx = int(s["shift_frame_idx"])
     if (shift_x, shift_y) == (0, 0) and not 0 <= shift_idx < len(frames):
-        # No shift to apply, so the frame is moot (e.g. the "1000" sentinel
-        # resumed from an old config); pass it through unchanged.
         shift_frame = shift_idx
     else:
         shift_frame = _frame_token(frames, shift_idx)
@@ -830,7 +820,7 @@ def _config_updates(s: dict) -> dict:
         "tracking": {
             "max_distance": round(float(s["max_distance"]), 1),
             "grace_period": int(s["grace_period"]),
-            # trajectories.py treats radius 0 as "no ROI filter".
+            # trajectories.py treats radius 0 as "no ROI filter"
             "radius": int(s["radius"]) if s.get("roi_enabled", True) else 0,
             "radius_y": int(s["y_shift"]),
             "radius_x": int(s["x_shift"]),
@@ -868,13 +858,13 @@ def _pipeline_group_alive() -> bool:
     if pgid is None:
         return False
     if pipeline_proc is not None:
-        pipeline_proc.poll()  # reap bash so a zombie leader does not count
+        pipeline_proc.poll()
     try:
         os.killpg(pgid, 0)
         return True
     except (ProcessLookupError, PermissionError):
         if pipeline_pgid == pgid:
-            pipeline_pgid = None  # never signal the id once it is recycled
+            pipeline_pgid = None
         return False
 
 
@@ -908,8 +898,7 @@ def api_pipeline_run():
             if not validation["ok"]:
                 return jsonify({"ok": False, "error": "validation failed",
                                 "validation": validation}), 400
-            # Every run, and "Save config only", saves the parameters first;
-            # the driver then reads them from this file.
+            # Every run, and "Save config only", saves the parameters first
             cfg_path = _config_path(s)
             pipeline_config.write_config(cfg_path, _config_updates(s), "TUNE_GUI")
         except (KeyError, TypeError, ValueError, pipeline_config.ConfigError) as e:
@@ -939,7 +928,7 @@ def api_pipeline_run():
             stderr=subprocess.STDOUT,
             preexec_fn=os.setsid,
         )
-        pipeline_pgid = pipeline_proc.pid  # setsid: bash leads its own group
+        pipeline_pgid = pipeline_proc.pid
         pipeline_started_at = time.time()
         pipeline_kind = run_mode if kind == "run_processes" else "post"
         return jsonify({"ok": True, "pid": pipeline_proc.pid,
@@ -951,7 +940,7 @@ def api_pipeline_run():
 def api_pipeline_stop():
     global pipeline_proc, pipeline_pgid, pipeline_log_fh
     with _state_lock:
-        # Signal the stored group even if bash itself has already exited.
+        # Signal the stored group even if bash itself has already exited
         pgid = pipeline_pgid
         if not _pipeline_group_alive():
             return jsonify({"ok": False, "error": "not running"})
@@ -992,7 +981,6 @@ def _pipeline_status_snapshot() -> dict:
         out.update({"running": True, "pid": pipeline_proc.pid})
     else:
         out.update({"pid": pipeline_proc.pid, "exit_code": rc})
-        # bash exited but a child may still run; keep Stop available.
         if _pipeline_group_alive():
             out["running"] = True
     out["stage"] = _infer_stage()
@@ -1009,8 +997,6 @@ def _pipeline_progress_snapshot() -> dict:
     if masks_dir and os.path.isdir(masks_dir):
         n_masks = sum(1 for f in os.listdir(masks_dir) if f.endswith(".npy"))
 
-    # trajectories.py writes trajectories.json at every checkpoint and
-    # trajectories_complete.json only once all frames are tracked.
     traj_pct = 0.0
     if os.path.isfile(os.path.join(save_path, "trajectories_complete.json")):
         traj_pct = 100.0
@@ -1018,7 +1004,7 @@ def _pipeline_progress_snapshot() -> dict:
         traj_pct = 50.0
 
     pre_done = os.path.isdir(os.path.join(save_path, "plots"))
-    # Written by PostAnalysis.py as its last step.
+    # Written by PostAnalysis.py as its last step
     post_done = os.path.isfile(os.path.join(save_path, "post_analysis_complete.txt"))
     return {
         "total_frames": total,
@@ -1051,7 +1037,7 @@ def api_pipeline_stream():
         last_progress = None
         last_keepalive = time.time()
 
-        # Emit baselines so the client has state without a GET.
+        # Emit baselines so the client has state without a GET
         status = _pipeline_status_snapshot()
         last_status_key = (status["running"], status["stage"],
                             status["pid"], status["exit_code"])
@@ -1119,7 +1105,7 @@ def api_pipeline_stream():
                 yield ": keepalive\n\n"
                 last_keepalive = now
 
-            # Cadence: faster while running for snappy logs, slower when idle.
+            # Cadence: faster while running for snappy logs, slower when idle
             time.sleep(0.25 if status.get("running") else 1.0)
 
     return Response(
@@ -1193,7 +1179,7 @@ def api_pipeline_luminosity_png():
 
     # trajectories.py writes {cell_id: {"f<frame>": value or None}}. Cells
     # first seen mid-run have no keys for earlier frames, so place each
-    # value by its frame number, not by list position.
+    # value by its frame number, not by list position
     traces = []
     if isinstance(data, dict):
         for trace in data.values():
@@ -1235,7 +1221,7 @@ def api_pipeline_luminosity_png():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Config preview (Tab 7 summary)
+# Config preview
 # ═══════════════════════════════════════════════════════════════════════════
 @app.route("/api/config/preview", methods=["GET"])
 def api_config_preview():
@@ -1276,7 +1262,7 @@ atexit.register(_cleanup)
 
 
 if __name__ == "__main__":
-    # Loopback only by default; HOST=0.0.0.0 exposes it to the network.
+    # Loopback only by default; HOST=0.0.0.0 exposes it to the network
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 5001))
     print(f"[web gui] starting on http://{host}:{port}", flush=True)

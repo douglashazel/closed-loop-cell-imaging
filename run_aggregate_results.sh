@@ -2,15 +2,7 @@
 set -euo pipefail
 
 # =============================================================================
-# ANALYSIS half of the preprint-figures pipeline: run the analyze_*.py scripts
-# to compute figure-ready intermediates and CACHE them per (experiment,
-# analysis) under results/analysis_cache/<exp>/<analysis>.pkl.
-# NO plotting happens here — render with run_aggregate_plots.sh afterward.
-#
-# Background-correction state is cached per experiment in
-# results/bg_cache/; repeated runs hit the warm cache and are
-# fast. The shared `responders` step runs first so every consumer reads one
-# deterministic responder mask (consumers also fall back to computing it).
+# ANALYSIS
 #
 # Run from the project root:
 #     ./run_aggregate_results.sh
@@ -19,7 +11,7 @@ set -euo pipefail
 # ─────── CONFIG ──────────────────────────────────────────────────────────────
 # Set to "all" or a space-separated subset of analyses.
 ANALYSES="all"
-# Available (each is SCRIPTS/preprint_analysis/analyze_<name>.py):
+# OPTIONS:
 #   responders            — shared responder thresholds + masks (run first)
 #   dff                   — dF/F0 stacked traces + responder-pooled mean
 #   average_peak          — per-stimulus dF/F0 peak segments (DMSO only)
@@ -32,21 +24,17 @@ ANALYSES="all"
 
 # Set to "all" or a space-separated subset of experiment names.
 EXPERIMENTS="all"
-# Available: c2c12_dmso_09APR26 pc3_dmso_23MAR26 nrk_acid_13APR26
+# OPTIONS: c2c12_dmso_09APR26 pc3_dmso_23MAR26 nrk_acid_13APR26
 
 RECOMPUTE_BG=false        # force background-cache rebuild for selected experiments
 PARALLEL=true             # run the experiments concurrently (one worker each)
 # ─────────────────────────────────────────────────────────────────────────────
 
-
-# ─────── ORCHESTRATION ───────────────────────────────────────────────────────
-# This script lives at the project root; run paths are relative to it.
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
-# `responders` runs first so the shared responders.pkl exists before consumers.
 ALL_ANALYSES=(
-    responders
+    responders # run first
     dff
     average_peak
     correlation_distance
@@ -63,7 +51,7 @@ else
     read -r -a ANALYSES_LIST <<< "$ANALYSES"
 fi
 
-# Resolve EXPERIMENTS to an explicit name list (expand "all" via the config).
+# Resolve EXPERIMENTS to an explicit name list
 if [ "$EXPERIMENTS" = "all" ]; then
     read -r -a EXP_LIST <<< "$(
         python3 -c "import sys; sys.path.insert(0, 'SCRIPTS/preprint_analysis'); \
@@ -73,7 +61,6 @@ else
     read -r -a EXP_LIST <<< "$EXPERIMENTS"
 fi
 
-# Fail fast if any selected analysis script is missing.
 for a in "${ANALYSES_LIST[@]}"; do
     if [ ! -f "SCRIPTS/preprint_analysis/analyze_${a}.py" ]; then
         echo "ERROR: missing SCRIPTS/preprint_analysis/analyze_${a}.py"
@@ -87,9 +74,7 @@ echo "  experiments: ${EXP_LIST[*]}"
 echo "  parallel=${PARALLEL}, recompute_bg=${RECOMPUTE_BG}"
 echo
 
-# Run every selected analysis for ONE experiment, in order. The first analysis
-# carries --recompute-bg (if requested) so the background cache is rebuilt once;
-# later analyses for the same experiment hit the warm cache.
+# Run every selected analysis for an experiment in order
 run_experiment() {
     local exp="$1"
     local first=true

@@ -19,16 +19,6 @@ self-contained bundle of CSV/NPZ/JSON files under
     <CHAMBER>_mask_analyzed_cells.npz/.png  cell-selection mask (C2C12 only)
     <CHAMBER>_metadata.json                 everything else needed to rerun
 
-Why the background-corrected table matters: ``common.pipeline.prepare_state``
-regenerates normalisation by re-reading every raw frame to fit a per-frame 2-D
-polynomial background. The raw frames (~100 GB) are not redistributed, so the
-corrected table is the bridge that lets a third party rerun Stage 2 without
-them -- see ``load_supplement.py``.
-
-This script is read-only with respect to every existing pipeline output: it
-reads the warm ``results/bg_cache/`` pickles and writes only under
-``supplement/``.
-
 Run from the project root:
 
     python SCRIPTS/preprint_analysis/export_supplement.py
@@ -54,14 +44,13 @@ from common.stim_helpers import compute_f0_baseline
 from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import load_msgpack, lum_dict_to_df  # noqa: E402
+from io_utils import load_msgpack, lum_dict_to_df   
 
 
 DEFAULT_OUT = "supplement"
 
 # Public chamber name for each (experiment, internal channel). The letters are
-# the chamber labels used in the manuscript; the internal channel strings are
-# the keys in common.config.EXPERIMENTS.
+# the chamber labels used in the manuscript
 CHAMBERS = [
     ("c2c12_dmso_09APR26", "channel 1", "C2C12_A"),
     ("c2c12_dmso_09APR26", "channel 2", "C2C12_B"),
@@ -73,7 +62,7 @@ CHAMBERS = [
     ("nrk_acid_13APR26", "channel 2 D", "NRK_D"),
 ]
 
-# Format version for the export layout; load_supplement.py checks it.
+# Format version for the export layout
 EXPORT_VERSION = 1
 
 
@@ -110,11 +99,7 @@ def _mask_files(cdir):
 
 
 def _label_colors(n_labels):
-    """Deterministic RGB lookup table for labels 0..n_labels (0 = black).
-
-    Hue advances by the golden ratio so consecutive labels -- which are usually
-    neighbouring cells -- never land on similar colours.
-    """
+    """Deterministic RGB lookup table for labels 0..n_labels (0 = black)."""
     idx = np.arange(n_labels + 1, dtype=np.float64)
     hsv = np.stack([
         (idx * 0.6180339887) % 1.0,
@@ -127,13 +112,7 @@ def _label_colors(n_labels):
 
 
 def _save_mask_preview(m16, png_path):
-    """Write an 8-bit colour rendering of a label mask.
-
-    The published masks are 16-bit label images: pixel value = cell ID, so the
-    brightest cell in a 500-cell chamber sits at 500/65535 and the file looks
-    black in an ordinary image viewer. This preview exists purely so the
-    segmentation can be eyeballed; it is not analysis input.
-    """
+    """Write an 8-bit colour rendering of a label mask."""
     Image.fromarray(_label_colors(int(m16.max()))[m16], mode="RGB").save(
         png_path, optimize=True,
     )
@@ -265,11 +244,6 @@ def export_chamber(state, exp_name, ch, chamber, out_root):
         mask_info["analyzed_cells_mask_n_labels"] = int(len(np.unique(fm16)) - 1)
 
     # ---- closed-loop hardware feedback log (NRK only) ---------------------
-    # The bundle ships only luminosity_log_channel<N>.json, the actual feedback
-    # record (per-frame mean luminosity, setpoint, and the controller's
-    # decision). The sibling monitoring.log (~15 MB of controller chatter) is
-    # not copied into the bundle; a scrubbed copy is in the repository under
-    # common.config.DATA_DIR.
     log_spec = (cfg.get("stim_logs") or {}).get(ch)
     if log_spec:
         log_path, ch_num = log_spec
@@ -327,9 +301,7 @@ def export_chamber(state, exp_name, ch, chamber, out_root):
         "dead_frames": dead_frames,
         "real_setpoint_min": state["real_setpoint_min"][exp_name].get(ch),
 
-        # Interpolation source for frame -> minutes. Reproduces frames_to_min
-        # exactly (np.interp over these knots); for NRK these come from the
-        # hardware monitoring.log and are NOT one-per-frame.
+        # Interpolation source for frame -> minutes
         "frame_minutes_src": {
             "frames": [float(v) for v in np.asarray(known_frames)],
             "minutes": [float(v) for v in np.asarray(known_minutes)],
@@ -367,8 +339,6 @@ def main():
     for exp_name, ch, chamber in CHAMBERS:
         metas.append(export_chamber(state, exp_name, ch, chamber, out_root))
 
-    # Ship the loader and the README next to the data. The loader still needs
-    # the repository checkout (it imports common/ and analyze_*.py).
     here = os.path.dirname(os.path.abspath(__file__))
     for src, dst in [
         ("load_supplement.py", "load_supplement.py"),
@@ -390,7 +360,7 @@ def main():
     with open(os.path.join(out_root, "index.json"), "w") as f:
         json.dump(index, f, indent=2)
 
-    # Checksums over everything written.
+    # Checksums over everything written
     lines = []
     for dirpath, _, files in os.walk(out_root):
         for fn in sorted(files):

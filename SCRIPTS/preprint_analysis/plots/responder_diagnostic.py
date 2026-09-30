@@ -21,14 +21,9 @@ from style import PLOT_PARAMS as _STYLE_PARAMS
 
 NAME = "responder_diagnostic"
 
-# Base font sizes come from the single locked style source; the diagnostic
-# colour palette below is plotting-only (it lived as a LOCAL PLOT_PARAMS in the
-# original combined script and has no place in the analysis layer).
 PLOT_PARAMS = {
     "width_full": _STYLE_PARAMS["width_full"],
     "dpi": _STYLE_PARAMS["dpi"],
-    # Font sizes governed by the single source (style) so these diagnostic
-    # panels match the locked preprint style used everywhere else.
     "title_fontsize": _STYLE_PARAMS["title_fontsize"],
     "title_fontweight": _STYLE_PARAMS["title_fontweight"],
     "suptitle_fontsize": _STYLE_PARAMS["suptitle_fontsize"],
@@ -57,8 +52,6 @@ PLOT_PARAMS = {
 BASELINE_N_PRE = 5
 RNG_SEED = 42
 
-# Per-figure figsize HEIGHTS scale with channel count; only the distribution
-# figure has a fixed height. Widths stay locked at the full text width (6.5 in).
 DIST_HEIGHT = 8.4
 
 
@@ -88,10 +81,7 @@ def _binned_median(x, y, n_bins=12, min_per_bin=3):
 
 
 # =============================================================================
-# Render functions — each receives the whole FIGURE (multi-panel exception) and
-# owns its gridspec/suptitle, ported verbatim from the source _draw_* functions.
-# `payload` is {"channels": [...], "panels": {ch: {...}}}; `fill` carries
-# exp_name (+ investigation_summary for the stimlock footer).
+# Render functions
 # =============================================================================
 def render_distribution(fig, payload, spec, *, fill):
     """Marginal histogram + jittered strip scatter of per-cell Δ dF/F0."""
@@ -99,11 +89,6 @@ def render_distribution(fig, payload, spec, *, fill):
     channels = payload["channels"]
     panels = payload["panels"]
     n = len(channels)
-    # This figure positions its axes with explicit gridspec margins below, so
-    # it opts OUT of the globally-enabled constrained layout (the two would
-    # fight and collapse the axes). A no-op layout engine is required here:
-    # constrained_layout=False alone gets silently re-applied by savefig, so we
-    # install PlaceHolderLayoutEngine which survives the save. Width stays 6.5 in.
     fig.set_layout_engine("none")
     gs = fig.add_gridspec(2, n, height_ratios=[1, 3], hspace=0.07, wspace=0.26,
                           top=0.84, bottom=0.09, left=0.09, right=0.97)
@@ -173,9 +158,6 @@ def render_stimlock(fig, payload, spec, *, fill):
     panels = payload["panels"]
     investigation_summary = fill["investigation_summary"]
     n = len(channels)
-    # Tall per-channel stack with manual gridspec margins -> no-op layout engine
-    # (constrained would collapse the rows) and let height grow with channel
-    # count; width stays locked at 6.5 in. Capping the height collapses the rows.
     height = 4.2 * n + 3.0
     fig.set_size_inches(PLOT_PARAMS["width_full"], height)
     fig.set_layout_engine("none")
@@ -269,8 +251,6 @@ def render_artifact(fig, payload, spec, *, fill):
     channels = payload["channels"]
     panels = payload["panels"]
     n = len(channels)
-    # Tallest diagnostic (2 rows per channel) with manual gridspec margins ->
-    # no-op layout engine; height grows with channel count (width 6.5 in).
     height = 7.0 * n + 4.2
     fig.set_size_inches(PLOT_PARAMS["width_full"], height)
     fig.set_layout_engine("none")
@@ -477,8 +457,7 @@ def render_f0(fig, payload, spec, *, fill):
     channels = payload["channels"]
     panels = payload["panels"]
     n = len(channels)
-    # Per-channel stack with manual gridspec margins -> no-op layout engine;
-    # height grows with channel count (width stays locked at 6.5 in).
+    # Per-channel stack with manual gridspec margins
     height = 4.7 * n + 3.0
     fig.set_size_inches(PLOT_PARAMS["width_full"], height)
     fig.set_layout_engine("none")

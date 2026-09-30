@@ -28,7 +28,7 @@ from common.stim_helpers import compute_f0_baseline
 from common.time_axis import response_window_frames
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
 
 def _aggregate(stacked, stat):
@@ -123,8 +123,6 @@ def compute_responder_thresholds(
             valid_mask = ~excluded
             valid_mask[: max(0, -win_lo)] = False
             valid_mask[max(0, n_cols - win_hi + 1):] = False
-            # A pseudo-stim needs `baseline_n_pre` frames of headroom for
-            # its own pre-stim baseline window.
             valid_mask[:baseline_n_pre] = False
             valid_cols = np.where(valid_mask)[0]
 

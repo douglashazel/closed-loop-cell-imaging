@@ -21,10 +21,6 @@ Mantel p-values per method per subset, and the combined stat text), and the
 precomputed ``inferential_caveat`` strings. The descriptive least-squares fit
 line is NOT computed here — it is a deterministic render-side concern recomputed
 from the cached vectors in ``plots/correlation_distance.py``.
-
-dF/F0 math is the verbatim ``(mat - F0) / F0_safe`` with F0 from
-``compute_f0_baseline`` — identical to the original ``correlation_distance.py``.
-No matplotlib / style imports. DMSO + NRK (all experiments).
 """
 
 import os
@@ -44,7 +40,7 @@ from common.stats import inferential_caveat, mantel_test, one_sample_t_dz
 from common.stim_helpers import compute_f0_baseline
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
 
 MIN_FRAMES_FOR_CORR = 5
@@ -161,10 +157,7 @@ def _channel_context(state, exp_name, ch, cfg, responder_masks):
         key=lambda c: int(str(c).lstrip("f")),
     )
     mat = df[frame_cols].values
-    # Normalize each cell to its own pre-stim baseline so the correlation is
-    # computed on dF/F0 (consistent with the rest of the pipeline). F0 rows
-    # align with df.index because compute_f0_baseline reads the same
-    # corrected_lum table.
+    # Normalize each cell to its own pre-stim baseline so the correlation is computed on dF/F0 (consistent with the rest of the pipeline)
     F0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
     F0_safe = np.where(F0 == 0, np.nan, F0)
     mat = (mat - F0) / F0_safe
@@ -194,8 +187,7 @@ def _channel_context(state, exp_name, ch, cfg, responder_masks):
 
     pair_classes = None
     row_mask = None
-    # ``responder_masks`` rows follow the corrected-lum CellID order, i.e. the
-    # same order as ``cell_ids_int``.
+    # ``responder_masks`` rows follow the corrected-lum CellID order, i.e. the same order as ``cell_ids_int``
     full_mask = responder_masks.get((exp_name, ch))
     if full_mask is not None:
         row_mask = np.array(
@@ -236,9 +228,7 @@ def _channel_correlations_and_mantel(ctx):
     }
 
     # Mantel test per correlation method. Permuting cell labels makes the
-    # *cell* (not the pair) the unit of exchangeability — the pseudoreplication-
-    # safe significance test here. The responder sub-matrix gets its own Mantel
-    # when >=4 responder cells exist.
+    # *cell* (not the pair) the unit of exchangeability
     dist_sq = ctx["dist_sq"]
     row_mask = ctx["row_mask"]
     mantel_by_method = {}
@@ -269,9 +259,7 @@ def analyze(experiments, state):
         channels = cfg["channels"]
         cell_line = cell_line_label(exp_name)
 
-        # Per-channel entries, in channel order. ``status`` records the source's
-        # placeholder branches ("insufficient data" / "insufficient samples")
-        # so the plotting layer can reproduce them without raw data.
+        # Per-channel entries, in channel order
         per_channel = []
         per_channel_pairs = []  # only the channels that produced real data
         for ch in channels:
@@ -286,8 +274,7 @@ def analyze(experiments, state):
             pw_corr_by_method, mantel_by_method = corr_mantel
 
             # NRK encodes the chamber as a trailing letter ("channel 1 A");
-            # C2C12/PC3 channels end in a digit. Only the chamber-labelled (NRK)
-            # Pearson panels use the caption-oriented title + clean legend.
+            # C2C12/PC3 channels end in a digit
             chamber = ch.split()[-1]
             is_chamber = bool(chamber.isalpha())
 
@@ -308,9 +295,7 @@ def analyze(experiments, state):
             per_channel.append(entry)
             per_channel_pairs.append(entry)
 
-        # Pooled-across-channels combined reductions (replicate-level p-values
-        # + the combined stat text), per method. Computed HERE so the plotting
-        # layer never recomputes a Mantel test.
+        # Pooled-across-channels combined reductions (replicate-level p-values + the combined stat text), per method
         combined = {}
         for method in METHODS:
             combined[method] = {
@@ -319,17 +304,13 @@ def analyze(experiments, state):
                 "stat_text": _combined_mantel_stat_text(per_channel_pairs, method),
             }
 
-        # Precompute the inferential-caveat footnote strings verbatim. The
-        # per-channel and combined figures use slightly different ``extra`` text;
-        # n_channels = len(channels) for both (matches the source).
         n_channels = len(channels)
         caveat_per_channel = inferential_caveat(
             exp_name, n_channels, unit="cell pair",
             extra="Significance: Mantel permutation test (per channel); "
                   "slope/r are descriptive.",
         )
-        # The combined figure passes n_channels = len(per_channel_pairs) in the
-        # source (the count of channels that produced data).
+        # The combined figure passes n_channels = len(per_channel_pairs) in the source (the count of channels that produced data)
         n_combined = len(per_channel_pairs)
         caveat_combined = inferential_caveat(
             exp_name, n_combined, unit="cell pair",

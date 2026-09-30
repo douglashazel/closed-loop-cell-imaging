@@ -11,18 +11,9 @@ from common.config import OUT_ROOT
 
 
 # =============================================================================
-# Analysis cache — figure-ready intermediates written by analyze_*.py and read
-# by the plotting layer (make_figures.py + plots/). This is distinct from the
-# big per-experiment background pickles in bg_cache/ (see common.pipeline): the
-# analysis cache sits *between* prepare_state() and matplotlib, holding only the
-# small arrays/stats each figure needs.
+# Analysis cache
 # =============================================================================
 ANALYSIS_CACHE_DIR = os.path.join(OUT_ROOT, "analysis_cache")
-# Bump whenever a cached schema changes (mirrors pipeline.PIPELINE_VERSION). The
-# plotting layer passes require_version so a stale cache fails loud instead of
-# rendering wrong numbers.
-# 2: learning_scores caches the two-tailed population permutation p that the
-#    figures print (<measure>_pop["p_value"], anticipation trains' "pop").
 ANALYSIS_VERSION = 2
 ANALYSIS_CACHE_PROTOCOL = pickle.HIGHEST_PROTOCOL  # matches bg_cache pickling
 

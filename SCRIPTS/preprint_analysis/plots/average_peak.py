@@ -37,13 +37,7 @@ from plots._base import (
 
 NAME = "average_peak"
 
-# Stimulus singled out for the stim-#8 derivative figures (mirrors the analysis
-# layer; used only to fill the title/legend templates).
 STIM8_INDEX = 8
-# Frame timing means most segments stop just short of SEGMENT_MINUTES, so the
-# extreme tail grid points are covered by only a handful of segments and their
-# mean is unrepresentative (it dives toward baseline). Drop grid points whose
-# segment coverage falls below this fraction of the best-covered point.
 MIN_COVERAGE_FRAC = 0.5
 
 
@@ -77,7 +71,6 @@ def _draw_mean_band(ax, grid, mean_peak, sem, color, *, sem_mult,
         grid, mean_peak, color=color, linewidth=mean_lw, zorder=3,
         label=mean_label,
     )
-    # White halo so the average reads clearly over the dense overlay.
     mean_line.set_path_effects([
         pe.Stroke(linewidth=mean_lw + 2.4, foreground="white"),
         pe.Normal(),
@@ -97,7 +90,6 @@ def render_average_peak(ax, payload, spec, *, fill):
     stacked = payload["stacked"]
     grid, mean_peak, sem = _mean_sem_clipped(stacked, grid)
 
-    # Re-clip the raw rows to the kept grid for the faint per-segment overlay.
     if fill.get("show_cells"):
         counts = np.sum(~np.isnan(payload["stacked"]), axis=0)
         keep = counts >= MIN_COVERAGE_FRAC * counts.max()
@@ -161,7 +153,6 @@ def render_average_peak_combined(ax, payload, spec, *, fill):
                 {**fill, "exp_name": exp_name, "n": int(stacked.shape[0])},
             ),
         )
-        # White halo so each mean reads clearly where the bands overlap.
         line.set_path_effects([
             pe.Stroke(linewidth=mean_lw + 2.4, foreground="white"),
             pe.Normal(),
@@ -181,7 +172,7 @@ def iter_figures(blob, exp_name):
     n_channels = data["n_channels"]
     grid = data["grid"]
 
-    # All cells.
+    # All cells
     all_stacked = data["all_segments_stacked"]
     yield (
         "average_peak",
@@ -190,7 +181,7 @@ def iter_figures(blob, exp_name):
          "n_seg": int(all_stacked.shape[0]), "show_cells": True},
     )
 
-    # Responders only.
+    # Responders only
     resp_stacked = data["resp_segments_stacked"]
     if resp_stacked is not None:
         yield (
@@ -200,7 +191,7 @@ def iter_figures(blob, exp_name):
              "n_seg": int(resp_stacked.shape[0]), "show_cells": False},
         )
 
-    # Stim-#8 responders.
+    # Stim-#8 responders
     stim8_stacked = data["stim8_stacked"]
     if stim8_stacked is not None:
         yield (
@@ -213,7 +204,7 @@ def iter_figures(blob, exp_name):
 
 
 # =============================================================================
-# Cross-experiment combined figures (PC3 vs C2C12).
+# Cross-experiment combined figures (PC3 vs C2C12)
 # =============================================================================
 COMBINED_BUCKET = "dmso_stim8_comparison"
 

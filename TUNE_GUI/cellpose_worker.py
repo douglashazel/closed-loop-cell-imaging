@@ -1,8 +1,4 @@
-"""Cached Cellpose model + background segmentation thread.
-
-Pattern: load the model once on first use, run model.eval in a daemon thread,
-expose status via a module-level dict that the Flask endpoints poll.
-"""
+"""Cached Cellpose model + background segmentation thread."""
 
 import os
 import threading
@@ -43,8 +39,7 @@ class CellposeJob:
             "finished_at": None,
         }
         self.result: Optional[np.ndarray] = None  # last masks array
-        # Bumped any time `status` mutates. SSE listeners watch this counter
-        # and yield only when it advances, so we don't busy-poll the dict.
+        # Bumped any time `status` changes
         self.status_version = 0
 
     def is_running(self) -> bool:
@@ -81,7 +76,6 @@ class CellposeJob:
         try:
             model = get_model()
             # Read the frame exactly as SCRIPTS/core_pipeline/segmentation.py
-            # does, so preview and batch hand Cellpose the same array.
             from cellpose import io as cp_io
             img = cp_io.imread(img_path)
             if img is None:

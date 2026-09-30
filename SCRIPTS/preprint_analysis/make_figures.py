@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
 """Plotting orchestrator — render every figure from the analysis cache.
 
-Reads ``analysis_cache/<exp>/<analysis>.pkl`` (written by the ``analyze_*.py``
-scripts) and renders each figure as a standalone single-axis PNG (the four
-``responder_diagnostic`` figures are the multi-panel exception). No heavy
-compute and no raw-data access happen here — only matplotlib.
-
     python make_figures.py --experiments all
     python make_figures.py --experiments c2c12_dmso_09APR26 --figures dff
     python make_figures.py --mosaics fig2_dff_overview
-
-Per-experiment figures render first; cross-experiment figures and mosaics run
-last (they need every experiment's cache loaded).
 """
 import argparse
 import os
@@ -23,24 +15,20 @@ from common.io_paths import load_analysis_cache
 from figures_spec import FIGURES
 from plots._base import render_one
 
-# Per-analysis plotting modules. Each exposes NAME + iter_figures(blob, exp).
-from plots import dff as plots_dff  # noqa: E402
-from plots import clustering as plots_clustering  # noqa: E402
-from plots import average_peak as plots_avg  # noqa: E402
-from plots import correlation_distance as plots_corr  # noqa: E402
-from plots import response_violins as plots_violins  # noqa: E402
-from plots import learning_scores as plots_learning  # noqa: E402
-from plots import nrk_hardware_log as plots_nrk_hw  # noqa: E402
-from plots import responder_diagnostic as plots_diag  # noqa: E402
+from plots import dff as plots_dff   
+from plots import clustering as plots_clustering   
+from plots import average_peak as plots_avg   
+from plots import correlation_distance as plots_corr   
+from plots import response_violins as plots_violins   
+from plots import learning_scores as plots_learning   
+from plots import nrk_hardware_log as plots_nrk_hw   
+from plots import responder_diagnostic as plots_diag   
 
 MODULES = [plots_dff, plots_clustering, plots_avg, plots_corr, plots_violins,
            plots_learning, plots_nrk_hw, plots_diag]
 MODULES_BY_NAME = {m.NAME: m for m in MODULES}
 
-# Cross-experiment builders (run after every per-experiment cache is loaded).
 CROSS_EXPERIMENT_BUILDERS = [plots_avg.build_combined]
-# Named Nature-style mosaics live in plots/mosaics.py (MOSAICS dict) and are
-# requested with --mosaics <name>.
 
 
 def parse_args():

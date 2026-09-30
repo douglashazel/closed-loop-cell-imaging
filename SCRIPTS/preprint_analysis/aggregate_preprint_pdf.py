@@ -10,10 +10,6 @@ Layout
   learning scores.
 - Per-channel section: dff, pca_umap_uncolored, hw_lum_log.
 
-Channels are sorted naturally — c2c12 uses ``channel_<n>_*.png``; nrk uses
-``channel_<n>_<letter>_*.png`` (letter encodes the stimulus). Any unrecognised
-PNG in a subfolder is appended at the end of its experiment so nothing is lost.
-
 Run from the project root:
     python aggregate_preprint_pdf.py
 """
@@ -31,14 +27,11 @@ from PIL import Image
 
 RESULTS_DIR = Path("results")
 OUTPUT_PDF = RESULTS_DIR / "preprint_figures.pdf"
-# Skip non-experiment subfolders (caches, logs, sibling SVG archive). The
-# cross-experiment "dmso_stim8_comparison" bucket is intentionally NOT skipped.
+# Skip non-experiment subfolders (caches, logs, sibling SVG archive)
 SKIP_DIRS = {"bg_cache", "analysis_cache", "run_logs", "svg",
              "archive", "state_cache"}
 
-# Stem ordering after the analysis/plotting split decomposed the multi-panel
-# figures into standalone single-axis PNGs. Unknown stems still append
-# gracefully (category_sort_key sends them to the end).
+# Stem ordering after the analysis/plotting split decomposed the multi-panel figures into standalone single-axis PNGs
 OVERVIEW_ORDER = [
     "dff_pooled_traces",
     "dff_mean_pooled_responders",
@@ -229,7 +222,7 @@ def add_image_page(pdf, image_path: Path, title: str, subtitle: str = None):
     w, h = img.size
     aspect = w / h
     page_w, page_h = PLOT_PARAMS["page_size"]
-    # Reserve top strip for title; layout figure proportional to image.
+    # Reserve top strip for title; layout figure proportional to image
     fig_w = page_w
     fig_h = min(page_h - 1.2, fig_w / aspect + 0.8)
     fig = plt.figure(figsize=(fig_w, fig_h))
@@ -281,7 +274,7 @@ def build_pdf():
 
     OUTPUT_PDF.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(OUTPUT_PDF) as pdf:
-        # Document cover.
+        # Document cover
         add_text_page(
             pdf,
             "Preprint Figures",
@@ -308,7 +301,7 @@ def build_pdf():
                 subtitle_size=PLOT_PARAMS["section_subtitle_size"],
             )
 
-            # Overview section.
+            # Overview section
             ordered_overview = sorted(
                 overview.items(),
                 key=lambda kv: category_sort_key(kv[0], OVERVIEW_ORDER),
@@ -320,7 +313,7 @@ def build_pdf():
                     subtitle=png.name,
                 )
 
-            # Per-channel sections.
+            # Per-channel sections
             for ch_key in sorted(by_channel.keys(), key=channel_sort_key):
                 cats = by_channel[ch_key]
                 ordered_cats = sorted(
@@ -337,7 +330,7 @@ def build_pdf():
                         subtitle=png.name,
                     )
 
-            # Anything that didn't match either pattern.
+            # Anything that didn't match either pattern
             for png in sorted(other):
                 add_image_page(
                     pdf, png,

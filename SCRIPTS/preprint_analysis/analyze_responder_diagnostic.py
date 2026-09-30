@@ -6,20 +6,6 @@ the per-cell Δ dF/F0 distribution + responder threshold, the stim-locked
 population trace, the dead-frame / optical-artifact checks, and the F0
 dependence — and caches them to ``analysis_cache/<exp>/responder_diagnostic.pkl``
 so the plotting layer never opens a raw image.
-
-CRITICAL: the original ``responder_diagnostic.py`` computed image SHARPNESS by
-reading frame PNGs *at plot time* (``_focus_by_col`` / variance of the
-Laplacian, decoded across a ``ProcessPoolExecutor``). That frame-image compute
-moves HERE: this script loads the windowed frames once, computes the focus
-metric, and caches the resulting ``focus_real``/``focus_pseudo`` (+ ``_sem``)
-arrays. The plotting layer (``plots/responder_diagnostic.py``) reads them back
-and never touches an image.
-
-The responder-threshold computation is the verbatim
-``compute_responder_thresholds`` with its own ``alpha=0.01``,
-``baseline_n_pre=5``, ``stat="mean"`` — identical to the original script.
-
-Diagnostic only — changes nothing in the responder pipeline. NO matplotlib.
 """
 
 import os
@@ -52,17 +38,11 @@ ALPHA = 0.01
 BASELINE_N_PRE = 5
 STAT = "mean"
 N_PSEUDO_TRACE = 400
-# Pseudo-stim anchors used for the optical-artifact check. Kept small because
-# each one triggers a windowed image reload for the focus metric.
 N_PSEUDO_FOCUS = 24
-# Frames are box-reduced toward this short-side pixel count before the
-# Laplacian. A defocus / refractive shift is a low-frequency, field-wide
-# change, so the full-resolution decode (PC3 frames are ~20 megapixels) is
-# unnecessary and would make the focus reload dominate the runtime.
 FOCUS_TARGET_PX = 768
 RNG_SEED = 42
 
-# Static investigation outcome text rendered verbatim in the stimlock footer.
+# Static investigation outcome text rendered verbatim in the stimlock footer
 INVESTIGATION_SUMMARY = [
     "1.  Stim-locked population shift  — CONFIRMED (this figure): a "
     "field-wide Δ dF/F0 lift steps up at real stims, large in PC3.",
@@ -218,12 +198,7 @@ def _focus_by_col(cfg, ch, col_to_frame, needed_cols, n_cols):
     ]
     if not jobs:
         return None
-    # Decode frames in a THREAD pool, not a process pool: PIL decode and the
-    # SciPy Laplacian/variance release the GIL, so threads parallelize the work
-    # without fork()ing the multi-GB analysis process — which fails with
-    # ENOMEM under strict memory overcommit when run_aggregate_results.sh runs the
-    # experiments concurrently. Respect the per-worker thread budget it sets;
-    # fall back to the full CPU count.
+    # Decode frames in a THREAD pool
     n_workers = int(os.environ.get("OMP_NUM_THREADS") or 0) or os.cpu_count() or 1
     n_workers = max(1, min(n_workers, 8, len(jobs)))
     sharp = {}
@@ -337,9 +312,7 @@ def _build_panels(exp_name, cfg, state, thresholds, rng):
                 bg_by_col[c] = bg_trace[fn]
             if 0 <= fn < bg_min.size:
                 bgmin_by_col[c] = bg_min[fn]
-        # Drop the camera dead frames (flashes spike bg_trace, dropouts
-        # depress it): #3 is the *perfusion / optical* check, so the
-        # camera artifacts handled by #2 must not leak into it.
+        # Drop the camera dead frames
         if dead_cols.size:
             bg_by_col[dead_cols] = np.nan
             bgmin_by_col[dead_cols] = np.nan
@@ -358,8 +331,6 @@ def _build_panels(exp_name, cfg, state, thresholds, rng):
             bg_pseudo = bg_pseudo_sem = None
             bgmin_pseudo = bgmin_pseudo_sem = None
 
-        # Frame-image focus compute (moved here from plot time) — reads the
-        # windowed frame PNGs once and caches the resulting focus arrays.
         focus_anchors = list(stim_cols) + list(focus_pcs)
         needed = {ac + o for ac in focus_anchors for o in offsets}
         focus_by_col = _focus_by_col(cfg, ch, col_to_frame, needed, n_cols)
@@ -399,8 +370,7 @@ def _build_panels(exp_name, cfg, state, thresholds, rng):
         # ---- #4 F0 dependence ----------------------------------------
         f0, _, _ = compute_f0_baseline(state, exp_name, ch, cfg)
         f0_flat = np.asarray(f0, dtype=float).ravel()
-        # Δ dF/F0 = (F_peak − F_base)/F0, so Δ dF/F0 × F0 recovers the
-        # response in additive corrected-luminosity units.
+        # Δ dF/F0 = (F_peak − F_base)/F0, so Δ dF/F0 × F0 recovers the response in additive corrected-luminosity units
         delta_lum = stat * f0_flat
         fin = ~np.isnan(stat) & ~np.isnan(f0_flat) & (f0_flat > 0)
         if int(fin.sum()) >= 3:
@@ -444,7 +414,7 @@ def analyze(experiments, state):
         experiments, state, alpha=ALPHA, baseline_n_pre=BASELINE_N_PRE, stat=STAT,
     )
     for exp_name, cfg in experiments.items():
-        # Reseeded per experiment, as in compute_responder_thresholds.
+        # Reseeded per experiment
         rng = np.random.default_rng(RNG_SEED)
         channels, panels = _build_panels(
             exp_name, cfg, state, thresholds, rng)

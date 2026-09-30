@@ -11,12 +11,6 @@ RAW stacked segments the average-peak figures display:
   * ``resp_segments_stacked`` — responder cells only (or None)
   * ``stim8_stacked``         — responder segments for stimulus #STIM8_INDEX
                                 (or None)
-
-The low-coverage tail clip (``MIN_COVERAGE_FRAC``) and the mean ± SEM are NOT
-applied here — they are render-side concerns in ``plots/average_peak.py``. The
-dF/F0 math is the verbatim ``(mat - F0) / F0_safe`` with F0 from
-``compute_f0_baseline`` — identical to the original ``average_peak.py``. No
-matplotlib / style imports.
 """
 
 import os
@@ -34,18 +28,13 @@ from common.stim_helpers import compute_f0_baseline
 from common.time_axis import frames_to_min
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
 
 # Window grabbed after each stimulus onset — the DMSO inter-stimulus interval
 # (stims within a train are 10 min apart, so this is "until the next peak").
 SEGMENT_MINUTES = 10.0
-# Common grid the per-stimulus segments are resampled onto. Channels / experi-
-# ments have different frame rates, so segments hold different frame counts;
-# np.interp puts them all on the same 0-SEGMENT_MINUTES axis.
 GRID_POINTS = 100
-# Stimulus singled out for the stim-#8 derivative figures (1-indexed: the 8th
-# DMSO pulse overall — the 3rd pulse of the 2nd train).
 STIM8_INDEX = 8
 
 

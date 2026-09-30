@@ -16,7 +16,7 @@ from common.time_axis import response_window_frames
 
 import sys
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
 
 def confirm_response_direction(experiments, state):

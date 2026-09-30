@@ -16,10 +16,6 @@ figures are the documented exception: they draw onto a passed-in
 (label/title/legend text templates, defined centrally in ``figures_spec.py``);
 ``fill`` is the dict of runtime values used to fill those templates (always
 includes ``"exp_name"``, which also selects the output directory).
-
-Render functions NEVER call ``plt.subplots``/``savefig``/``suptitle`` (the
-driver owns the figure). They set their own axes ``title``/``xlabel``/``ylabel``
-/``legend`` from ``spec`` via the ``fmt`` helper.
 """
 import os
 import sys
@@ -30,16 +26,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# Resolve sibling top-level modules (style, common) regardless of CWD.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.io_paths import fig_path, save_fig  # noqa: E402
-from style import PLOT_PARAMS, apply_style, FIGSIZE_DEFAULT  # noqa: E402
+from common.io_paths import fig_path, save_fig   
+from style import PLOT_PARAMS, apply_style, FIGSIZE_DEFAULT   
 
-
-# =============================================================================
-# FigureSpec — the central label/title/legend record (instances live in
-# figures_spec.py). Templates use str.format placeholders filled from `fill`.
-# =============================================================================
 @dataclass(frozen=True)
 class FigureSpec:
     id: str                       # filename-stem template, e.g. "{ch}_dff_raw{subset_suffix}"
@@ -57,8 +47,7 @@ class FigureSpec:
 
 
 # =============================================================================
-# Small shared drawing helpers (kept here so the plot layer needs nothing from
-# the analysis-only common.stim_helpers module).
+# Small shared drawing helpers
 # =============================================================================
 def clean_axes(ax):
     """Hide the top/right spines and their ticks (the locked house style)."""
@@ -113,7 +102,7 @@ def legend_text(spec, key, fill):
 
 
 # =============================================================================
-# Drivers — build a standalone figure around a render function.
+# Drivers
 # =============================================================================
 def make_standalone(spec, payload, fill):
     """Render a single-axis figure type and save it as PNG.
@@ -127,8 +116,7 @@ def make_standalone(spec, payload, fill):
         figsize=spec.figsize or FIGSIZE_DEFAULT, dpi=PLOT_PARAMS["dpi"],
     )
     spec.render(ax, payload, spec, fill=fill)
-    # Long titles wrap to the figure width instead of clipping at the fixed
-    # size (we never use bbox_inches='tight', which would change the size).
+
     if ax.get_title():
         ax.title.set_wrap(True)
     if spec.suptitle:
@@ -138,7 +126,6 @@ def make_standalone(spec, payload, fill):
         )
         st.set_wrap(True)
     if spec.caveat:
-        # Reserve a bottom band so the footnote clears the x-axis label.
         _reserve_bottom(fig, 0.08)
         cv = fig.text(
             0.5, 0.012, fmt(spec.caveat, fill),

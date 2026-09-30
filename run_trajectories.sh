@@ -5,8 +5,7 @@
 #   bash run_trajectories.sh <experiment_dir | config.yaml>
 #
 # Parameters come from the tracking section of
-# <experiment_dir>/pipeline_config.yaml (see run_processes.sh); the values
-# used are saved under <experiment_dir>/analysis/run_history/.
+# <experiment_dir>/pipeline_config.yaml (see run_processes.sh)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +15,7 @@ if [[ $# -ne 1 ]]; then
 fi
 
 # -----------------------------
-# Parameters (stops here if the config is missing or invalid)
+# Parameters
 # -----------------------------
 PARAMS=$(python3 "$ROOT/SCRIPTS/core_pipeline/pipeline_config.py" prepare "$1" run_trajectories.sh tracking)
 eval "$PARAMS"

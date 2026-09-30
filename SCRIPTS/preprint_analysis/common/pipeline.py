@@ -35,7 +35,7 @@ from common.time_axis import (
 )
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import load_msgpack  # noqa: E402
+from io_utils import load_msgpack   
 
 
 # Bump when the cache pickle layout or pipeline semantics change (e.g. when

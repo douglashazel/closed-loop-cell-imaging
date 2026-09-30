@@ -1,58 +1,18 @@
-"""
-Single source of truth for preprint figure style, sizing, and typography.
-
-This module is imported by the PLOTTING layer only (``make_figures.py`` and the
-``plots/`` package). The analysis layer (``analyze_*.py``) does NOT import it —
-analysis writes figure-ready numbers to ``analysis_cache/`` and never touches
-matplotlib. (It replaces the old ``figstyle.py`` + ``common/plot_params.py``.)
-
-WHY THIS EXISTS
----------------
-Every figure is generated at the *exact* width it will occupy on the page, and
-all font/line sizes are locked here in points. Matplotlib sizes are in points,
-so a figure built at its final inch width shows its 8 pt labels as 8 pt on the
-page. Two figures at different widths still share the same point sizes, so they
-match — and a panel rendered standalone looks identical when the SAME render
-function draws it into a ``subplot_mosaic`` cell. The rule that follows is the
-important one:
-
-    NEVER rescale a generated figure afterward (in Word or Inkscape).
-
-Scaling shrinks the text with it, which is what breaks consistency. Insert the
-PNG at 100%; if Word inserts at the wrong size, type the exact inches in the
-Size dialog.
-
-OPERATING RULES (encoded below, applied by every render function)
------------------------------------------------------------------
-* Generate at final width. Full Word text width (Letter, 1 in margins) ~6.5 in.
-  Use ``PLOT_PARAMS['width_full']`` (6.5) by default; ``width_half`` (3.25) for
-  small side panels.
-* Do NOT use ``bbox_inches='tight'`` (it crops to content and changes the
-  size). ``apply_style()`` turns on constrained layout globally so nothing
-  clips inside the fixed size; do not also call ``plt.tight_layout()``.
-* Deliver PNG at 600 dpi (dpi is embedded so Word places it at the correct
-  physical size). ``common.io_paths.save_fig`` writes the PNG.
-* Panel letters use Arial bold 11 pt; use the SAME spec in Inkscape so mixed
-  figures match.
-"""
+"""Single source of truth for preprint figure style, sizing, and typography."""
 import matplotlib as mpl
 
 
 # =============================================================================
-# Locked primitives — change a number here, every figure follows.
+# Locked primitives
 # =============================================================================
 # Final on-page widths in inches for a single-column Word page
-# (Letter, 1 in margins -> ~6.5 in text width). Generate every figure at the
-# width it will occupy, then insert at 100%.
 WIDTH_FULL = 6.5          # full text width (default for all figures)
 WIDTH_TWO_THIRDS = 4.33
 WIDTH_HALF = 3.25         # small side panels
 
 DPI = 600                 # 600 for line/plot-heavy figures (everything here)
 
-# Point sizes — locked. These are wired into rcParams by apply_style() AND
-# exposed under the legacy key names the render functions pass explicitly
-# (fontsize=PLOT_PARAMS["title_fontsize"], ...), so there is one number each.
+# Point sizes
 FONT_BASE = 8             # default text / annotations
 FONT_TITLE = 9            # axes titles
 FONT_AXIS_LABEL = 8       # x / y axis labels
@@ -63,8 +23,7 @@ FONT_SUPTITLE = 10        # figure suptitle
 
 
 # =============================================================================
-# PLOT_PARAMS — merged dict. Dimensions + locked fonts + the full artist
-# palette the render functions reference by key.
+# PLOT_PARAMS
 # =============================================================================
 PLOT_PARAMS = {
     # --- dimensions (single-column Word page) ---
@@ -73,8 +32,6 @@ PLOT_PARAMS = {
     "width_half": WIDTH_HALF,
     # Default figure sizes at final width. Single-panel plots use "figsize";
     # the wider/stacked multi-panel trace figures start from "figsize_wide".
-    # Per-figure render functions override the height where a layout needs more
-    # room.
     "figsize": (WIDTH_FULL, 3.9),
     "figsize_wide": (WIDTH_FULL, 4.2),
     "dpi": DPI,
@@ -159,18 +116,9 @@ PLOT_PARAMS_HW_LOG = {
 }
 
 
-# rcParams that must be identical for every figure. Sizes are in points, so a
-# figure generated at its final inch width shows these exact point sizes on the
-# page; two figures at different widths still share the same text size.
+# rcParams that must be identical for every figure
 _RC = {
     "font.family": "sans-serif",
-    # Arial first so figures auto-upgrade to true Arial if it is ever installed.
-    # Arial is NOT installed in this environment, so the effective font is
-    # Liberation Sans -- the metric-compatible Arial substitute (identical glyph
-    # widths, near-identical appearance). Nimbus Sans is a second Helvetica/Arial
-    # -alike fallback; DejaVu Sans is the last resort. To use real Arial, drop
-    # Arial.ttf into ~/.local/share/fonts/ (or apt install ttf-mscorefonts-
-    # installer) and clear the cache: rm -rf ~/.cache/matplotlib, then rerun.
     "font.sans-serif": ["Arial", "Liberation Sans", "Nimbus Sans",
                         "Helvetica", "DejaVu Sans"],
     "mathtext.fontset": "dejavusans",
@@ -195,13 +143,10 @@ _RC = {
     "axes.spines.top": False,
     "axes.spines.right": False,
 
-    # Generate at a fixed size; let constrained layout pack content inside it
-    # (NOT tight_layout / bbox_inches='tight', which change the size).
     "figure.constrained_layout.use": True,
 
     "savefig.dpi": DPI,
 
-    # Vector output that stays portable and editable in Inkscape.
     "svg.fonttype": "none",     # keep SVG text as text
     "pdf.fonttype": 42,
     "ps.fonttype": 42,

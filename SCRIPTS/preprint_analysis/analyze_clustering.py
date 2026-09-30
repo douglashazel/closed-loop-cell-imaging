@@ -27,7 +27,7 @@ from common.pipeline import prepare_state
 from common.time_axis import frames_to_min
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
 
 def _compute_clustering_embeddings(state, exp_name, ch, random_state=0,

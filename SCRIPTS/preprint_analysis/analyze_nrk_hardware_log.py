@@ -86,9 +86,7 @@ def _channel_hw_log(state, exp_name, ch, cfg):
         f"{len(regions)} setpoint regions | real setpoint @ {rsp_str}"
     )
 
-    # Setpoint regions: skip the initial calibration region (idx 0), keep the
-    # palette index so the render colours each band identically. Convert the
-    # start/end frames to minutes here (analysis owns the transform).
+    # Setpoint regions: skip the initial calibration region (idx 0)
     setpoint_regions_min = []
     for idx, (start_f, end_f, sp) in enumerate(regions):
         if idx == 0:
@@ -105,7 +103,7 @@ def _channel_hw_log(state, exp_name, ch, cfg):
 
     pulse_duration = float(cfg.get("stim_duration_minutes", 0.5) or 0.5)
 
-    # Axis limits — verbatim from the original (in-window y range when available).
+    # Axis limits
     x_lo = float(np.asarray(frames_min).min())
     x_hi = float(cfg.get("time_window_minutes", 30.0))
     in_window = [

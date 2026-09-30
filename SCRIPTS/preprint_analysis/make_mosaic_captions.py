@@ -1,21 +1,6 @@
 """Write a caption-information ``.txt`` beside every saved mosaic PNG.
 
-The mosaics were deliberately simplified — most of the descriptive numbers that
-used to live in each subplot's legend (fit slope/r, pair counts, permutation /
-Mantel p-values, cell counts, setpoints, …) were removed so the panels read
-cleanly. This script recovers exactly that information and lays it out
-per-panel, keyed by the same a/b/c… letters the mosaic uses, so it can be
-dropped straight into a figure caption.
-
-It is a READ-ONLY companion to ``plots/mosaics.py``: it reuses that module's
-``MOSAICS`` definitions and ``_find_instance`` resolver, recomputes the
-descriptive fits with the *same* code path the render functions use
-(``scipy.linregress``), and reads the permutation p-values from the same cached
-population test the learning-score panels print, so every number here matches
-what the figure either draws or used to draw.
-
-For each mosaic whose ``<OUT_ROOT>/mosaics/<name>.png`` exists, a sibling
-``<name>.txt`` is written. Run from the repo root (where ``OUT_ROOT`` resolves):
+The mosaics are deliberately simplified.
 
     python SCRIPTS/preprint_analysis/make_mosaic_captions.py            # all saved mosaics
     python SCRIPTS/preprint_analysis/make_mosaic_captions.py nrk_chambers_dff_corr  # one
@@ -27,14 +12,11 @@ import numpy as np
 from scipy.stats import linregress
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common.config import OUT_ROOT  # noqa: E402
-from common.io_paths import load_analysis_cache  # noqa: E402
-from plots._base import title_of, xlabel_of, ylabel_of  # noqa: E402
-from plots.mosaics import MOSAICS, _find_instance  # noqa: E402
+from common.config import OUT_ROOT   
+from common.io_paths import load_analysis_cache   
+from plots._base import title_of, xlabel_of, ylabel_of   
+from plots.mosaics import MOSAICS, _find_instance   
 
-# Real experiments to probe when a mosaic doesn't pin one via "experiments"
-# (mirrors make_figures: the driver builds for every experiment, and only the
-# one whose caches resolve all cells succeeds). Discovered from the cache dir.
 def _known_experiments():
     cache_root = os.path.join(OUT_ROOT, "analysis_cache")
     if not os.path.isdir(cache_root):
@@ -46,7 +28,7 @@ def _known_experiments():
 
 
 # =============================================================================
-# Small formatters — mirror the figure's own display logic exactly.
+# Small formatters
 # =============================================================================
 def _fmt_p_mantel(p):
     """Mantel p as the figure prints it (``correlation_distance._fmt_p``)."""
@@ -85,8 +67,7 @@ def _n_valid(mask, dists, corrs):
 
 
 # =============================================================================
-# Per-spec fact extractors.  Each returns (kind, [bullet strings]).
-# `kind` is a short description used when the panel has no drawn title.
+# Per-spec fact extractors
 # =============================================================================
 def _facts_dff_trace(payload, fill, spec):
     n_cells = payload["mat"].shape[0]
@@ -149,7 +130,7 @@ def _facts_corr_channel(payload, fill, spec):
         "Each point = one cell pair; correlation over "
         f"{fill['window_label']}.",
     ]
-    # Responders-only (RR) fit + per-cell Mantel p.
+    # Responders-only (RR) fit + per-cell Mantel p
     if pc.get("RR") is not None and np.asarray(pc["RR"]).any():
         n, s, r = _fit_stats(d[pc["RR"]], c[pc["RR"]])
         facts.append(_corr_fit_line("Responders-only (blue)", n, s, r))
@@ -159,7 +140,7 @@ def _facts_corr_channel(payload, fill, spec):
                 f"    → Mantel p = {_fmt_p_mantel(m_rr['p_value'])} "
                 f"({m_rr['n_perm']} perms, {m_rr['n_cells']} responder cells)."
             )
-    # All-cells fit + per-cell Mantel p.
+    # All-cells fit + per-cell Mantel p
     n, s, r = _fit_stats(d, c)
     facts.append(_corr_fit_line("All cells (grey line)", n, s, r))
     m_all = payload.get("mantel_all")
@@ -168,7 +149,7 @@ def _facts_corr_channel(payload, fill, spec):
             f"    → Mantel p = {_fmt_p_mantel(m_all['p_value'])} "
             f"({m_all['n_perm']} perms, {m_all['n_cells']} cells)."
         )
-    # Non-responder cloud.
+    # Non-responder cloud
     if pc.get("NN") is not None:
         n_nn = _n_valid(pc["NN"], d, c)
         if n_nn:
@@ -351,7 +332,7 @@ FACTS_BY_SPEC = {
 
 
 # =============================================================================
-# Mosaic-level prose (the one-paragraph "what is this figure" overview).
+# Mosaic text
 # =============================================================================
 OVERVIEWS = {
     "c2c12_chambers_dff_stack": (
@@ -391,7 +372,7 @@ OVERVIEWS = {
 
 
 # =============================================================================
-# Assembly.
+# Assembly
 # =============================================================================
 def _resolve_exp(name, m, experiments):
     """The single experiment this mosaic builds for (mirrors build_mosaic)."""
@@ -481,7 +462,7 @@ def build_caption(name, experiments):
         for f in facts:
             for j, ln in enumerate(_wrap(f, 72)):
                 lines.append(("  • " if j == 0 else "    ") + ln)
-        # Mosaic-level overrides worth flagging for the caption.
+        # Mosaic-level overrides worth flagging for the caption
         notes = []
         if mkey in titles_ov and titles_ov[mkey] == "":
             notes.append("panel title removed in this mosaic.")

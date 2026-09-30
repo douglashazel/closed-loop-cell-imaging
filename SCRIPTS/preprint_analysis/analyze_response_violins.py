@@ -2,19 +2,7 @@
 """Per-stimulus response-violin analysis (no plotting) → analysis_cache/<exp>/response_violins.pkl.
 
 Computes the figure-ready intermediates the response-violin figures display, for
-each DMSO experiment and each metric in {"height", "width"} (signal "dff"):
-
-  * per-stim per-cell pooled arrays — ``violin_data`` (ragged list of 1-D arrays,
-    NaN-dropped per stim) and the parallel ``responder_data`` (ragged bool arrays),
-  * the per-stim x labels (stim onset minutes),
-  * per-train cell means + train-level stats (within-experiment Friedman +
-    replicate-level one-sample t across channels → ``train_p`` / ``stats_text``),
-  * ``chan_train_means`` (n_channels × n_trains) for the per-replicate figure.
-
-The matplotlib rendering lives in ``plots/response_violins.py``; this script
-writes only numbers. The response math is the verbatim
-``per_cell_response_delta_with_baseline`` port from the original
-``response_violins.py`` — identical baseline window, width caps, and stats.
+each DMSO experiment and each metric in {"height", "width"} (signal "dff")
 """
 
 import os
@@ -38,19 +26,17 @@ from common.stim_helpers import compute_f0_baseline, compute_stim_caps
 from common.time_axis import frames_to_min, response_window_frames
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
 
-# Pre-stim baseline window used for every per-stim Δ — matches the responder
-# gate in common/responders.py so the descriptive figures and the responder
-# classification share the same baseline definition.
+# Pre-stim baseline window used for every per-stim Δ
 _PRESTIM_BASELINE_FRAMES = 5
 
 METRICS = ("height", "width")
 
 
 # =============================================================================
-# Per-channel response arrays — verbatim port from response_violins.py.
+# Per-channel response arrays
 # =============================================================================
 def _build_signal_matrix(state, exp_name, ch, cfg, *, signal):
     """Return ``(values_by_col, df_indexed, frame_cols, frame_to_col)`` for the chosen signal.
@@ -190,8 +176,7 @@ def _per_train_cell_means(state, exp_name, ch, cfg, *, metric, signal,
     def _f2m(frames):
         return frames_to_min(state, exp_name, ch, frames)
 
-    # Per-cell response per stim, keeping cell alignment and NaNs (a missing
-    # stim leaves an all-NaN row; nanmean over the train then ignores it).
+    # Per-cell response per stim, keeping cell alignment and NaNs (a missing stim leaves an all-NaN row; nanmean over the train then ignores it)
     per_stim = np.full((n_stims, n_cells), np.nan)
     for i, p in enumerate(stim_frames):
         if p not in frame_to_col:
@@ -243,7 +228,7 @@ def _train_level_stats(per_channel_means, *, metric, n_trains):
 
     lines = [f"Train-level comparison ({metric};  T1 … T{n_trains})"]
 
-    # Cell-level layer — within-experiment, cells are NOT biological replicates.
+    # Cell-level layer — within-experiment, cells are NOT biological replicates
     fr = friedman_with_posthoc(complete)
     if fr.get("insufficient"):
         lines.append(
@@ -266,7 +251,7 @@ def _train_level_stats(per_channel_means, *, metric, n_trains):
                 f"rank-biserial r={ph['rank_biserial']:+.3f}"
             )
 
-    # Replicate-level layer — channels are the biological replicates.
+    # Replicate-level layer — channels are the biological replicates
     chan_means = np.vstack([np.nanmean(a, axis=0) for a in arrays])
     n_ch = chan_means.shape[0]
     diffs = chan_means[:, -1] - chan_means[:, 0]
@@ -288,15 +273,12 @@ def _train_level_stats(per_channel_means, *, metric, n_trains):
             "replicate-level: 1 channel — within-experiment only, "
             "no biological-replicate test"
         )
-    # The overlay shows across-replicate spread; with a single channel there
-    # are no replicate points to plot, so suppress it (the lone line would
-    # just be the pooled per-train cell mean, not a replicate mean).
+
     return "\n".join(lines), (chan_means if n_ch >= 2 else None), train_p
 
 
 # =============================================================================
-# Per-experiment, per-metric assembly — verbatim port of the source loop body,
-# minus the matplotlib draw calls.
+# Per-experiment, per-metric assembly
 # =============================================================================
 def _metric_bundle(experiments, state, exp_name, cfg, *, metric, signal,
                    responder_masks):
@@ -382,9 +364,6 @@ def _metric_bundle(experiments, state, exp_name, cfg, *, metric, signal,
             f"{total_responders}/{total_cells} cells flagged as responders."
         )
 
-    # The "{extremum} over {window_str} − baseline; N cells, M channels" core
-    # the violin title interpolates (preserved verbatim, with {placeholders}
-    # the spec fills from this cache).
     title_core = (
         f"{extremum_label} over {window_str} − baseline; "
         f"{total_cells} cells, {len(channels)} channels"

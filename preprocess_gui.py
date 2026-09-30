@@ -1,12 +1,5 @@
 """
 napari-based preprocessing GUI for the Cell Trainer pipeline.
-
-DEPRECATED: use the browser GUI in TUNE_GUI/ (``python TUNE_GUI/app.py``),
-which covers the same tuning steps and is the one that is maintained. This GUI
-duplicates TUNE_GUI/pipeline_logic.py and has drifted from it. Its Run step
-stops segmentation after 2 h (``timeout=7200``) and then still runs tracking
-on whatever masks exist.
-
 Launch:  python preprocess_gui.py
 """
 
@@ -36,13 +29,13 @@ from PIL import Image as PILImage
 # pipeline_config.py (the YAML the run_*.sh drivers read) lives with the core scripts.
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "SCRIPTS", "core_pipeline"))
-import pipeline_config  # noqa: E402
+import pipeline_config
 
-SPIN_MAX_WIDTH = 120  # keep spinboxes compact in the dock panel
+SPIN_MAX_WIDTH = 120
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Utility functions (copied from notebook / scripts to avoid import side-effects)
+# Utility functions
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def timepoint_sort_key(fname):
@@ -888,8 +881,7 @@ class SummaryTab(QWidget):
 
     def _config_updates(self):
         s = self.state
-        # trajectories.py keys frames on their timepoint_NNNNN token, not on
-        # the position in the frame list.
+        # trajectories.py keys frames on their timepoint_NNNNN, not index in list
         shift_frame = s.shift_frame_idx
         if 0 <= s.shift_frame_idx < len(s.all_frames):
             m = re.search(r'timepoint_(\d+)', s.all_frames[s.shift_frame_idx])

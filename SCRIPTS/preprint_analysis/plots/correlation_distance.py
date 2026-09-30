@@ -46,7 +46,7 @@ METHOD_LABEL = {"pearson": "Pearson r", "spearman": "Spearman ρ"}
 
 
 # =============================================================================
-# Small label helpers (ported verbatim from the source).
+# Small label helpers
 # =============================================================================
 def _fmt_p(p):
     """Compact p-value string for a legend (sci-notation below 1e-3)."""
@@ -86,7 +86,7 @@ def _apply_log1p_xaxis(ax, xlabel="Pairwise distance (μm, log1p axis)"):
 
 
 # =============================================================================
-# Descriptive fit + scatter (recomputed from cached vectors).
+# Descriptive fit + scatter
 # =============================================================================
 def _fit_and_plot_subset(ax, dists, corrs, color, label_prefix, *,
                          draw_scatter=True, scatter_label=None, stat_text=None,
@@ -169,8 +169,7 @@ def _scatter_corr_vs_dist(ax, pw_dist, pw_corr, *, pair_classes=None,
     """
     drew_any = False
     if pair_classes and any(np.asarray(m).any() for m in pair_classes.values()):
-        # Non-responder (NN) pairs: gray scatter only, no fit line. The clean
-        # legend drops the NN entry — the two coloured fit lines carry meaning.
+        # Non-responder (NN) pairs: gray scatter only, no fit line
         nn_mask = pair_classes.get("NN")
         if nn_mask is not None and nn_mask.any():
             valid = nn_mask & ~np.isnan(pw_dist) & ~np.isnan(pw_corr)
@@ -184,7 +183,7 @@ def _scatter_corr_vs_dist(ax, pw_dist, pw_corr, *, pair_classes=None,
                            else f"{PAIR_CLASS_LABEL['NN']} (n={n_nn})"),
                 )
                 drew_any = True
-        # Responder × responder (RR) pairs: blue scatter + fit line + band.
+        # Responder × responder (RR) pairs: blue scatter + fit line + band
         rr_mask = pair_classes.get("RR")
         if rr_mask is not None and rr_mask.any():
             drew_any |= _fit_and_plot_subset(
@@ -198,7 +197,7 @@ def _scatter_corr_vs_dist(ax, pw_dist, pw_corr, *, pair_classes=None,
                               if clean_legend else None),
             )
         # All cells pooled (RR + NN + RN): one fit line over every pair, drawn
-        # over the already-coloured clouds without redrawing any scatter.
+        # over the already-coloured clouds without redrawing any scatter
         drew_any |= _fit_and_plot_subset(
             ax,
             pw_dist, pw_corr,
@@ -219,7 +218,7 @@ def _scatter_corr_vs_dist(ax, pw_dist, pw_corr, *, pair_classes=None,
 
 
 # =============================================================================
-# Render functions (one figure each).
+# Render functions (one figure each)
 # =============================================================================
 def render_corr_vs_dist_channel(ax, payload, spec, *, fill):
     """One per-channel panel: pairwise correlation vs distance for one method.
@@ -237,9 +236,7 @@ def render_corr_vs_dist_channel(ax, payload, spec, *, fill):
     pair_classes = payload.get("pair_classes")
     clean = bool(payload.get("clean_legend"))
 
-    # Cached per-cell Mantel results → the clean Pearson legend's p-values. The
-    # source labelled the line from ``mantel.get("p_value")`` via _mantel_line_
-    # label; mirror that with a {"p_value": ...} dict.
+    # Cached per-cell Mantel results → the clean Pearson legend's p-values
     m_all = payload.get("mantel_all")
     m_rr = payload.get("mantel_rr")
     p_all = ({"p_value": m_all.get("p_value")}
@@ -255,8 +252,6 @@ def render_corr_vs_dist_channel(ax, payload, spec, *, fill):
 
     ax.set_xlabel(xlabel_of(spec, fill), fontsize=P["axis_label_fontsize"])
     ax.set_ylabel(ylabel_of(spec, fill), fontsize=P["axis_label_fontsize"])
-    # The "[log1p distance axis]" title suffix is baked into the template via
-    # {log1p_note}; the log1p switch only restyles the x-axis (label + ticks).
     ax.set_title(title_of(spec, fill), fontsize=P["title_fontsize"],
                  fontweight=P["title_fontweight"])
 
@@ -287,7 +282,7 @@ def render_corr_vs_dist_combined(ax, payload, spec, *, fill):
     if merged_classes is not None and any(
         np.asarray(m).any() for m in merged_classes.values()
     ):
-        # Non-responder (NN) pairs: gray scatter only, no fit line.
+        # Non-responder (NN) pairs: gray scatter only, no fit line
         nn_mask = merged_classes.get("NN")
         if nn_mask is not None and nn_mask.any():
             valid = nn_mask & ~np.isnan(dists) & ~np.isnan(corrs)
@@ -300,7 +295,7 @@ def render_corr_vs_dist_combined(ax, payload, spec, *, fill):
                     label=(None if is_pearson
                            else f"{PAIR_CLASS_LABEL['NN']}"),
                 )
-        # Responder × responder (RR) pairs: blue scatter + fit line + band.
+        # Responder × responder (RR) pairs: blue scatter + fit line + band
         rr_mask = merged_classes.get("RR")
         if rr_mask is not None and rr_mask.any():
             _fit_and_plot_subset(
@@ -313,7 +308,7 @@ def render_corr_vs_dist_combined(ax, payload, spec, *, fill):
                 legend_label=(_mantel_line_label(PAIR_CLASS_LABEL["RR"], p_rr)
                               if is_pearson else None),
             )
-        # All cells pooled (RR + NN + RN): one fit line over every pair.
+        # All cells pooled (RR + NN + RN): one fit line over every pair
         _fit_and_plot_subset(
             ax,
             dists, corrs,
@@ -333,8 +328,6 @@ def render_corr_vs_dist_combined(ax, payload, spec, *, fill):
 
     ax.set_xlabel(xlabel_of(spec, fill), fontsize=P["axis_label_fontsize"])
     ax.set_ylabel(ylabel_of(spec, fill), fontsize=P["axis_label_fontsize"])
-    # The "[log1p distance axis]" title suffix is baked into the template via
-    # {log1p_note}; the log1p switch only restyles the x-axis (label + ticks).
     ax.set_title(title_of(spec, fill), fontsize=P["title_fontsize"],
                  fontweight=P["title_fontweight"])
 
@@ -345,7 +338,7 @@ def render_corr_vs_dist_combined(ax, payload, spec, *, fill):
 
 
 # =============================================================================
-# Figure enumeration.
+# Figure enumeration
 # =============================================================================
 def iter_figures(blob, exp_name):
     """Yield ``(spec_key, payload, fill)`` for every correlation-distance figure.
@@ -381,11 +374,6 @@ def iter_figures(blob, exp_name):
                 "mantel_all": mantel["all"],
                 "mantel_rr": mantel["RR"],
             }
-            # Resolve the clean/verbose title + ylabel HERE so figures_spec can
-            # stay static templates ({title_main} / {ylabel_main}). Only the NRK
-            # chamber Pearson panels take the caption-oriented "chamber {x}"
-            # title + "Pearson r (...)" ylabel; everything else is labelled by
-            # channel with the method in the title.
             if clean:
                 title_main = (
                     f"Pairwise Pearson r vs. distance: chamber {chamber}"
@@ -418,8 +406,7 @@ def iter_figures(blob, exp_name):
                 )
 
     # ------------------------------------------------------------------ combined
-    # Pool the per-channel vectors across channels (the source concatenated them
-    # at render time; do it here so the render fn stays a single-axis draw).
+    # Pool channels
     ok = [e for e in data["per_channel"] if e.get("status") == "ok"]
     if ok:
         for method in ("pearson", "spearman"):

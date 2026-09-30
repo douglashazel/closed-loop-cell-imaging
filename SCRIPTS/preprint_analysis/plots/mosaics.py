@@ -1,22 +1,9 @@
 """Nature-style multi-panel mosaics assembled from the standalone figures.
 
 A mosaic reuses the SAME ``render_*`` functions the standalone figures use,
-drawing each onto a ``subplot_mosaic`` axes (or a ``SubFigure`` for the
-multi-panel ``responder_diagnostic`` exception). Because every render function
-sets its own title/labels at the locked rcParams point sizes, the panels keep
-identical fontsizes whether standalone or composed here.
-
-Add a mosaic by appending to ``MOSAICS``: give a ``subplot_mosaic`` ``layout``,
-a ``figsize``, and a ``cells`` map from each mosaic key to
-``(spec_key, instance_match)`` — where ``instance_match`` selects ONE figure
-instance from that spec's ``iter_figures`` output (e.g. a specific channel or
-subset). Build with ``make_figures.py --mosaics <name>``.
-
-A cell tuple may carry an optional THIRD element, ``(spec_key, instance_match,
-exp_name)``, naming the experiment that cell is pulled from (it overrides the
-experiment ``build_mosaic`` is invoked for). That is what lets a single mosaic
-mix panels from several experiments — pair it with ``experiments`` (below) so
-the cross-experiment mosaic is assembled exactly once.
+drawing each onto a ``subplot_mosaic`` axes. The panels keep
+identical fontsizes whether standalone or composed here because every render function
+sets its own title/labels at the locked rcParams point sizes, t
 
 Optional per-mosaic keys (all default to the prior behaviour, so existing
 mosaics are unchanged):
@@ -51,10 +38,7 @@ mosaics are unchanged):
   (e.g. to match a render function that hard-codes its own tick size).
 * ``experiments`` — list of experiment names this mosaic may build for; for any
   other experiment ``build_mosaic`` raises ``KeyError`` so the driver skips it
-  cleanly. Needed when the source panels exist for several experiments (so the
-  KeyError-on-missing-channel trick won't restrict it) but every mosaic shares
-  one filename-per-name folder, so an unrestricted build would let a later
-  experiment overwrite an earlier one's PNG.
+  cleanly.
 
 Every mosaic PNG is written to the shared ``<OUT_ROOT>/mosaics/`` folder.
 """
@@ -66,11 +50,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.io_paths import fig_path, load_analysis_cache, save_fig  # noqa: E402
-from figures_spec import FIGURES  # noqa: E402
-from style import PLOT_PARAMS, add_panel_label, apply_style  # noqa: E402
+from common.io_paths import fig_path, load_analysis_cache, save_fig   
+from figures_spec import FIGURES   
+from style import PLOT_PARAMS, add_panel_label, apply_style   
 
-from plots import (  # noqa: E402
+from plots import (   
     average_peak, clustering, correlation_distance, dff, learning_scores,
     nrk_hardware_log, response_violins, responder_diagnostic,
 )
@@ -84,12 +68,9 @@ _MODULES_BY_NAME = {
 
 
 # =============================================================================
-# Mosaic definitions.  cells: {mosaic_key: (spec_key, instance_match)}.
+# Mosaic definitions.  cells: {mosaic_key: (spec_key, instance_match)}
 # =============================================================================
 MOSAICS = {
-    # Reassembles the old 2-row <ch>_dff figure (corrected on top, dF/F0 below)
-    # from the two decomposed standalone panels — also handy for verifying the
-    # decomposition matches the legacy combined PNG.
     "dff_stack_ch1": {
         "layout": [["a"], ["b"]],
         "figsize": (PLOT_PARAMS["width_full"], 8.0),
@@ -99,7 +80,6 @@ MOSAICS = {
             "b": ("dff_norm", {"ch": "channel 1", "subset_suffix": ""}),
         },
     },
-    # Example overview: PCA + UMAP side by side with the responder-pooled mean.
     "clustering_overview": {
         "layout": [["a", "b"], ["c", "c"]],
         "figsize": (PLOT_PARAMS["width_full"], 5.6),
@@ -110,22 +90,16 @@ MOSAICS = {
             "c": ("dff_mean_pooled_responders", {}),
         },
     },
-    # c2c12 chamber stack: the three per-channel dF/F0 trace panels (relabelled
-    # Chamber A/B/C) over the pooled responder mean — one shared x- and y-scale
-    # so the panels line up, the pooled panel a touch taller. c2c12-only (other
-    # experiments lack channels 2/3, so build_mosaic skips them via KeyError).
+
     "c2c12_chambers_dff_stack": {
         "layout": [["a"], ["b"], ["c"], ["d"]],
         "figsize": (PLOT_PARAMS["width_full"], 9.0),
-        # Pooled-responder panel (d) a touch taller; chamber traces shorter.
+        # Pooled-responder panel (d) a touch taller; chamber traces shorter
         "gridspec_kw": {"height_ratios": [1.0, 1.0, 1.0, 1.4]},
-        # The chamber titles label panels a–c, so skip the a/b/c… letters.
+        # The chamber titles label panels a–c
         "panel_labels": False,
         "titles": {"a": "Chamber A", "b": "Chamber B", "c": "Chamber C"},
-        # Move the three chamber legends to the upper left (default upper right).
         "legend_loc": {"a": "upper left", "b": "upper left", "c": "upper left"},
-        # Shared x-range across all four; the three chambers share one y-range,
-        # while the pooled responder mean gets its own zoomed-in y-range.
         "share_xlim": True,
         "share_ylim": ["a", "b", "c"],
         "ylims": {"d": (-0.1, 0.5)},
@@ -136,19 +110,11 @@ MOSAICS = {
             "d": ("dff_mean_pooled_responders", {}),
         },
     },
-    # c2c12 2×2 overview: correlation-vs-distance + PCA on the top row, the
-    # single-cell response violins + per-replicate train means on the bottom.
-    # c2c12-only (the other experiments lack one of these panels, so they skip).
+    # c2c12 2×2 overview
     "c2c12_corr_pca_responses": {
         "layout": [["a", "b"], ["c", "d"]],
-        # Wider than the 6.5 in page width (height unchanged) so the wide a/c
-        # panels aren't squished width-wise.
         "figsize": (9.5, 6.5),
-        # Give the wide a/c panels a fatter left column so they extend toward
-        # the (aspect-constrained) b/d panels in the narrower right column.
         "gridspec_kw": {"width_ratios": [1.6, 1.0]},
-        # b (PCA) and d (train means) are both square, so they take the same
-        # width in the right column (and d's title gets room from its label).
         "box_aspect": {"b": 1.0, "d": 1.0},
         "titles": {
             "c": "Single cell responses to each stimulus",
@@ -156,8 +122,6 @@ MOSAICS = {
         },
         "ylabels": {"c": "Response peak height (max - baseline)"},
         "legend_loc": {"c": "upper left"},
-        # render_violin hard-codes 9 pt x-ticks; drop c back to the locked tick
-        # size so it matches panel a (and the rest of the house style).
         "xtick_fontsize": {"c": PLOT_PARAMS["tick_fontsize"]},
         "cells": {
             "a": ("corr_vs_dist_combined_pearson", {"log1p_suffix": ""}),
@@ -166,12 +130,7 @@ MOSAICS = {
             "d": ("response_violin_train_means", {"metric": "height"}),
         },
     },
-    # c2c12 learning-score panel: one row per learning measure, each pairing the
-    # observed-vs-shuffled score histogram (left) with its permutation test
-    # (right) — habituation, sensitization, then anticipation trains 1 and 2 (all
-    # on the height metric). The learning figures exist for both DMSO
-    # experiments, so restrict to c2c12 via ``experiments`` (mosaics share one
-    # filename folder, so an unrestricted build would let pc3 overwrite this).
+    # c2c12 learning-score panel:
     "c2c12_learning_scores": {
         "layout": [
             ["a", "b"],
@@ -181,8 +140,6 @@ MOSAICS = {
         ],
         "figsize": (PLOT_PARAMS["width_full"], 9.5),
         "experiments": ["c2c12_dmso_09APR26"],
-        # Both anticipation permtests render the bare title "Anticipation
-        # permutation test"; name the train so the two rows are distinguishable.
         "titles": {
             "f": "Anticipation permutation test: train 1",
             "h": "Anticipation permutation test: train 2",
@@ -202,14 +159,7 @@ MOSAICS = {
             "h": ("learning_anticipation_permtest", {"train_idx": 2}),
         },
     },
-    # Cross-experiment responder overview: one DMSO cell line per row — the
-    # pooled responder-mean trace (left) beside its mean response to stimulus #8
-    # (right), c2c12 on top, pc3 below. Every cell names its own source
-    # experiment (3rd tuple element), so this is assembled from both caches at
-    # once; ``experiments`` anchors it to a single build pass (it reads each
-    # cell's cache straight from disk, independent of the run's experiment list).
-    # Each panel title already carries its cell line. All four y-axes are
-    # relabelled "fluorescence".
+    # Cross-experiment responder overview:
     "dmso_responder_overview": {
         "layout": [
             ["a", "b"],
@@ -217,8 +167,6 @@ MOSAICS = {
         ],
         "figsize": (PLOT_PARAMS["width_full"], 5.0),
         "experiments": ["c2c12_dmso_09APR26"],
-        # Nudge the right-column letters rightward (default -0.12 sits them out
-        # in the inter-column gap, away from their panels).
         "panel_label_x": {"b": -0.05, "d": -0.05},
         "ylabels": {
             "a": "fluorescence", "b": "fluorescence",
@@ -231,15 +179,8 @@ MOSAICS = {
             "d": ("average_peak_responders_stim8", {}, "pc3_dmso_23MAR26"),
         },
     },
-    # c2c12 channel-3 dF/F₀ pair: the corrected-fluorescence trace stack (left)
-    # beside its normalized dF/F₀ stack (right), stripped to bare traces for a
-    # schematic-style row — no title, no legend, no panel letters, no ticks/tick
-    # labels, x clipped to the first 90 min. c2c12-only (channel 3 exists for no
-    # other experiment, so build_mosaic skips them via KeyError; "experiments"
-    # also anchors the shared-folder build).
+    # c2c12 channel-3 dF/F₀ pair:
     "c2c12_ch3_dff_pair": {
-        # A spacer column ("." = empty cell) opens a wider gap between the two
-        # panels; the middle width_ratio sizes it relative to a panel (1.0).
         "layout": [["a", ".", "b"]],
         "figsize": (PLOT_PARAMS["width_full"], 3.0),
         "gridspec_kw": {"width_ratios": [1.0, 0.25, 1.0]},
@@ -247,37 +188,24 @@ MOSAICS = {
         "panel_labels": False,
         "hide_legend": True,
         "hide_ticks": True,
-        # Drop the titles the render fns draw (set_title("") clears them).
         "titles": {"a": "", "b": ""},
         "xlabels": {"a": "time", "b": "time"},
         "ylabels": {"a": "fluorescence", "b": "normalized fluorescence"},
-        # Bigger axis labels than the 8 pt house default for this bare panel.
         "axis_label_fontsize": 12,
-        # Clip both panels' x-axis to the first 90 min.
         "xlims": {"a": (0, 90), "b": (0, 90)},
         "cells": {
             "a": ("dff_raw", {"ch": "channel 3", "subset_suffix": ""}),
             "b": ("dff_norm", {"ch": "channel 3", "subset_suffix": ""}),
         },
     },
-    # NRK hardware-feedback luminosity logs as a 2×2 chamber grid: channel 1
-    # (chambers A, C) on top, channel 2 (chambers B, D) below. Each panel's title
-    # names its chamber. NRK-only — the other experiments lack the
-    # nrk_hardware_log cache, so build_mosaic skips them via FileNotFoundError.
+    # NRK hardware-feedback luminosity logs as a 2×2 chamber grid:
     "nrk_chambers_hw_log": {
-        # A spacer column ("." = empty cell) between the two figure columns opens
-        # a wider gap and shifts b/d rightward; the middle width_ratio sets its
-        # size relative to a panel (1.0).
         "layout": [
             ["a", ".", "b"],
             ["c", ".", "d"],
         ],
         "figsize": (PLOT_PARAMS["width_full"], 4.0),
         "gridspec_kw": {"width_ratios": [1.0, 0.25, 1.0]},
-        # No shared y-scale: each chamber keeps the per-channel y-range the render
-        # fn sets from payload["y_lim"] (e.g. A ~52.2-60.4, C ~55.6-64.1), so every
-        # panel frames its own trace + setpoint rather than sharing one scale.
-        # Right-column legends (b, d) sit in the bottom-right corner.
         "legend_loc": {"b": "lower right", "d": "lower right"},
         "cells": {
             "a": ("nrk_hardware_log", {"ch": "channel 1 A"}),
@@ -286,17 +214,7 @@ MOSAICS = {
             "d": ("nrk_hardware_log", {"ch": "channel 2 D"}),
         },
     },
-    # NRK per-chamber dF/F₀ + correlation-vs-distance, one chamber per row: the
-    # chamber's dF/F₀ trace stack (left) beside its pairwise Pearson-r vs distance
-    # scatter (right). Rows follow the hardware-log grid order — channel 1
-    # chambers A, C then channel 2 chambers B, D. NO shared y-scale: every panel
-    # autoscales its own y-axis (the dF/F₀ traces and the r-vs-distance clouds
-    # live on unrelated scales), so share_ylim is intentionally left unset. The
-    # "Inferential unit: cell pair…" footnote the standalone corr panels print is
-    # drawn by make_standalone, never by the render fn, so it doesn't appear here.
-    # NRK-only — the chamber channel names ("channel 1 A", …) exist for no other
-    # experiment, so build_mosaic skips the rest via KeyError; "experiments"
-    # anchors it so a shared-folder build can't overwrite it.
+    # NRK per-chamber dF/F₀ + correlation-vs-distance, one chamber per row:
     "nrk_chambers_dff_corr": {
         "layout": [
             ["a", "b"],
@@ -306,8 +224,6 @@ MOSAICS = {
         ],
         "figsize": (PLOT_PARAMS["width_full"], 9.0),
         "experiments": ["nrk_acid_13APR26"],
-        # Left column (dF/F₀ traces) legends in the bottom right; right column
-        # (r-vs-distance scatters) legends in the bottom left.
         "legend_loc": {
             "a": "lower right", "c": "lower right",
             "e": "lower right", "g": "lower right",
@@ -388,8 +304,6 @@ def build_mosaic(name, exp_name):
     m = MOSAICS[name]
     allowed = m.get("experiments")
     if allowed is not None and exp_name not in allowed:
-        # Skipped cleanly by the driver (KeyError) — keeps one-experiment mosaics
-        # from overwriting each other in the shared mosaics/ folder.
         raise KeyError(
             f"mosaic '{name}' is restricted to {allowed}; skipping '{exp_name}'"
         )
@@ -400,9 +314,6 @@ def build_mosaic(name, exp_name):
     )
     titles = m.get("titles", {})
     for mkey, cell in m["cells"].items():
-        # Cells are (spec_key, match) or (spec_key, match, exp_name); the
-        # optional 3rd element pulls that panel from another experiment so one
-        # mosaic can mix experiments (defaults to the build's exp_name).
         spec_key, match = cell[0], cell[1]
         cell_exp = cell[2] if len(cell) > 2 else exp_name
         spec, payload, fill = _find_instance(cell_exp, spec_key, match)
@@ -449,7 +360,7 @@ def build_mosaic(name, exp_name):
             m["suptitle"].format(exp_name=exp_name),
             fontsize=PLOT_PARAMS["suptitle_fontsize"], fontweight="bold",
         )
-    # All mosaics are collected together in the shared <OUT_ROOT>/mosaics/ dir.
+    # All mosaics are collected together in the shared <OUT_ROOT>/mosaics/ dir
     save_fig(fig, fig_path("mosaics", name), dpi=PLOT_PARAMS["dpi"])
     plt.close(fig)
     return name

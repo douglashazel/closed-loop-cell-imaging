@@ -20,7 +20,7 @@ from plots._base import (
 
 NAME = "dff"
 
-# (filename suffix, subset key) for the three cell subsets of each trace figure.
+# (filename suffix, subset key) for the three cell subsets of each trace figure
 SUBSETS = [("", None), ("_responders", "responders"),
            ("_non_responders", "non_responders")]
 

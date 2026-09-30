@@ -6,11 +6,6 @@ Responders are scored by the aggregate per-stim Δ dF/F0 across all stimuli (see
 threshold and boolean mask ONCE and caches them to
 ``analysis_cache/<exp>/responders.pkl`` so every downstream analysis reads the
 same deterministic result (``rng_seed=42``) instead of recomputing it.
-
-Run first in ``run_aggregate_results.sh``; the consumers (dff, average_peak,
-correlation_distance, response_violins) call :func:`get_responder_masks`, which
-loads the cache when present and computes+caches it otherwise — so each
-``analyze_*.py`` stays independently runnable.
 """
 
 import os
@@ -29,9 +24,9 @@ from common.responders import (
 )
 
 sys.path.insert(0, "SCRIPTS/core_pipeline")
-from io_utils import lum_dict_to_df  # noqa: E402
+from io_utils import lum_dict_to_df   
 
-# Responder scoring parameters (the defaults compute_responder_* already use).
+# Responder scoring parameters (the defaults compute_responder_* already use)
 RESPONDER_PARAMS = {
     "alpha": 0.01,
     "baseline_n_pre": 5,

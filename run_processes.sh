@@ -1,14 +1,10 @@
 #!/bin/bash
-# Stage 1 for one experiment: Cellpose segmentation and tracking side by side,
+# Stage 1 for one experiment: Cellpose segmentation and tracking in parallel,
 # then the pre-analysis plots.
 #
 #   bash run_processes.sh [--skip-segmentation] <experiment_dir | config.yaml>
 #
-# Parameters come from <experiment_dir>/pipeline_config.yaml (sections
-# segmentation and tracking), written by TUNE_GUI or copied from
-# configs/example_c2c12_chamber_A.yaml, so this script needs no edits. The
-# values used are saved under <experiment_dir>/analysis/run_history/.
-# --skip-segmentation tracks the masks already in masks/.
+# Parameters come from <experiment_dir>/pipeline_config.yaml
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,7 +21,7 @@ if [[ $# -ne 1 ]]; then
 fi
 
 # -----------------------------
-# Parameters (stops here if the config is missing or invalid)
+# Parameters
 # -----------------------------
 PARAMS=$(python3 "$ROOT/SCRIPTS/core_pipeline/pipeline_config.py" prepare "$1" "$RUN_LABEL" $SECTIONS)
 eval "$PARAMS"
@@ -72,8 +68,7 @@ python3 -u SCRIPTS/core_pipeline/trajectories.py \
     --workers "$WORKERS" &
 PID2=$!
 
-# `wait $PID1 $PID2` would only report the last status. If segmentation fails,
-# stop tracking too (it would otherwise wait for masks that never come).
+# `wait $PID1 $PID2` would only report the last status. If segmentation fails, stop tracking too
 if [[ -n "$PID1" ]]; then
     wait "$PID1" || { echo "Segmentation failed."; kill "$PID2" 2>/dev/null; exit 1; }
 fi

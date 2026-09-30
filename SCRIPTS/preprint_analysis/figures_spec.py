@@ -1,17 +1,4 @@
-"""Central registry of every figure's label / title / legend text.
-
-This is the ONE scannable place to read or edit axis labels, titles, suptitles,
-legend strings, and footnotes. Each entry is a :class:`FigureSpec` keyed by the
-short spec id that a ``plots/<group>.py`` ``iter_figures()`` generator yields;
-the render callable itself lives in that module. Templates use ``str.format``
-placeholders filled at plot time from cached metadata (n cells, % variance,
-p-values, ...).
-
-The four ``responder_diagnostic`` figures are the documented multi-panel
-exception (``multi_panel=True``): their render functions receive a whole
-``Figure`` and own their gridspec + in-figure titles, so the strings here are
-documentation for the registry rather than the drawn text.
-"""
+"""Central registry of every figure's label / title / legend text."""
 from plots._base import FigureSpec
 from plots import dff as _dff
 from plots import clustering as _clustering
@@ -32,7 +19,7 @@ def _add(key, spec):
 # =============================================================================
 # dF/F0  (plots/dff.py)
 # =============================================================================
-# Shared standalone suptitle for the decomposed corrected / dF/F0 trace panels.
+# Shared standalone suptitle for the decomposed corrected / dF/F0 trace panels
 _SUP_DFF = "{exp_name} / {ch} — {cell_str}, {n_stims} stims"
 _LEGEND_DFF_TRACE = {"mean": "Mean"}
 
@@ -89,8 +76,6 @@ _add("pooled_umap_only", FigureSpec(
 
 # =============================================================================
 # Average peak  (plots/average_peak.py) — DMSO experiments only
-# The two cross-experiment combined figures build their FigureSpec inline in
-# plots/average_peak.build_combined (registered as a CROSS_EXPERIMENT_BUILDER).
 # =============================================================================
 _LEGEND_AVG = {"band": "Mean ± 3 SEM",
                "mean": "Average peak (n={n_seg} cell×stim segments)"}
@@ -123,10 +108,6 @@ _add("average_peak_responders_stim8", FigureSpec(
 
 # =============================================================================
 # Correlation vs distance  (plots/correlation_distance.py)
-# Each spec has a render-time _log1p twin: iter_figures yields each with
-# apply_log1p True/False and fills {log1p_suffix} (filename) + {log1p_note}
-# (title). The clean (NRK-chamber Pearson) vs verbose title/ylabel is resolved
-# in iter_figures into {title_main}/{ylabel_main}, so these stay static.
 # =============================================================================
 _CORR_CAVEAT = "{caveat}"   # cached inferential_caveat string, via fill
 
@@ -167,10 +148,6 @@ _add("corr_vs_dist_combined_spearman", FigureSpec(
 
 # =============================================================================
 # Response violins  (plots/response_violins.py) — DMSO experiments
-# title_core / y_label / width_cap_note / n_* are filled from the cache. The
-# responder threshold named in the title is the pseudo-stimulus permutation
-# threshold from common/responders.py. The source keeps the stats box and
-# caveat footnote commented out, so neither is drawn here.
 # =============================================================================
 _VIOLIN_TITLE = "{exp_name} — pooled per-stimulus {metric} ({title_core}){width_cap_note}"
 _VIOLIN_TITLE_RESP = (
@@ -264,11 +241,6 @@ _add("nrk_hardware_log", FigureSpec(
 
 # =============================================================================
 # Responder QC diagnostics  (plots/responder_diagnostic.py)
-# THE MULTI-PANEL EXCEPTION — each render fn receives a Figure and builds its
-# own gridspec (set_layout_engine("none") + manual margins). The title/suptitle
-# strings below document the figure; the render fns own the drawn text. Height
-# grows with channel count inside the render fn; figsize is the 1-channel
-# default the driver hands to plt.figure().
 # =============================================================================
 _add("responder_distribution_diagnostic", FigureSpec(
     id="responder_distribution_diagnostic", analysis="responder_diagnostic",
