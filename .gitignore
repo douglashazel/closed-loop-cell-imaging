@@ -16,7 +16,7 @@ TUNE_GUI/session.json
 
 # CLOSED_LOOP_GUI pipeline runtime artifacts (regenerated on launch)
 CLOSED_LOOP_GUI/config.json
-resultsApril*/
+CLOSED_LOOP_GUI/pipeline.pid
 
 # Extensions
 *.gif
@@ -27,6 +27,11 @@ resultsApril*/
 *.svg
 *.pyc
 *.log
+*.ipynb
 
 # Published supplementary data bundle
 !supplement/**
+supplement/__pycache__/
+
+# Small Stage 2 inputs vendored in the repo (CSV/log files the patterns above would drop)
+!SCRIPTS/preprint_analysis/data/**

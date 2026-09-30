@@ -35,6 +35,9 @@ analyses / experiments / figures / mosaics.
 - `common/` — shared configuration and analysis library. `config.py` holds the
   `EXPERIMENTS` registry and `OUT_ROOT` (the output directory name); `io_paths.py`
   derives all cache/figure paths from `OUT_ROOT`.
+- `data/` — small non-image inputs (frame timestamps, the C2C12 cell-selection
+  masks, the PC-3 bad-frame list, scrubbed NRK controller logs), referenced from
+  `config.py` via `DATA_DIR`. See [`data/README.md`](data/README.md).
 - `plots/` — figure render modules (one per analysis) + `mosaics.py`.
 - `figures_spec.py`, `style.py` — figure metadata and the locked figure style.
 
@@ -56,16 +59,20 @@ Two scripts publish and consume the per-chamber data bundle at `supplement/`
   ```bash
   python SCRIPTS/preprint_analysis/load_supplement.py \
       --analyses responders dff average_peak correlation_distance \
-                 clustering response_violins learning_scores
+                 clustering response_violins learning_scores nrk_hardware_log
   ./run_aggregate_plots.sh
   ```
 
-  `responder_diagnostic` (frame-sharpness panel) and `mosaics` read the images
-  directly and are skipped with a notice. Both scripts share an
-  `EXPORT_VERSION` constant; the loader refuses a bundle it does not recognise.
+  All seven mosaics build from the bundle. Only `responder_diagnostic` (its
+  frame-sharpness panel) reads the images directly; it is skipped with a
+  notice. Both scripts share an `EXPORT_VERSION` constant; the loader refuses a
+  bundle it does not recognise.
 
 `supplement_README.md` is the bundle's own documentation — `export_supplement.py`
 copies it to `supplement/README.md`, so **edit it here**, not in `supplement/`.
+The same goes for `load_supplement.py`. After editing either one without
+re-running the export, copy it into `supplement/` and update only its line in
+`supplement/CHECKSUMS.sha256`.
 
 ## Notes
 
@@ -75,6 +82,12 @@ copies it to `supplement/README.md`, so **edit it here**, not in `supplement/`.
 - The analyses import `io_utils` from Stage 1 via
   `sys.path.insert(0, "SCRIPTS/core_pipeline")` (relative to the project root).
 - `common/io_paths.py` stamps an `ANALYSIS_VERSION` into each cache and refuses to
-  load a mismatched pickle — bump it when a cache schema changes.
-- For the NRK acid-feedback experiment, set `PE_PIPELINE` (env var) to the
-  external feedback-pipeline output directory.
+  load a mismatched pickle — bump it when a cache schema changes. Version 2
+  (learning-score population p-values cached) needs caches written by version 1
+  to be regenerated before plotting.
+- Random draws (the responder pseudo-stimulus null, permutation nulls) are
+  seeded per experiment, so an analysis gives the same numbers whether
+  experiments run in one process (`load_supplement.py`) or one per process
+  (`run_aggregate_results.sh`).
+- The NRK acid-feedback controller logs are read from `data/nrk_acid_13APR26/`
+  (`stim_logs` in `common/config.py`).

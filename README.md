@@ -1,4 +1,4 @@
-# Cell Analysis Pipeline - Cell Trainer
+# Cell Trainer
 
 Segmentation, single-cell tracking, fluorescence extraction, and downstream
 statistical/figure analysis for time-lapse fluorescence microscopy of cultured
@@ -40,8 +40,8 @@ cell training, learning, and memory.
 ## Authors
 
 Patrick Erickson¹, Douglas Hazel¹, Ramses Martinez², Kostyantyn Shcherbina²,
-Susan Marquez², Thomas Ferrante², Katarina Johnson¹, Angelina Pimkina¹,
-Hananel Hazan¹, Juanita Mathews¹, Adama Sesay², Michael Levin¹˒²
+Susan L. Marquez², Thomas Ferrante², Katarina Johnson¹, Angelina Pimkina¹,
+Hananel Hazan¹, Juanita Mathews¹, Adama Marie Sesay², Michael Levin¹˒²
 
 1. Allen Discovery Center at Tufts University, Medford, Massachusetts, USA
 2. Wyss Institute for Biologically Inspired Engineering, Harvard University, Boston, Massachusetts, USA
@@ -76,11 +76,17 @@ Run **Stage 1** on each experiment to turn raw frames into per-cell fluorescence
 traces; then run **Stage 2** to pool many experiments into the published figures
 and statistics.
 
-The raw frames are produced upstream by a separate **live closed-loop acquisition
-+ perturbation system** (`CLOSED_LOOP_GUI/`), published here alongside the analysis
-code. It is optional and hardware-dependent (a Flask web GUI + Cellpose GPU + an
-ONIX microscopy controller) and is **not required to reproduce the figures** — see
-[CLOSED_LOOP_GUI/README.md](CLOSED_LOOP_GUI/README.md).
+The raw frames of the feedback experiment were produced by a separate **live
+closed-loop acquisition + perturbation system** (`CLOSED_LOOP_GUI/`), published
+here alongside the analysis code. It is optional and hardware-dependent (a Flask
+web GUI + Cellpose + an ONIX microscopy controller) and is **not required to
+reproduce the figures**.
+
+This README has two parts: [Part I — Analysis](#part-i--analysis) (Stage 1,
+Stage 2, the supplementary data and the tests) and
+[Part II — Instrument and lab tooling](#part-ii--instrument-and-lab-tooling)
+(the closed-loop controller and the parameter-tuning GUIs). Each part lists
+its own install requirements.
 
 ---
 
@@ -89,21 +95,22 @@ ONIX microscopy controller) and is **not required to reproduce the figures** —
 ```
 .
 ├── run_processes.sh           # Stage 1 driver: segmentation + tracking + pre-analysis
-├── run_post_processes.sh      # Stage 1 driver: post-analysis (bg correction, dF/F0)
+├── run_post_processes.sh      # Stage 1 driver: post-analysis (QC background correction, dF/F0)
 ├── run_segmentation.sh        # Stage 1: segmentation only
 ├── run_trajectories.sh        # Stage 1: tracking only
+├── configs/                   # documented example pipeline_config.yaml (C2C12 chamber A values)
 ├── run_aggregate_results.sh   # Stage 2 driver: compute + cache figure intermediates
 ├── run_aggregate_plots.sh     # Stage 2 driver: render figures + mosaics from caches
-├── preprocess_gui.py          # Optional napari GUI to tune parameters
 │
 ├── SCRIPTS/
 │   ├── core_pipeline/         # STAGE 1 code
 │   │   ├── segmentation.py        # Cellpose segmentation → masks/*.npy
-│   │   ├── trajectories.py        # link cells, extract fluorescence → analysis/*.json
+│   │   ├── trajectories.py        # link cells, extract fluorescence → analysis/*.json (msgpack)
 │   │   ├── PreAnalysis.py         # QC luminosity plots
-│   │   ├── PostAnalysis.py        # background correction, derivative/STD, dF/F0
+│   │   ├── PostAnalysis.py        # QC background correction, derivative/STD, dF/F0
 │   │   ├── io_utils.py            # shared msgpack/DataFrame helpers
-│   │   └── CreateGifs*.py         # optional per-cell GIF renderers
+│   │   ├── pipeline_config.py     # reads/validates pipeline_config.yaml for the run_*.sh drivers
+│   │   └── CreateGifsJson.py      # optional per-cell GIF renderer
 │   │
 │   └── preprint_analysis/     # STAGE 2 code; driven by run_aggregate_results.sh & run_aggregate_plots.sh
 │       ├── analyze_*.py           # main analyses (responders runs first)
@@ -112,14 +119,19 @@ ONIX microscopy controller) and is **not required to reproduce the figures** —
 │       ├── aggregate_preprint_pdf.py
 │       ├── figures_spec.py, style.py
 │       ├── common/                # shared config + analysis library
-│       └── plots/                 # figure render modules
+│       ├── plots/                 # figure render modules
+│       └── data/                  # small Stage 2 inputs (timestamps, cell-selection masks, NRK logs)
 │
 ├── supplement/                # PUBLISHED supplementary data (8 chambers, tracked in git)
+├── tests/                     # pytest: supplement consistency, tracking, pipeline config
 │
-├── CLOSED_LOOP_GUI/           # Live closed-loop microscopy + ONIX perturbation
-├── TUNE_GUI/                  # Optional browser GUI for parameter tuning
+├── CLOSED_LOOP_GUI/           # Part II: live closed-loop microscopy + ONIX perturbation
+├── TUNE_GUI/                  # Part II: browser GUI for parameter tuning
+├── preprocess_gui.py          # Part II: napari tuning GUI (deprecated; use TUNE_GUI)
+│
 ├── requirements.txt           # pip dependencies
-└── environment.yml            # conda environment
+├── environment.yml            # conda environment
+└── CITATION.cff               # citation metadata
 ```
 
 Input/output **data directories** (`EXPERIMENTS/`, `results/`,
@@ -130,9 +142,11 @@ here — see [Supplementary data](#supplementary-data).
 
 ---
 
+# Part I — Analysis
+
 ## Installation
 
-Python 3.12. Either conda (recommended, for napari/Cellpose) or pip:
+Python 3.11 or 3.12. Either conda or pip:
 
 ```bash
 # conda
@@ -143,14 +157,19 @@ conda activate cell_trainer
 pip install -r requirements.txt
 ```
 
-**GPU:** Stage-1 segmentation uses Cellpose with `gpu=True` and defaults to
-`CUDA_VISIBLE_DEVICES=0`; a CUDA-capable GPU is strongly recommended. Everything
-else runs on CPU.
+The analysis needs only the "Core analysis" and Cellpose blocks of
+`requirements.txt`; Stage 2 and the supplement route do not need Cellpose
+either. The napari/Qt, Flask, `requests` and `tomlkit` packages are for Part II.
 
-> **Run all commands from the project root.** Several Stage-2 modules add
+**GPU:** Stage 1 segmentation runs Cellpose on the GPU when CUDA is available
+(default `CUDA_VISIBLE_DEVICES=0`; pass `--cpu` to `segmentation.py` to force
+the CPU, which is much slower). Everything else runs on the CPU.
+
+> **Run all commands from the project root.** Several Stage 2 modules add
 > `SCRIPTS/core_pipeline` and `SCRIPTS/preprint_analysis` to `sys.path` using
-> paths relative to the current directory. The provided `run_*.sh` scripts
-> `cd` to the project root automatically.
+> paths relative to the current directory. The two Stage 2 drivers
+> (`run_aggregate_results.sh`, `run_aggregate_plots.sh`) and the four Stage 1
+> drivers `cd` to the project root themselves.
 
 ---
 
@@ -160,10 +179,12 @@ The pipeline reads/writes a per-experiment tree under `EXPERIMENTS/` (git-ignore
 
 ```
 EXPERIMENTS/<group>/<experiment>/[<channel>/]
-├── frames/      # input images, named "...timepoint_NNNNN.png" (or .jpg), sorted by N
+├── pipeline_config.yaml  # Stage 1 parameters for this experiment (TUNE_GUI writes it)
+├── frames/      # input images, named "...timepoint_NNNNN.png" (or .jpg), ordered by N
 ├── masks/       # Cellpose label masks, one .npy per frame (written by Stage 1)
 └── analysis/    # Stage-1 outputs: trajectories_complete.json, luminosity_complete.json,
-                 #   *_complete.csv, config.txt, bg_values_cache.npy, plots/
+                 #   *_complete.csv, run_history/, run_params.json, bg_values_cache.npy, plots/
+                 #   (runs before pipeline_config.yaml wrote config.txt instead of run_history/)
 ```
 
 Multi-channel experiments use a `<channel>/` level (e.g. `channel 1 A/`); single
@@ -172,42 +193,69 @@ experiment. Stage 2's experiment registry lives in
 [`SCRIPTS/preprint_analysis/common/config.py`](SCRIPTS/preprint_analysis/common/config.py)
 (`EXPERIMENTS` dict: data dir, channels, stim schedule, timestamps, masks).
 
+> **The Stage 1 `.json` files are msgpack, not JSON.** Read them with
+> `SCRIPTS/core_pipeline/io_utils.load_msgpack`. Stage 2 reads only
+> `trajectories_complete.json` and `luminosity_complete.json`.
+
 ---
 
 ## Stage 1 — core per-experiment pipeline
 
-1. **(Optional) Tune parameters** for a new experiment with either GUI:
-   - napari: `python preprocess_gui.py`
-   - browser: `python TUNE_GUI/app.py` → http://localhost:5001 (see [TUNE_GUI/README.md](TUNE_GUI/README.md))
+1. **Set the parameters** for the experiment in
+   `<experiment>/pipeline_config.yaml`. The browser GUI
+   (`python TUNE_GUI/app.py`, see [Part II](#tune_gui)) writes this file when
+   you save or run from its Review & Run tab. It holds the Cellpose params
+   (`flow_threshold`, `cellprob_threshold`, `niter`, `diameter`), the tracking
+   params (`max_distance`, frame shift, ROI radius, `save_interval`) and the
+   post-analysis frames (`f0_frame`, `stim_frames`). To write it by hand, copy
+   [configs/example_c2c12_chamber_A.yaml](configs/example_c2c12_chamber_A.yaml),
+   which documents every key, into the experiment folder and edit it. Check
+   it with `python3 SCRIPTS/core_pipeline/pipeline_config.py check <experiment>`.
 
-   Determine the Cellpose params (`flow_threshold`, `cellprob_threshold`,
-   `niter`, `diameter`) and tracking params (`max_distance`, frame shift, ROI
-   radius, `save_interval`).
-
-2. **Edit the driver** — set `GLOBAL_DIR` and the parameters at the top of
-   `run_processes.sh` (these scripts are templates pinned to example
-   experiments). Then run segmentation + tracking + pre-analysis:
+2. **Run segmentation + tracking + pre-analysis.** The drivers take the
+   experiment folder (or a config file) and need no edits:
 
    ```bash
-   bash run_processes.sh
+   bash run_processes.sh "EXPERIMENTS/<group>/<experiment>"
    ```
 
-   (`run_segmentation.sh` and `run_trajectories.sh` run those stages
-   individually.)
+   `run_segmentation.sh` and `run_trajectories.sh` run those stages
+   individually, and `run_processes.sh --skip-segmentation` tracks existing
+   masks. In the config, `radius: 0` disables the ROI filter and `shift_frame`
+   is a `timepoint_NNNNN` frame number. The example config holds the values
+   recorded for C2C12 chamber A of the paper (its `analysis/config.txt`).
 
-3. **Post-analysis** — edit `GLOBAL_DIR`/`STIM_FRAMES` at the top of
-   `run_post_processes.sh`, then:
+   **Which parameters made these results?** Each driver saves the values it
+   used, with the date, user and git commit, to
+   `<experiment>/analysis/run_history/<timestamp>_<driver>.yaml` when it
+   starts, so the newest record for a stage describes its current outputs
+   if that run finished. The config is read once at start, so editing it
+   during a run does not affect that run.
+
+3. **Post-analysis** — set `post_analysis` (`f0_frame`, `stim_frames`) in the
+   config, then:
 
    ```bash
-   bash run_post_processes.sh
+   bash run_post_processes.sh "EXPERIMENTS/<group>/<experiment>"
    ```
 
    This produces background-corrected traces, derivative/STD, and dF/F0 plots
-   under `analysis/plots/`.
+   under `analysis/plots/`. It is a quick-look QC step: it uses a 6×6 spline
+   background and F0 from a single frame, while the published figures use
+   Stage 2's per-frame polynomial background fit and F0 as the mean of the
+   pre-stimulus frames. Its numbers therefore differ from the figures.
 
-4. **(Optional) Per-cell GIFs** — edit the `CHANGE HERE` block at the top of
-   `SCRIPTS/core_pipeline/CreateGifsJson.py` (or `CreateGifs.py`) and run it from
-   the project root.
+4. **(Optional) Per-cell GIFs** —
+   `python SCRIPTS/core_pipeline/CreateGifsJson.py --experiment_dir <dir>`
+   (see `--help`).
+
+`trajectories.py` records its tracking parameters in `analysis/run_params.json`
+and refuses to resume a run made with different ones (`--force_resume`
+overrides). To start over with new parameters, delete the experiment's
+`analysis/` directory, but never for the eight published chambers: their
+`analysis/` outputs are the inputs to the published results. See
+[SCRIPTS/core_pipeline/README.md](SCRIPTS/core_pipeline/README.md) for the
+flags and the output contract.
 
 ---
 
@@ -217,9 +265,10 @@ Pools the Stage-1 outputs of many experiments into the published figures.
 
 1. **Register experiments** in
    [`SCRIPTS/preprint_analysis/common/config.py`](SCRIPTS/preprint_analysis/common/config.py)
-   (the `EXPERIMENTS` dict). For the NRK acid-feedback experiment, point the
-   external feedback-log location via an env var:
-   `export PE_PIPELINE=/path/to/PE_Pipeline/V5`.
+   (the `EXPERIMENTS` dict). The small non-image inputs of the published
+   experiments (frame timestamps, the C2C12 cell-selection masks, the PC-3
+   bad-frame list, and the NRK closed-loop controller logs) are in
+   [`SCRIPTS/preprint_analysis/data/`](SCRIPTS/preprint_analysis/data/README.md).
 
 2. **Compute + cache** the figure intermediates (the shared `responders` step
    runs first):
@@ -260,16 +309,16 @@ reports downstream of segmentation is reproducible from the bundle alone:
 ```bash
 python SCRIPTS/preprint_analysis/load_supplement.py \
     --analyses responders dff average_peak correlation_distance \
-               clustering response_violins learning_scores
+               clustering response_violins learning_scores nrk_hardware_log
 
 ./run_aggregate_plots.sh        # render the figures
 ```
 
 `load_supplement.py` rebuilds the Stage-2 pipeline state from the exported
-tables, so the `analyze_*.py` scripts run unchanged without the raw frames. Two
-things cannot be reproduced from the bundle because they read the images
-directly: the frame-sharpness panel of the responder diagnostic, and the frame
-mosaics.
+tables, so the `analyze_*.py` scripts run unchanged without the raw frames, and
+all seven figure mosaics build from the bundle. One thing cannot be reproduced
+from the bundle, because it reads the images directly: the frame-sharpness
+panel of the responder diagnostic.
 
 See [`supplement/README.md`](supplement/README.md) for the full column-by-column
 description, the chamber table, and notes on reading the label masks.
@@ -281,44 +330,74 @@ this requires the raw experiment tree and the warm `results/bg_cache/` pickles.
 
 ---
 
+## Tests
+
+```bash
+pip install pytest
+pytest -q tests/
+```
+
+`tests/test_supplement.py` checks the bundle's internal consistency (checksums,
+cell and frame counts, masks, dF/F0 recomputed exactly, no duplicated cells)
+and reruns the responder classification from the bundle against the published
+counts. `tests/test_tracking.py` covers the Stage 1 tracker. They need only the
+core analysis packages, and run in CI on every push
+(`.github/workflows/tests.yml`).
+
+---
+
+# Part II — Instrument and lab tooling
+
+The code below runs the hardware and helps pick Stage 1 parameters. It is lab
+tooling: none of it is needed to reproduce the figures. On top of the core
+packages it needs Flask (both browser GUIs) and `requests` + `tomlkit` (the
+closed-loop controller); napari/Qt only for the deprecated `preprocess_gui.py`.
+
 ## Live closed-loop microscopy / perturbation pipeline
 
 `CLOSED_LOOP_GUI/` is the **live acquisition + feedback system** that generated the
 acid-feedback experiments analysed above. A Flask web GUI watches incoming microscope
 frames, segments cells with Cellpose, measures per-cell fluorescence, and drives an
 **ONIX hardware controller** (over HTTP) to dose acidic / neutral media in a closed
-loop. It is **optional and hardware-dependent** — it needs a CUDA GPU and a
-networked ONIX2 server — and is **not required to reproduce the figures**.
+loop. It needs a CUDA GPU and a networked ONIX2 server.
 
 ```bash
-python CLOSED_LOOP_GUI/LaunchWebGUI.py   # Flask "Closed-Loop Bio-Control Hub" on http://localhost:5000
+python CLOSED_LOOP_GUI/LaunchWebGUI.py   # Flask "Closed-Loop Bio-Control Hub" on http://127.0.0.1:5000
 ```
 
 The GUI bootstraps `CLOSED_LOOP_GUI/config.json`, lets you set the run parameters, and
 starts/stops the pipeline (`run_system.sh`, which launches the segmentation,
 decision, ONIX-actuation, and monitoring daemons). All paths derive from a single
 `global_path` in `CLOSED_LOOP_GUI/config.py`; edit it (and the ONIX endpoint /
-experiment templates) before first use.
+experiment templates) before first use. Without hardware, set `"dry_run": true`
+in `CLOSED_LOOP_GUI/config.json` to run the loop against a simulated ONIX and
+synthetic frames.
 
 See [CLOSED_LOOP_GUI/README.md](CLOSED_LOOP_GUI/README.md) for file roles, the data-flow
-contract, configuration knobs, and hardware/security notes.
+contract, configuration knobs, how the loop behaves, and hardware/security notes.
 
 > ⚠️ **Security:** `CLOSED_LOOP_GUI/` issues HTTP requests that create and run
-> experiments on networked lab hardware, and the GUI spawns subprocesses. Point it
-> only at hardware you control, on a trusted network.
+> experiments on networked lab hardware, and the GUI spawns subprocesses. It
+> has no authentication: it listens on 127.0.0.1 by default (`HOST=0.0.0.0`
+> exposes it, trusted networks only) and rejects cross-site POSTs. Point it
+> only at hardware you control.
 
----
-
-## Optional: TUNE_GUI
+## TUNE_GUI
 
 `TUNE_GUI/` is a Flask app for interactively tuning Stage-1 parameters and
-launching the pipeline from a browser. It is a **development tool, not part of
-the published analysis** — the figures are fully reproducible from the shell
-scripts above.
+launching the pipeline from a browser (`python TUNE_GUI/app.py`, then
+http://127.0.0.1:5001). See [TUNE_GUI/README.md](TUNE_GUI/README.md).
 
-> ⚠️ **Security:** the tuning GUI binds `0.0.0.0:5001` and launches subprocesses with
-> user-supplied paths. Run it only on `localhost` or a trusted machine; do **not**
-> expose it to an untrusted network.
+> ⚠️ **Security:** the tuning GUI writes each experiment's
+> `pipeline_config.yaml` and runs the Stage 1 drivers on it. It binds
+> `127.0.0.1:5001` by default; `HOST=0.0.0.0` exposes it to the network, so do
+> that only on a trusted network. POSTs must be same-origin JSON, and
+> experiment paths must be inside `EXPERIMENTS/`.
+
+## preprocess_gui.py (deprecated)
+
+`preprocess_gui.py` is the older napari version of the tuning GUI. It has
+drifted from `TUNE_GUI/` and is no longer maintained; use `TUNE_GUI/` instead.
 
 ---
 
@@ -345,5 +424,6 @@ If you use this code or the accompanying data, please cite the preprint:
 }
 ```
 
-For the software specifically, please cite this repository and contact
+For the software specifically, please cite this repository (GitHub's "Cite
+this repository" button reads [`CITATION.cff`](CITATION.cff)) and contact
 Douglas Hazel (douglas.hazel@tufts.edu).

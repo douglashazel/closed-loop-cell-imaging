@@ -1,0 +1,86 @@
+cff-version: 1.2.0
+message: "If you use this software or its data, please cite the preprint below."
+type: software
+title: "Cell Trainer"
+abstract: >-
+  Segmentation, single-cell tracking, fluorescence extraction and statistical
+  analysis for time-lapse fluorescence microscopy of cultured cells under
+  repeated stimulation, plus the closed-loop acquisition and perturbation
+  controller used to run the experiments.
+authors:
+  - given-names: Patrick
+    family-names: Erickson
+    affiliation: "Allen Discovery Center at Tufts University"
+  - given-names: Douglas
+    family-names: Hazel
+    affiliation: "Allen Discovery Center at Tufts University"
+  - given-names: Ramses
+    family-names: Martinez
+    affiliation: "Wyss Institute for Biologically Inspired Engineering, Harvard University"
+  - given-names: Kostyantyn
+    family-names: Shcherbina
+    affiliation: "Wyss Institute for Biologically Inspired Engineering, Harvard University"
+  - given-names: Susan L.
+    family-names: Marquez
+    affiliation: "Wyss Institute for Biologically Inspired Engineering, Harvard University"
+  - given-names: Thomas
+    family-names: Ferrante
+    affiliation: "Wyss Institute for Biologically Inspired Engineering, Harvard University"
+  - given-names: Katarina
+    family-names: Johnson
+    affiliation: "Allen Discovery Center at Tufts University"
+  - given-names: Angelina
+    family-names: Pimkina
+    affiliation: "Allen Discovery Center at Tufts University"
+  - given-names: Hananel
+    family-names: Hazan
+    affiliation: "Allen Discovery Center at Tufts University"
+  - given-names: Juanita
+    family-names: Mathews
+    affiliation: "Allen Discovery Center at Tufts University"
+  - given-names: Adama Marie
+    family-names: Sesay
+    affiliation: "Wyss Institute for Biologically Inspired Engineering, Harvard University"
+  - given-names: Michael
+    family-names: Levin
+    affiliation: "Allen Discovery Center at Tufts University; Wyss Institute for Biologically Inspired Engineering, Harvard University"
+repository-code: "https://github.com/douglashazel/closed-loop-cell-imaging"
+license-url: "https://github.com/douglashazel/closed-loop-cell-imaging/blob/main/LICENSE"
+keywords:
+  - cell training
+  - fluorescence microscopy
+  - single-cell tracking
+  - closed-loop control
+  - Cellpose
+preferred-citation:
+  type: article
+  title: "A platform for automated training of mammalian cell physiology"
+  authors:
+    - given-names: Patrick
+      family-names: Erickson
+    - given-names: Douglas
+      family-names: Hazel
+    - given-names: Ramses
+      family-names: Martinez
+    - given-names: Kostyantyn
+      family-names: Shcherbina
+    - given-names: Susan L.
+      family-names: Marquez
+    - given-names: Thomas
+      family-names: Ferrante
+    - given-names: Katarina
+      family-names: Johnson
+    - given-names: Angelina
+      family-names: Pimkina
+    - given-names: Hananel
+      family-names: Hazan
+    - given-names: Juanita
+      family-names: Mathews
+    - given-names: Adama Marie
+      family-names: Sesay
+    - given-names: Michael
+      family-names: Levin
+  journal: "bioRxiv"
+  year: 2026
+  doi: "10.64898/2026.08.13.744473"
+  url: "https://doi.org/10.64898/2026.08.13.744473"
