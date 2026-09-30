@@ -134,15 +134,18 @@ redistribute.
 
 ## Reproducing the analyses
 
-`load_supplement.py` (included) rebuilds the analysis pipeline's internal state
-from these tables, so the repository's analysis scripts run unchanged without
-the raw frames. `supplement/` is the default location, so from the repository
-root, after installing the environment (see the top-level `README.md`):
+`load_supplement.py` rebuilds the analysis pipeline's internal state from these
+tables, so the repository's analysis scripts run unchanged without the raw
+frames. The loader imports the analysis code from `SCRIPTS/preprint_analysis/`,
+so it needs the repository checkout and is run from the repository root; the
+copy in this directory is for reference and cannot run on its own.
+`supplement/` is the default location, so from the repository root, after
+installing the environment (see the top-level `README.md`):
 
 ```bash
 python SCRIPTS/preprint_analysis/load_supplement.py \
     --analyses responders dff average_peak correlation_distance \
-               clustering response_violins learning_scores
+               clustering response_violins learning_scores nrk_hardware_log
 
 ./run_aggregate_plots.sh        # render the figures
 ```
@@ -154,12 +157,14 @@ a run made from the raw frames).
 
 This reproduces the responder classification, dF/F0 traces, per-stimulus peak
 analysis, PCA/UMAP embeddings, correlation-vs-distance and Mantel tests,
-response violins, and the habituation / sensitization / anticipation learning
-scores.
+response violins, the habituation / sensitization / anticipation learning
+scores, and the NRK hardware-feedback log figure. Each experiment's random
+draws are seeded per experiment, so running all experiments in one call (as
+above) gives the same numbers as running them one at a time.
 
 **Not reproducible from this bundle** (requires the raw frames): the
-frame-sharpness panel of the responder diagnostic, and the frame mosaics.
-Segmentation and tracking themselves likewise cannot be re-run.
+frame-sharpness panel of the responder diagnostic. Segmentation and tracking
+themselves likewise cannot be re-run.
 
 ## Notes
 
@@ -172,5 +177,21 @@ Segmentation and tracking themselves likewise cannot be re-run.
   subset over the analysed window — see `n_cells_raw` vs `n_cells_analyzed` and
   `analyzed_cell_ids` in `metadata.json`.
 - Positions are in pixels; the imaging calibration is 0.555 μm/pixel.
+- **NRK stimuli and the responder null.** An NRK stimulus frame
+  (`metadata.json → stim_frames`) is the frame whose image made the controller
+  decide to add acidic medium; repeat decisions within 10 frames are merged
+  into one. Within the 30 min analysis window chamber A received 4 acid pulses
+  and chambers B, C and D received 2 each. A cell's responder statistic is its
+  mean response over all of a chamber's stimuli, and the null is the same mean
+  over as many randomly placed pseudo-stimuli, so for NRK it is a mean of 4
+  (chamber A) or 2 (B, C, D) pseudo-stimuli, against 15 for C2C12 and PC-3.
+- **Learning scores are population-level results.** The significance reported
+  for habituation, sensitization and anticipation is a two-tailed permutation
+  test on the population mean score: the fraction of shuffled-order means that
+  sit farther from the null mean than the observed mean does. After
+  Benjamini–Hochberg correction across cells, no individual cell's
+  habituation or sensitization score reaches q < 0.05 in either DMSO
+  experiment, so the data support statements about the population, not about
+  particular cells.
 - `CHECKSUMS.sha256` covers every file in the bundle:
   `sha256sum -c CHECKSUMS.sha256`.

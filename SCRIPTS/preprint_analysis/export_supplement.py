@@ -256,7 +256,7 @@ def export_chamber(state, exp_name, ch, chamber, out_root):
 
     filt_rel = (cfg.get("cell_mask_filter") or {}).get(ch)
     if filt_rel:
-        fm = load_segmentation(os.path.join(cfg["dir"], filt_rel))
+        fm = load_segmentation(filt_rel)
         fm16 = _save_mask(
             fm, out("mask_analyzed_cells.npz"), out("mask_analyzed_cells.png"),
             out("mask_analyzed_cells_preview.png"),
@@ -265,10 +265,11 @@ def export_chamber(state, exp_name, ch, chamber, out_root):
         mask_info["analyzed_cells_mask_n_labels"] = int(len(np.unique(fm16)) - 1)
 
     # ---- closed-loop hardware feedback log (NRK only) ---------------------
-    # The sibling monitoring.log is deliberately NOT redistributed: it is
-    # ~17 MB of pipeline chatter containing internal absolute filesystem
-    # paths. luminosity_log_channel<N>.json holds the actual feedback record
-    # (per-frame mean luminosity, setpoint, and the controller's decision).
+    # The bundle ships only luminosity_log_channel<N>.json, the actual feedback
+    # record (per-frame mean luminosity, setpoint, and the controller's
+    # decision). The sibling monitoring.log (~15 MB of controller chatter) is
+    # not copied into the bundle; a scrubbed copy is in the repository under
+    # common.config.DATA_DIR.
     log_spec = (cfg.get("stim_logs") or {}).get(ch)
     if log_spec:
         log_path, ch_num = log_spec
@@ -366,7 +367,8 @@ def main():
     for exp_name, ch, chamber in CHAMBERS:
         metas.append(export_chamber(state, exp_name, ch, chamber, out_root))
 
-    # Ship the loader and the README next to the data so the bundle stands alone.
+    # Ship the loader and the README next to the data. The loader still needs
+    # the repository checkout (it imports common/ and analyze_*.py).
     here = os.path.dirname(os.path.abspath(__file__))
     for src, dst in [
         ("load_supplement.py", "load_supplement.py"),

@@ -9,6 +9,11 @@ that step: it reads the already-corrected tables written by
 identical to the one ``prepare_state`` produces, so the ``analyze_*.py``
 scripts run unchanged.
 
+The loader imports ``common.config`` from ``SCRIPTS/preprint_analysis`` and
+the ``analyze_*.py`` modules next to it, so it needs a checkout of the
+repository and is run from the repository root, even when this copy sits inside
+the ``supplement/`` bundle.
+
 Typical use, from the project root::
 
     # rebuild state and run the secondary analyses from the exported tables
@@ -24,9 +29,10 @@ Or programmatically::
     import load_supplement
     experiments, state = load_supplement.load_state("supplement")
 
-Analyses that additionally need the raw images (``responder_diagnostic``'s
-frame-sharpness panel, and the frame mosaics) cannot be reproduced from this
-bundle; everything else can.
+The one analysis that needs the raw images, ``responder_diagnostic`` (its
+frame-sharpness panel), cannot be reproduced from this bundle; everything else
+can, including the NRK hardware-feedback log figure, which reads each NRK
+chamber's ``*_hardware_feedback_log.json``.
 """
 
 import argparse
@@ -53,10 +59,11 @@ RUNNABLE = [
     "clustering",
     "response_violins",
     "learning_scores",
+    "nrk_hardware_log",
 ]
 
 # Analyses that need the raw frames and therefore cannot run from the bundle.
-NEEDS_RAW_FRAMES = ["responder_diagnostic", "mosaics"]
+NEEDS_RAW_FRAMES = ["responder_diagnostic"]
 
 
 # =============================================================================
@@ -126,7 +133,15 @@ def _load_chamber(root, entry):
         np.asarray(src["minutes"], dtype=float),
     )
 
-    return meta, corrected, traj, bg_trace, bg_min, frame_minutes_src
+    # NRK only: verbatim copy of the controller's luminosity_log_channel<N>.json
+    # entries for this chamber (what analyze_nrk_hardware_log reads).
+    hw_path = os.path.join(d, f"{chamber}_hardware_feedback_log.json")
+    hw_log = None
+    if os.path.exists(hw_path):
+        with open(hw_path) as f:
+            hw_log = json.load(f)
+
+    return meta, corrected, traj, bg_trace, bg_min, frame_minutes_src, hw_log
 
 
 def load_state(root="supplement", experiments=None):
@@ -162,13 +177,14 @@ def load_state(root="supplement", experiments=None):
         "bg_min_by_ch": {n: {} for n in exp_names},
         "frame_minutes_src": {n: {} for n in exp_names},
         "real_setpoint_min": {n: {} for n in exp_names},
+        "hardware_feedback_log": {n: {} for n in exp_names},
     }
     for name in exp_names:
         cfgs[name]["stim_frames"] = {}
 
     loaded = {n: [] for n in exp_names}
     for e in entries:
-        meta, corrected, traj, bg_trace, bg_min, fms = _load_chamber(root, e)
+        meta, corrected, traj, bg_trace, bg_min, fms, hw_log = _load_chamber(root, e)
         exp, ch = meta["experiment"], meta["channel"]
         state["corrected_lum"][exp][ch] = corrected
         state["traj_by_channel"][exp][ch] = traj
@@ -177,6 +193,8 @@ def load_state(root="supplement", experiments=None):
         state["bg_min_by_ch"][exp][ch] = bg_min
         state["frame_minutes_src"][exp][ch] = fms
         state["real_setpoint_min"][exp][ch] = meta["real_setpoint_min"]
+        if hw_log is not None:
+            state["hardware_feedback_log"][exp][ch] = hw_log
         cfgs[exp]["stim_frames"][ch] = [int(f) for f in meta["stim_frames"]]
         loaded[exp].append(ch)
 
