@@ -43,10 +43,6 @@ def render_dff_trace(ax, payload, spec, *, fill):
             zorder=3, label=legend_text(spec, "mean", fill))
     draw_stim_spans(ax, payload["spans"], payload["stim_label"],
                     P["stim_color"], alpha=0.18)
-    rsp = payload.get("real_setpoint_min")
-    if rsp is not None:
-        ax.axvline(rsp, color="#000000", linewidth=2.0, linestyle=":",
-                   alpha=0.9, zorder=5, label=legend_text(spec, "setpoint", fill))
     ax.set_ylabel(ylabel_of(spec, fill), fontsize=P["axis_label_fontsize"])
     ax.set_xlabel(xlabel_of(spec, fill), fontsize=P["axis_label_fontsize"])
     ax.set_title(title_of(spec, fill), fontsize=P["title_fontsize"],
@@ -107,9 +103,8 @@ def iter_figures(blob, exp_name):
 
     for ch, d in data["per_channel"].items():
         n_all = d["n_all"]
-        rsp = d["real_setpoint_min"]
         common = {"frame_min": d["frame_min"], "spans": d["spans"],
-                  "stim_label": d["stim_label"], "real_setpoint_min": rsp}
+                  "stim_label": d["stim_label"]}
         for suffix, subset in SUBSETS:
             if subset is None:
                 sel = slice(None)
@@ -122,8 +117,7 @@ def iter_figures(blob, exp_name):
                 word = "responder" if subset == "responders" else "non-responder"
                 cell_str = f"{int(mask.sum())}/{n_all} {word} cells"
             fill = {"exp_name": exp_name, "ch": ch, "subset_suffix": suffix,
-                    "cell_str": cell_str, "n_stims": d["n_stims"],
-                    "rsp": (0.0 if rsp is None else rsp)}
+                    "cell_str": cell_str, "n_stims": d["n_stims"]}
             yield ("dff_raw", {**common, "mat": d["raw_mat"][sel]}, dict(fill))
             yield ("dff_norm", {**common, "mat": d["dff_mat"][sel]},
                    dict(fill, f0_note=d["f0_note"]))

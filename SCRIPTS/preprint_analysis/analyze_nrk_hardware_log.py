@@ -38,19 +38,25 @@ def _channel_hw_log(state, exp_name, ch, cfg):
     Mirrors the per-channel block of the original ``plot_nrk_hardware_log``: parse
     the luminosity JSON, build setpoint regions, dedup acidic pulses, convert all
     frame quantities to minutes, and pre-compute the x/y axis limits so the render
-    is a pure transform.
+    is a pure transform. The log entries come from the supplement bundle when
+    ``load_supplement`` built the state, otherwise from the
+    ``luminosity_log_channel{N}.json`` beside the channel's ``monitoring.log``.
     """
     log_path, ch_num = cfg["stim_logs"][ch]
-    lum_log_path = os.path.join(
-        os.path.dirname(log_path),
-        f"luminosity_log_channel{ch_num}.json",
-    )
-
-    with open(lum_log_path) as f:
-        entries = json.load(f)
+    bundled = state.get("hardware_feedback_log", {}).get(exp_name, {}).get(ch)
+    if bundled is not None:
+        entries = list(bundled)
+        source = "the supplement bundle"
+    else:
+        source = os.path.join(
+            os.path.dirname(log_path),
+            f"luminosity_log_channel{ch_num}.json",
+        )
+        with open(source) as f:
+            entries = json.load(f)
     entries = [e for e in entries if e.get("channel") == ch_num]
     if not entries:
-        print(f"NRK / {ch}: no entries in {lum_log_path} — skipping.")
+        print(f"NRK / {ch}: no entries in {source} — skipping.")
         return None
     entries.sort(key=lambda e: e["frame"])
 

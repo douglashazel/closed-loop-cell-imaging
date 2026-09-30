@@ -1,24 +1,12 @@
-"""Alternative baseline definitions for response amplitude/width.
+"""Pre-stimulus baseline for response amplitude/width.
 
 The default ``per_cell_response_delta`` uses the value at the stim frame as
-both the delta reference and the width-crossing threshold. For NRK acid
-experiments two additional baselines make sense:
-
-* **prestim_window** — mean of N frames immediately before the stim, more
-  robust to instantaneous noise at the stim frame.
-* **nrk_setpoint** — the hardware feedback setpoint active at the stim
-  frame. Width measures how long the cell stays below the setpoint.
+both the delta reference and the width-crossing threshold. The
+**prestim_window** baseline used here is the mean of N frames immediately
+before the stim, which is more robust to instantaneous noise at the stim frame.
 """
 
-import json
-import os
-
 import numpy as np
-
-from common.time_axis import setpoint_regions_from_log
-
-
-_NRK_LOG_CACHE = {}
 
 
 def prestim_baseline_values(values_by_col, stim_col, *, n_pre=5):
@@ -33,50 +21,6 @@ def prestim_baseline_values(values_by_col, stim_col, *, n_pre=5):
     if lo >= hi:
         return values_by_col[:, max(0, int(stim_col))].astype(float)
     return np.nanmean(values_by_col[:, lo:hi], axis=1)
-
-
-def _load_nrk_log_entries(cfg, ch):
-    """Read and cache the per-channel luminosity log."""
-    key = (id(cfg), ch)
-    if key in _NRK_LOG_CACHE:
-        return _NRK_LOG_CACHE[key]
-    log_path, ch_num = cfg["stim_logs"][ch]
-    lum_log_path = os.path.join(
-        os.path.dirname(log_path),
-        f"luminosity_log_channel{ch_num}.json",
-    )
-    with open(lum_log_path) as f:
-        entries = json.load(f)
-    entries = [e for e in entries if e.get("channel") == ch_num]
-    entries.sort(key=lambda e: e["frame"])
-    _NRK_LOG_CACHE[key] = entries
-    return entries
-
-
-def nrk_setpoint_at_frame(experiments, exp_name, ch, frame_idx):
-    """Return the NRK setpoint value active at ``frame_idx``.
-
-    Returns ``None`` for non-NRK channels, missing logs, or frames outside
-    every parsed region.
-    """
-    cfg = experiments.get(exp_name)
-    if cfg is None or "stim_logs" not in cfg or ch not in cfg["stim_logs"]:
-        return None
-    try:
-        entries = _load_nrk_log_entries(cfg, ch)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return None
-    regions = setpoint_regions_from_log(entries)
-    if not regions:
-        return None
-    for start, end, sp in regions:
-        if start <= frame_idx <= end:
-            return float(sp)
-    nearest = min(
-        regions,
-        key=lambda r: min(abs(r[0] - frame_idx), abs(r[1] - frame_idx)),
-    )
-    return float(nearest[2])
 
 
 def per_cell_response_delta_with_baseline(

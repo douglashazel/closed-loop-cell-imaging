@@ -132,40 +132,22 @@ def render_anticipation_zscore_histogram(ax, payload, spec, *, fill):
     ax.legend(fontsize=P["legend_fontsize"], loc="best");
 
 
-def _permutation_mean_pvalue(observed, null_mat):
-    """Two-tailed permutation p-value for the population mean score.
-
-    ``M_real`` is the observed mean score across cells; ``M_shuffled`` is the
-    per-permutation mean of the shuffled-null scores. The p-value is the
-    fraction of shuffled means whose absolute deviation from the null mean
-    exceeds the observed mean's deviation. Returns
-    ``(M_real, M_shuffled, p_value)``.
-    """
-    M_real = float(np.nanmean(observed))
-    M_shuffled = np.nanmean(null_mat, axis=1)
-    null_mean = float(np.nanmean(M_shuffled))
-    d_real = abs(M_real - null_mean)
-    d_shuf = np.abs(M_shuffled - null_mean)
-    p_value = float(np.mean(d_shuf > d_real))
-    return M_real, M_shuffled, p_value
-
-
 def render_permutation_mean_test(ax, payload, spec, *, fill):
     """Histogram of shuffled mean scores with the observed mean overlaid.
 
-    Port of ``_plot_permutation_mean_test``: the two-tailed permutation p and
-    the observed mean are recomputed here from the cached ``observed`` /
-    ``null`` (deterministic — the null is cached verbatim). The two
-    number-bearing legend labels are filled from spec templates with the
-    recomputed values.
+    Port of ``_plot_permutation_mean_test``. The observed mean and the
+    two-tailed permutation p are read from the cached population test
+    (``payload["pop"]``, from ``common.stats.population_permutation_pvalue``);
+    the histogram shows the per-permutation means of the cached ``null``. The
+    two number-bearing legend labels are filled from spec templates.
     """
     P = PLOT_PARAMS
     clean_axes(ax)
-    observed = np.asarray(payload["observed"])
     null_mat = np.asarray(payload["null"])
+    pop = payload["pop"]
 
-    M_real, M_shuffled, p_value = _permutation_mean_pvalue(observed, null_mat)
-    n_perm = int(M_shuffled.size)
+    M_real, p_value, n_perm = pop["obs_stat"], pop["p_value"], pop["n_perm"]
+    M_shuffled = np.nanmean(null_mat, axis=1)
     p_disp = (f"< {1.0 / n_perm:.0e}" if p_value == 0.0
               else f"= {p_value:.4g}")
 
@@ -231,7 +213,8 @@ def iter_figures(blob, exp_name):
             if null is not None and np.size(null):
                 yield (
                     "learning_score_permtest",
-                    {"observed": summed, "null": null},
+                    {"observed": summed, "null": null,
+                     "pop": mblob[f"{measure_key}_pop"]},
                     dict(fill),
                 )
 
@@ -252,6 +235,7 @@ def iter_figures(blob, exp_name):
         if null is not None and np.size(null):
             yield (
                 "learning_anticipation_permtest",
-                {"observed": train_blob["real"], "null": null},
+                {"observed": train_blob["real"], "null": null,
+                 "pop": train_blob["pop"]},
                 dict(fill),
             )

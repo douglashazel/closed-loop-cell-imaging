@@ -335,6 +335,10 @@ def _compute_anticipation_blob(state, exp_name, cfg, *, n_perm=10000):
             "shuffled": np.concatenate(entries["shuffled"]),
             "null": np.concatenate(entries["null"], axis=1),
         }
+        # Population-mean permutation test, the p the figures print.
+        trains_blob[train_idx]["pop"] = population_permutation_pvalue(
+            trains_blob[train_idx]["real"], trains_blob[train_idx]["null"],
+        )
     blob = {"channel_names": list(used_channels), "trains": trains_blob}
     n_pooled_train1 = (
         trains_blob[1]["real"].size if trains_blob.get(1) is not None else 0

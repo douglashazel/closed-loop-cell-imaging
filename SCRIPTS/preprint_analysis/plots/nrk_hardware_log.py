@@ -3,8 +3,9 @@
 
 One standalone single-axis figure per channel of the NRK acid experiment
 (``<ch>_hw_lum_log``): the setpoint bands (one legend entry per unique setpoint),
-the mean-fluorescence line, the acidic-pulse axvspans (a single legend entry),
-and the optional dotted real-setpoint vline. Styling comes from
+the mean-fluorescence line and the acidic-pulse axvspans (a single legend
+entry). The start of the operator's setpoint is already the left edge of its
+setpoint band, so no separate marker is drawn. Styling comes from
 ``PLOT_PARAMS_HW_LOG``; label/title/legend text comes from the passed ``spec``.
 """
 from plots._base import (
@@ -64,17 +65,6 @@ def render_nrk_hardware_log(ax, payload, spec, *, fill):
             color=pp["acid_color"], alpha=0.30,
             linewidth=0, zorder=2,
             label=acid_label if i == 0 else None,
-        )
-
-    # --- optional real-setpoint marker ---
-    rsp = payload["real_setpoint_min"]
-    if rsp is not None:
-        ax.axvline(
-            rsp,
-            color="#000000",
-            linewidth=2.0, linestyle=":",
-            alpha=0.9, zorder=5,
-            label=legend_text(spec, "real_setpoint", dict(fill, rsp=rsp)),
         )
 
     ax.set_ylim(*payload["y_lim"])

@@ -1,4 +1,4 @@
-"""Stim-frame resolution. Copied verbatim from april28_final_figures.py."""
+"""Stim-frame resolution."""
 
 import os
 import re
@@ -123,10 +123,7 @@ def resolve_all_stim_frames(experiments):
             resolved = {ch: list(base) for ch in cfg["channels"]}
 
         if "stim_minutes" in cfg and "timestamps" in cfg:
-            ts_paths = {
-                ch: os.path.join(cfg["dir"], rel)
-                for ch, rel in cfg["timestamps"].items()
-            }
+            ts_paths = dict(cfg["timestamps"])
             if "perfusion_start" in cfg:
                 perfusion_start = pd.to_datetime(
                     cfg["perfusion_start"], format="%d-%b-%Y %H:%M:%S"

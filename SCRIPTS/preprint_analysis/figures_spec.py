@@ -34,7 +34,7 @@ def _add(key, spec):
 # =============================================================================
 # Shared standalone suptitle for the decomposed corrected / dF/F0 trace panels.
 _SUP_DFF = "{exp_name} / {ch} — {cell_str}, {n_stims} stims"
-_LEGEND_DFF_TRACE = {"mean": "Mean", "setpoint": "Real setpoint ({rsp:.1f} min)"}
+_LEGEND_DFF_TRACE = {"mean": "Mean"}
 
 _add("dff_raw", FigureSpec(
     id="{ch}_dff_raw{subset_suffix}", analysis="dff", scope="channel_subset",
@@ -167,15 +167,16 @@ _add("corr_vs_dist_combined_spearman", FigureSpec(
 
 # =============================================================================
 # Response violins  (plots/response_violins.py) — DMSO experiments
-# title_core / y_label / width_cap_note / n_* are filled from the cache so the
-# verbatim source title strings are preserved exactly. The source keeps the
-# stats box and caveat footnote commented out, so neither is drawn here.
+# title_core / y_label / width_cap_note / n_* are filled from the cache. The
+# responder threshold named in the title is the pseudo-stimulus permutation
+# threshold from common/responders.py. The source keeps the stats box and
+# caveat footnote commented out, so neither is drawn here.
 # =============================================================================
 _VIOLIN_TITLE = "{exp_name} — pooled per-stimulus {metric} ({title_core}){width_cap_note}"
 _VIOLIN_TITLE_RESP = (
     "{exp_name} — pooled per-stimulus {metric} ({title_core})\n"
     "responders highlighted — {n_total_responders}/{n_total_cells} cells "
-    "(Bonferroni |Δ dF/F₀| threshold){width_cap_note}"
+    "(pseudo-stimulus permutation threshold){width_cap_note}"
 )
 _VIOLIN_LEGEND = {"mean": "Mean", "median": "Median", "responder": "Responder"}
 
@@ -257,7 +258,6 @@ _add("nrk_hardware_log", FigureSpec(
         "setpoint_band": "Setpoint {sp:.2f}",
         "mean": "Mean fluorescence",
         "acid": "Acidic pulse ({secs} s)",
-        "real_setpoint": "Real setpoint ({rsp:.1f} min)",
     },
 ))
 

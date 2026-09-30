@@ -37,7 +37,7 @@ from scipy.spatial.distance import pdist, squareform
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from analyze_responders import get_responder_masks
 from common.cli import parse_args
-from common.config import cell_line_label
+from common.config import PIXELS_PER_UM, cell_line_label
 from common.io_paths import save_analysis_cache
 from common.pipeline import prepare_state
 from common.stats import inferential_caveat, mantel_test, one_sample_t_dz
@@ -47,7 +47,6 @@ sys.path.insert(0, "SCRIPTS/core_pipeline")
 from io_utils import lum_dict_to_df  # noqa: E402
 
 
-PIXELS_PER_UM = 1.801  # imaging calibration: 0.555 μm/pixel
 MIN_FRAMES_FOR_CORR = 5
 METHODS = ("pearson", "spearman")
 WINDOW_LABEL = "full dF/F0 time series"

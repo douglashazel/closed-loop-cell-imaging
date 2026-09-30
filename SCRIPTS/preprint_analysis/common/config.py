@@ -1,8 +1,4 @@
-"""Shared configuration for the preprint analysis pipeline.
-
-Every value here is copied verbatim from april28_final_figures.py so the new
-modular pipeline produces byte-identical output to the source script.
-"""
+"""Shared configuration for the preprint analysis pipeline."""
 
 import os
 
@@ -11,8 +7,13 @@ import os
 # Output / cache locations
 # =============================================================================
 OUT_ROOT = "results"
-CACHE_DIR = os.path.join(OUT_ROOT, "bg_cache")
-os.makedirs(CACHE_DIR, exist_ok=True)
+CACHE_DIR = os.path.join(OUT_ROOT, "bg_cache")  # created when a cache is first written
+
+# Small non-image inputs (frame timestamps, the C2C12 cell-selection masks, the
+# PC-3 bad-frame list, the NRK controller logs) live in the repository, so a
+# checkout plus the raw frames is enough to rerun Stage 2. Like OUT_ROOT, the
+# paths are relative to the project root. See data/README.md.
+DATA_DIR = "SCRIPTS/preprint_analysis/data"
 
 
 # =============================================================================
@@ -54,6 +55,12 @@ BG_FIT = {
 
 
 # =============================================================================
+# Imaging calibration
+# =============================================================================
+PIXELS_PER_UM = 1.801  # 0.555 μm/pixel; converts cell-centre distances to μm
+
+
+# =============================================================================
 # Learning-score configuration
 # =============================================================================
 LEARNING_STIMS_PER_TRAIN = 5  # Each DMSO train is 5 pulses (3 trains/expt).
@@ -69,6 +76,8 @@ LEARNING_STIMS_PER_TRAIN = 5  # Each DMSO train is 5 pulses (3 trains/expt).
 # stim_logs (optional, overrides stim_frames for that channel):
 #   dict[ch, (monitoring.log path, log channel number 1|2)]
 #   Frames where action == 'add acidic media' are treated as stimuli.
+#
+# timestamps (optional): dict[ch, per-frame timestamp CSV path]
 #
 # stim_minutes (optional, used with 'timestamps'):
 #   list[float] minutes from perfusion start. Each channel's stim frame is the
@@ -110,20 +119,20 @@ EXPERIMENTS = {
         # window would cover a different physical duration in each.
         "response_window_minutes": (0.5, 5.0),
         "timestamps": {
-            "channel 1": "timestamps/C2C12 DMSO perfusion 09APR26 channel 1 timestamps.csv",
-            "channel 2": "timestamps/C2C12 DMSO perfusion 09APR26 channel 2 timestamps.csv",
-            "channel 3": "timestamps/C2C12 DMSO perfusion 09APR26 channel 3 timestamps.csv",
+            "channel 1": f"{DATA_DIR}/c2c12_dmso_09APR26/timestamps/C2C12 DMSO perfusion 09APR26 channel 1 timestamps.csv",
+            "channel 2": f"{DATA_DIR}/c2c12_dmso_09APR26/timestamps/C2C12 DMSO perfusion 09APR26 channel 2 timestamps.csv",
+            "channel 3": f"{DATA_DIR}/c2c12_dmso_09APR26/timestamps/C2C12 DMSO perfusion 09APR26 channel 3 timestamps.csv",
         },
         # Optional: 'perfusion_start': '09-Apr-2026 14:08:16'
         # Default = earliest frame-0 datetime across channels listed in 'timestamps'.
         # Per-channel cell filter: only cells whose frame-0 (x0, y0) lies on a
-        # non-zero pixel of the listed mask are kept. Paths are relative to
-        # cfg['dir']. Masks were produced via the interactive circle+area
-        # filter cells at the end of play.ipynb.
+        # non-zero pixel of the listed mask are kept. The masks are the
+        # frame-0 Cellpose masks after an interactive circle + cell-area
+        # selection, stored compressed.
         "cell_mask_filter": {
-            "channel 1": "channel_1_image_0_a_timepoint_00000_circle_area_filtered.npy",
-            "channel 2": "channel_2_image_0_a_timepoint_00000_circle_area_filtered.npy",
-            "channel 3": "channel_3_image_0_a_timepoint_00000_circle_area_filtered.npy",
+            "channel 1": f"{DATA_DIR}/c2c12_dmso_09APR26/channel_1_image_0_a_timepoint_00000_circle_area_filtered.npz",
+            "channel 2": f"{DATA_DIR}/c2c12_dmso_09APR26/channel_2_image_0_a_timepoint_00000_circle_area_filtered.npz",
+            "channel 3": f"{DATA_DIR}/c2c12_dmso_09APR26/channel_3_image_0_a_timepoint_00000_circle_area_filtered.npz",
         },
     },
     "pc3_dmso_23MAR26": {
@@ -139,8 +148,7 @@ EXPERIMENTS = {
         # Same DMSO schedule as c2c12_dmso_09APR26 except for the acclimation
         # window: 10 min normal medium (vs 15 min for C2C12), then 3 trains of
         # 5 pulses (2 min DMSO + 8 min normal each), with 30 min rest between
-        # trains. Total runtime 220 min. Per-frame timestamps live in a flat-
-        # root CSV next to frames/ (not in a timestamps/ subfolder like C2C12).
+        # trains. Total runtime 220 min.
         "stim_minutes": [
             10, 20, 30, 40, 50,
             90, 100, 110, 120, 130,
@@ -163,11 +171,11 @@ EXPERIMENTS = {
         # NaN and fill_dead_frames() linearly interpolates over them.
         "filter_dead_frames": True,
         "bad_frames_file": (
-            f"{OUT_ROOT}/pc3_dmso_23MAR26/"
+            f"{DATA_DIR}/pc3_dmso_23MAR26/"
             "PC3 bad frames light and dark.txt"
         ),
         "timestamps": {
-            "channel 1": "PC3 DMSO pulses perfusion 23MAR26 timestamps.csv",
+            "channel 1": f"{DATA_DIR}/pc3_dmso_23MAR26/PC3 DMSO pulses perfusion 23MAR26 timestamps.csv",
         },
     },
     "nrk_acid_13APR26": {
@@ -187,17 +195,16 @@ EXPERIMENTS = {
         # this is dropped from corrected_lum/bg_trace/stim_frames before any
         # plot runs (see clip_experiments_to_time_window).
         "time_window_minutes": 30.0,
-        # Per-channel copies of the PE-pipeline hardware logs, vendored beside
-        # each channel's data so the repo is self-contained. Each monitoring.log
-        # holds both channels of its run (the log-channel number below selects
-        # one); analyze_nrk_hardware_log also reads the sibling
-        # luminosity_log_channel{N}.json, copied into the same folder.
-        # Source: PE_Pipeline/V5/resultsApril13_exp2 (1A,2B) / _exp3 (1C,2D).
+        # Closed-loop controller logs, one folder per controller run. Each
+        # monitoring.log holds both channels of its run (the log-channel number
+        # below selects one); analyze_nrk_hardware_log also reads the sibling
+        # luminosity_log_channel{N}.json. The ONIX server address and machine
+        # paths are scrubbed from the logs.
         "stim_logs": {
-            "channel 1 A": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 1 A/monitoring.log", 1),
-            "channel 2 B": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 2 B/monitoring.log", 2),
-            "channel 1 C": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 1 C/monitoring.log", 1),
-            "channel 2 D": ("EXPERIMENTS/other/nrk_acid_feedback_experiment_13APR26/channel 2 D/monitoring.log", 2),
+            "channel 1 A": (f"{DATA_DIR}/nrk_acid_13APR26/run_A_B/monitoring.log", 1),
+            "channel 2 B": (f"{DATA_DIR}/nrk_acid_13APR26/run_A_B/monitoring.log", 2),
+            "channel 1 C": (f"{DATA_DIR}/nrk_acid_13APR26/run_C_D/monitoring.log", 1),
+            "channel 2 D": (f"{DATA_DIR}/nrk_acid_13APR26/run_C_D/monitoring.log", 2),
         },
     },
 }

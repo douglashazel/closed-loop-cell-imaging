@@ -1,0 +1,1002 @@
+>>> Initializing config... <<<
+config.json exists -- ensured directories at <PIPELINE_DIR>/config.json
+>>> Launching pipeline... <<<
+continuous_segmentation=False — not launching HandleSegmentations/Cellpose
+[2026-04-13 18:12:30] Performance monitor started...
+[2026-04-13 18:12:30] Starting pulse-state watcher on directory: <DATA_DIR>/final_decisions
+[2026-04-13 18:12:30] Connecting to ONIX2 Server at: http://<ONIX_SERVER_IP>:8881/onixserver
+[2026-04-13 18:12:30] Telemetry will be saved to: <DATA_DIR>/ONIX_Hardware_Log_2026-04-13_18-12-30.csv
+[2026-04-13 18:12:30] Starting NEUTRAL experiment: NN (runs until state change)
+[2026-04-13 18:12:30] Starting experiment: <ONIX_EXPERIMENTS_DIR>\NN.OnixExp
+[2026-04-13 18:12:30] Waiting for user to push approved frame-0 masks via preprocess.ipynb...
+[2026-04-13 18:12:31] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-12-31.OnixExp
+[2026-04-13 18:12:31] Setpoint channel1: 122.078 (200% of initial brightness) — saved to <DATA_DIR>/setpoints.txt
+[2026-04-13 18:12:31] Setpoint channel2: 124.383 (200% of initial brightness) — saved to <DATA_DIR>/setpoints.txt
+[2026-04-13 18:12:31] 00000_channel1: 61.039 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:12:32] 00000_channel2: 62.192 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:12:32] Frame 0: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:12:32] Frame 0: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:12:33] Verifying active experiment...
+[2026-04-13 18:12:33] Correct file is already open.
+[2026-04-13 18:12:33] Performing pre-run safety checks...
+[2026-04-13 18:12:33] File confirmed clean (No Run Data).
+[2026-04-13 18:12:33] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:12:33] Hardware is IDLE. Ready to start.
+[2026-04-13 18:12:33] Enforcing pre-run save...
+[2026-04-13 18:12:33] Starting run...
+[2026-04-13 18:12:33] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:12:48] 00001_channel1: 60.759 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:12:48] Retry 1/30 for frame 1 channel 2: image file is truncated
+[2026-04-13 18:12:49] Retry 2/30 for frame 1 channel 2: image file is truncated
+[2026-04-13 18:12:50] Retry 3/30 for frame 1 channel 2: image file is truncated
+[2026-04-13 18:12:51] 00001_channel2: 61.984 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:12:51] Frame 1: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:12:51] Frame 1: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:13:08] 00002_channel1: 60.726 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:13:08] Retry 1/30 for frame 2 channel 2: image file is truncated
+[2026-04-13 18:13:09] Retry 2/30 for frame 2 channel 2: image file is truncated
+[2026-04-13 18:13:10] Retry 3/30 for frame 2 channel 2: image file is truncated
+[2026-04-13 18:13:11] 00002_channel2: 61.766 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:13:11] Frame 2: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:13:11] Frame 2: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:13:27] 00003_channel1: 60.685 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:13:27] Retry 1/30 for frame 3 channel 2: image file is truncated
+[2026-04-13 18:13:28] Retry 2/30 for frame 3 channel 2: image file is truncated
+[2026-04-13 18:13:29] Retry 3/30 for frame 3 channel 2: image file is truncated
+[2026-04-13 18:13:31] 00003_channel2: 61.684 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:13:31] Frame 3: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:13:31] Frame 3: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:13:48] 00004_channel1: 60.728 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:13:48] Retry 1/30 for frame 4 channel 2: image file is truncated
+[2026-04-13 18:13:49] Retry 2/30 for frame 4 channel 2: image file is truncated
+[2026-04-13 18:13:50] Retry 3/30 for frame 4 channel 2: image file is truncated
+[2026-04-13 18:13:51] 00004_channel2: 61.708 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:13:51] Frame 4: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:13:51] Frame 4: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:14:08] 00005_channel1: 60.459 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:14:08] Retry 1/30 for frame 5 channel 2: image file is truncated
+[2026-04-13 18:14:09] Retry 2/30 for frame 5 channel 2: image file is truncated
+[2026-04-13 18:14:10] Retry 3/30 for frame 5 channel 2: image file is truncated
+[2026-04-13 18:14:11] 00005_channel2: 61.768 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:14:11] Frame 5: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:14:11] Frame 5: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:14:27] 00006_channel1: 60.891 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:14:27] Retry 1/30 for frame 6 channel 2: image file is truncated
+[2026-04-13 18:14:29] Retry 2/30 for frame 6 channel 2: image file is truncated
+[2026-04-13 18:14:30] Retry 3/30 for frame 6 channel 2: image file is truncated
+[2026-04-13 18:14:31] 00006_channel2: 62.071 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:14:31] Frame 6: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:14:31] Frame 6: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:14:47] 00007_channel1: 60.334 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:14:47] Retry 1/30 for frame 7 channel 2: image file is truncated
+[2026-04-13 18:14:48] Retry 2/30 for frame 7 channel 2: image file is truncated
+[2026-04-13 18:14:49] Retry 3/30 for frame 7 channel 2: broken PNG file (chunk b'\x11/\xf1\x97')
+[2026-04-13 18:14:51] 00007_channel2: 61.658 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:14:51] Frame 7: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:14:51] Frame 7: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:15:07] 00008_channel1: 60.700 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:15:07] Retry 1/30 for frame 8 channel 2: image file is truncated
+[2026-04-13 18:15:08] Retry 2/30 for frame 8 channel 2: image file is truncated
+[2026-04-13 18:15:09] Retry 3/30 for frame 8 channel 2: image file is truncated
+[2026-04-13 18:15:10] 00008_channel2: 61.811 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:15:10] Frame 8: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:15:10] Frame 8: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:15:26] 00009_channel1: 60.569 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:15:26] Retry 1/30 for frame 9 channel 2: image file is truncated
+[2026-04-13 18:15:27] Retry 2/30 for frame 9 channel 2: image file is truncated
+[2026-04-13 18:15:28] Retry 3/30 for frame 9 channel 2: image file is truncated
+[2026-04-13 18:15:29] 00009_channel2: 61.827 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:15:29] Frame 9: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:15:29] Frame 9: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:15:46] 00010_channel1: 60.495 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:15:46] Retry 1/30 for frame 10 channel 2: image file is truncated
+[2026-04-13 18:15:47] Retry 2/30 for frame 10 channel 2: image file is truncated
+[2026-04-13 18:15:48] Retry 3/30 for frame 10 channel 2: image file is truncated
+[2026-04-13 18:15:49] 00010_channel2: 61.795 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:15:49] Frame 10: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:15:49] Frame 10: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:16:05] 00011_channel1: 60.526 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:16:05] Retry 1/30 for frame 11 channel 2: image file is truncated
+[2026-04-13 18:16:06] Retry 2/30 for frame 11 channel 2: image file is truncated
+[2026-04-13 18:16:07] Retry 3/30 for frame 11 channel 2: image file is truncated
+[2026-04-13 18:16:08] 00011_channel2: 61.483 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:16:08] Frame 11: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:16:08] Frame 11: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:16:24] 00012_channel1: 60.588 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:16:24] Retry 1/30 for frame 12 channel 2: image file is truncated
+[2026-04-13 18:16:25] Retry 2/30 for frame 12 channel 2: image file is truncated
+[2026-04-13 18:16:26] Retry 3/30 for frame 12 channel 2: image file is truncated
+[2026-04-13 18:16:28] 00012_channel2: 62.080 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:16:28] Frame 12: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:16:28] Frame 12: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:16:44] 00013_channel1: 60.698 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:16:44] Retry 1/30 for frame 13 channel 2: image file is truncated
+[2026-04-13 18:16:45] Retry 2/30 for frame 13 channel 2: image file is truncated
+[2026-04-13 18:16:46] Retry 3/30 for frame 13 channel 2: image file is truncated
+[2026-04-13 18:16:47] 00013_channel2: 61.818 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:16:47] Frame 13: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:16:47] Frame 13: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:17:03] 00014_channel1: 60.475 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:17:03] Retry 1/30 for frame 14 channel 2: image file is truncated
+[2026-04-13 18:17:04] Retry 2/30 for frame 14 channel 2: image file is truncated
+[2026-04-13 18:17:05] Retry 3/30 for frame 14 channel 2: image file is truncated
+[2026-04-13 18:17:07] 00014_channel2: 61.810 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:17:07] Frame 14: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:17:07] Frame 14: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:17:23] 00015_channel1: 60.658 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:17:23] Retry 1/30 for frame 15 channel 2: image file is truncated
+[2026-04-13 18:17:24] Retry 2/30 for frame 15 channel 2: image file is truncated
+[2026-04-13 18:17:25] Retry 3/30 for frame 15 channel 2: image file is truncated
+[2026-04-13 18:17:26] 00015_channel2: 61.719 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:17:26] Frame 15: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:17:26] Frame 15: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:17:43] 00016_channel1: 60.694 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:17:43] Retry 1/30 for frame 16 channel 2: image file is truncated
+[2026-04-13 18:17:44] Retry 2/30 for frame 16 channel 2: image file is truncated
+[2026-04-13 18:17:45] Retry 3/30 for frame 16 channel 2: image file is truncated
+[2026-04-13 18:17:46] 00016_channel2: 61.734 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:17:46] Frame 16: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:17:46] Frame 16: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:18:02] 00017_channel1: 60.769 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:18:02] Retry 1/30 for frame 17 channel 2: image file is truncated
+[2026-04-13 18:18:03] Retry 2/30 for frame 17 channel 2: image file is truncated
+[2026-04-13 18:18:04] Retry 3/30 for frame 17 channel 2: image file is truncated
+[2026-04-13 18:18:06] 00017_channel2: 61.683 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:18:06] Frame 17: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:18:06] Frame 17: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:18:22] 00018_channel1: 60.740 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:18:22] Retry 1/30 for frame 18 channel 2: image file is truncated
+[2026-04-13 18:18:23] Retry 2/30 for frame 18 channel 2: image file is truncated
+[2026-04-13 18:18:24] Retry 3/30 for frame 18 channel 2: image file is truncated
+[2026-04-13 18:18:25] 00018_channel2: 61.733 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:18:25] Frame 18: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:18:25] Frame 18: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:18:41] 00019_channel1: 60.694 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:18:41] Retry 1/30 for frame 19 channel 2: image file is truncated
+[2026-04-13 18:18:42] Retry 2/30 for frame 19 channel 2: image file is truncated
+[2026-04-13 18:18:43] Retry 3/30 for frame 19 channel 2: image file is truncated
+[2026-04-13 18:18:45] 00019_channel2: 61.532 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:18:45] Frame 19: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:18:45] Frame 19: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:19:00] 00020_channel1: 60.604 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:19:00] Retry 1/30 for frame 20 channel 2: image file is truncated
+[2026-04-13 18:19:01] Retry 2/30 for frame 20 channel 2: image file is truncated
+[2026-04-13 18:19:03] Retry 3/30 for frame 20 channel 2: image file is truncated
+[2026-04-13 18:19:04] 00020_channel2: 61.678 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:19:04] Frame 20: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:19:04] Frame 20: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:19:20] 00021_channel1: 60.391 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:19:20] Retry 1/30 for frame 21 channel 2: image file is truncated
+[2026-04-13 18:19:21] Retry 2/30 for frame 21 channel 2: image file is truncated
+[2026-04-13 18:19:22] Retry 3/30 for frame 21 channel 2: image file is truncated
+[2026-04-13 18:19:23] 00021_channel2: 61.952 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:19:23] Frame 21: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:19:23] Frame 21: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:19:39] 00022_channel1: 60.649 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:19:39] Retry 1/30 for frame 22 channel 2: image file is truncated
+[2026-04-13 18:19:40] Retry 2/30 for frame 22 channel 2: image file is truncated
+[2026-04-13 18:19:41] Retry 3/30 for frame 22 channel 2: image file is truncated
+[2026-04-13 18:19:42] 00022_channel2: 61.516 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:19:42] Frame 22: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:19:43] Frame 22: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:19:59] 00023_channel1: 60.464 -> add neutral media (setpoint=122.078)
+[2026-04-13 18:19:59] Retry 1/30 for frame 23 channel 2: image file is truncated
+[2026-04-13 18:20:00] Retry 2/30 for frame 23 channel 2: image file is truncated
+[2026-04-13 18:20:01] Retry 3/30 for frame 23 channel 2: image file is truncated
+[2026-04-13 18:20:02] 00023_channel2: 61.591 -> add neutral media (setpoint=124.383)
+[2026-04-13 18:20:02] Frame 23: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:20:02] Frame 23: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:20:18] 00024_channel1: 60.314 -> add acidic media (setpoint=60.200)
+[2026-04-13 18:20:18] Retry 1/30 for frame 24 channel 2: image file is truncated
+[2026-04-13 18:20:19] Retry 2/30 for frame 24 channel 2: image file is truncated
+[2026-04-13 18:20:20] Retry 3/30 for frame 24 channel 2: image file is truncated
+[2026-04-13 18:20:21] 00024_channel2: 61.389 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:20:21] Frame 24: wrote actions.toml -> {'1': 'add acidic media', '2': 'add neutral media'}
+[2026-04-13 18:20:21] Channel 1: acid pulse STARTED (30s)
+[2026-04-13 18:20:21] Frame 24: processed crossings {'1': 'add acidic media', '2': 'add neutral media'}
+[2026-04-13 18:20:21] State change: NN -> AN
+[2026-04-13 18:20:22] Aborting current experiment due to new experiment request...
+[2026-04-13 18:20:22] Aborting run...
+[2026-04-13 18:20:22] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:20:22] Closing and saving...
+[2026-04-13 18:20:22] Experiment complete.
+[2026-04-13 18:20:22] Completed experiment: NN
+[2026-04-13 18:20:22] Starting ACIDIC experiment: AN (runs until state change)
+[2026-04-13 18:20:22] Starting experiment: <ONIX_EXPERIMENTS_DIR>\AN.OnixExp
+[2026-04-13 18:20:22] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-20-22.OnixExp
+[2026-04-13 18:20:23] Verifying active experiment...
+[2026-04-13 18:20:23] Correct file is already open.
+[2026-04-13 18:20:23] Performing pre-run safety checks...
+[2026-04-13 18:20:23] File confirmed clean (No Run Data).
+[2026-04-13 18:20:23] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:20:23] Hardware is IDLE. Ready to start.
+[2026-04-13 18:20:24] Enforcing pre-run save...
+[2026-04-13 18:20:24] Starting run...
+[2026-04-13 18:20:24] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:20:38] 00025_channel1: 60.398 -> add acidic media (setpoint=60.200)
+[2026-04-13 18:20:38] Retry 1/30 for frame 25 channel 2: image file is truncated
+[2026-04-13 18:20:39] Retry 2/30 for frame 25 channel 2: image file is truncated
+[2026-04-13 18:20:40] Retry 3/30 for frame 25 channel 2: image file is truncated
+[2026-04-13 18:20:42] 00025_channel2: 61.767 -> add acidic media (setpoint=61.400)
+[2026-04-13 18:20:42] Frame 25: wrote actions.toml -> {'1': 'add acidic media', '2': 'add acidic media'}
+[2026-04-13 18:20:42] Channel 2: acid pulse STARTED (30s)
+[2026-04-13 18:20:42] Frame 25: processed crossings {'1': 'add acidic media', '2': 'add acidic media'}
+[2026-04-13 18:20:42] State change: AN -> AA
+[2026-04-13 18:20:42] Aborting current experiment due to new experiment request...
+[2026-04-13 18:20:42] Aborting run...
+[2026-04-13 18:20:42] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:20:42] Closing and saving...
+[2026-04-13 18:20:42] Experiment complete.
+[2026-04-13 18:20:42] Completed experiment: AN
+[2026-04-13 18:20:42] Starting ACIDIC experiment: AA (runs until state change)
+[2026-04-13 18:20:42] Starting experiment: <ONIX_EXPERIMENTS_DIR>\AA.OnixExp
+[2026-04-13 18:20:42] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-20-42.OnixExp
+[2026-04-13 18:20:44] Verifying active experiment...
+[2026-04-13 18:20:44] Correct file is already open.
+[2026-04-13 18:20:44] Performing pre-run safety checks...
+[2026-04-13 18:20:44] File confirmed clean (No Run Data).
+[2026-04-13 18:20:44] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:20:44] Hardware is IDLE. Ready to start.
+[2026-04-13 18:20:44] Enforcing pre-run save...
+[2026-04-13 18:20:44] Starting run...
+[2026-04-13 18:20:44] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:20:51] Channel 1: acid pulse EXPIRED after 30.1s
+[2026-04-13 18:20:51] State change: AA -> NA
+[2026-04-13 18:20:51] Aborting current experiment due to new experiment request...
+[2026-04-13 18:20:51] Aborting run...
+[2026-04-13 18:20:52] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:20:52] Closing and saving...
+[2026-04-13 18:20:52] Experiment complete.
+[2026-04-13 18:20:52] Completed experiment: AA
+[2026-04-13 18:20:52] Starting ACIDIC experiment: NA (runs until state change)
+[2026-04-13 18:20:52] Starting experiment: <ONIX_EXPERIMENTS_DIR>\NA.OnixExp
+[2026-04-13 18:20:52] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-20-52.OnixExp
+[2026-04-13 18:20:54] Verifying active experiment...
+[2026-04-13 18:20:54] Correct file is already open.
+[2026-04-13 18:20:54] Performing pre-run safety checks...
+[2026-04-13 18:20:54] File confirmed clean (No Run Data).
+[2026-04-13 18:20:54] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:20:54] Hardware is IDLE. Ready to start.
+[2026-04-13 18:20:54] Enforcing pre-run save...
+[2026-04-13 18:20:54] Starting run...
+[2026-04-13 18:20:54] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:20:59] 00026_channel1: 59.693 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:20:59] Retry 1/30 for frame 26 channel 2: image file is truncated
+[2026-04-13 18:21:00] Retry 2/30 for frame 26 channel 2: image file is truncated
+[2026-04-13 18:21:01] Retry 3/30 for frame 26 channel 2: image file is truncated
+[2026-04-13 18:21:02] Retry 4/30 for frame 26 channel 2: image file is truncated
+[2026-04-13 18:21:03] 00026_channel2: 61.534 -> add acidic media (setpoint=61.400)
+[2026-04-13 18:21:03] Frame 26: wrote actions.toml -> {'1': 'add neutral media', '2': 'add acidic media'}
+[2026-04-13 18:21:03] Frame 26: processed crossings {'1': 'add neutral media', '2': 'add acidic media'}
+[2026-04-13 18:21:12] Channel 2: acid pulse EXPIRED after 30.1s
+[2026-04-13 18:21:12] State change: NA -> NN
+[2026-04-13 18:21:12] Aborting current experiment due to new experiment request...
+[2026-04-13 18:21:12] Aborting run...
+[2026-04-13 18:21:12] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:21:12] Closing and saving...
+[2026-04-13 18:21:13] Experiment complete.
+[2026-04-13 18:21:13] Completed experiment: NA
+[2026-04-13 18:21:13] Starting NEUTRAL experiment: NN (runs until state change)
+[2026-04-13 18:21:13] Starting experiment: <ONIX_EXPERIMENTS_DIR>\NN.OnixExp
+[2026-04-13 18:21:13] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-21-13.OnixExp
+[2026-04-13 18:21:15] Verifying active experiment...
+[2026-04-13 18:21:15] Correct file is already open.
+[2026-04-13 18:21:15] Performing pre-run safety checks...
+[2026-04-13 18:21:15] File confirmed clean (No Run Data).
+[2026-04-13 18:21:15] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:21:15] Hardware is IDLE. Ready to start.
+[2026-04-13 18:21:15] Enforcing pre-run save...
+[2026-04-13 18:21:15] Starting run...
+[2026-04-13 18:21:15] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:21:19] 00027_channel1: 58.675 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:21:19] Retry 1/30 for frame 27 channel 2: image file is truncated
+[2026-04-13 18:21:20] Retry 2/30 for frame 27 channel 2: image file is truncated
+[2026-04-13 18:21:21] Retry 3/30 for frame 27 channel 2: image file is truncated
+[2026-04-13 18:21:22] 00027_channel2: 60.233 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:21:22] Frame 27: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:21:22] Frame 27: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:21:39] 00028_channel1: 58.304 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:21:39] Retry 1/30 for frame 28 channel 2: image file is truncated
+[2026-04-13 18:21:40] Retry 2/30 for frame 28 channel 2: image file is truncated
+[2026-04-13 18:21:41] Retry 3/30 for frame 28 channel 2: image file is truncated
+[2026-04-13 18:21:42] 00028_channel2: 59.385 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:21:42] Frame 28: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:21:43] Frame 28: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:21:58] 00029_channel1: 58.637 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:21:58] Retry 1/30 for frame 29 channel 2: image file is truncated
+[2026-04-13 18:21:59] Retry 2/30 for frame 29 channel 2: image file is truncated
+[2026-04-13 18:22:00] Retry 3/30 for frame 29 channel 2: broken PNG file (chunk b'\x08A>`')
+[2026-04-13 18:22:02] 00029_channel2: 59.400 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:22:02] Frame 29: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:22:02] Frame 29: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:22:18] 00030_channel1: 58.774 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:22:18] Retry 1/30 for frame 30 channel 2: image file is truncated
+[2026-04-13 18:22:19] Retry 2/30 for frame 30 channel 2: image file is truncated
+[2026-04-13 18:22:20] Retry 3/30 for frame 30 channel 2: image file is truncated
+[2026-04-13 18:22:22] 00030_channel2: 59.326 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:22:22] Frame 30: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:22:22] Frame 30: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:22:38] 00031_channel1: 59.427 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:22:38] Retry 1/30 for frame 31 channel 2: image file is truncated
+[2026-04-13 18:22:39] Retry 2/30 for frame 31 channel 2: image file is truncated
+[2026-04-13 18:22:40] Retry 3/30 for frame 31 channel 2: image file is truncated
+[2026-04-13 18:22:41] 00031_channel2: 59.696 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:22:41] Frame 31: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:22:42] Frame 31: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:22:58] 00032_channel1: 59.249 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:22:58] Retry 1/30 for frame 32 channel 2: image file is truncated
+[2026-04-13 18:22:59] Retry 2/30 for frame 32 channel 2: image file is truncated
+[2026-04-13 18:23:00] Retry 3/30 for frame 32 channel 2: image file is truncated
+[2026-04-13 18:23:01] 00032_channel2: 59.985 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:23:01] Frame 32: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:23:01] Frame 32: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:23:17] 00033_channel1: 59.147 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:23:17] Retry 1/30 for frame 33 channel 2: image file is truncated
+[2026-04-13 18:23:18] Retry 2/30 for frame 33 channel 2: image file is truncated
+[2026-04-13 18:23:19] Retry 3/30 for frame 33 channel 2: broken PNG file (chunk b'\x95\x89\x91\x85')
+[2026-04-13 18:23:20] 00033_channel2: 60.257 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:23:20] Frame 33: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:23:21] Frame 33: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:23:37] 00034_channel1: 59.758 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:23:37] Retry 1/30 for frame 34 channel 2: image file is truncated
+[2026-04-13 18:23:38] Retry 2/30 for frame 34 channel 2: image file is truncated
+[2026-04-13 18:23:39] Retry 3/30 for frame 34 channel 2: image file is truncated
+[2026-04-13 18:23:40] 00034_channel2: 60.454 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:23:40] Frame 34: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:23:40] Frame 34: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:23:56] 00035_channel1: 59.899 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:23:56] Retry 1/30 for frame 35 channel 2: image file is truncated
+[2026-04-13 18:23:57] Retry 2/30 for frame 35 channel 2: image file is truncated
+[2026-04-13 18:23:58] Retry 3/30 for frame 35 channel 2: image file is truncated
+[2026-04-13 18:24:00] 00035_channel2: 60.765 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:24:00] Frame 35: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:24:00] Frame 35: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:24:16] 00036_channel1: 59.780 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:24:16] Retry 1/30 for frame 36 channel 2: image file is truncated
+[2026-04-13 18:24:17] Retry 2/30 for frame 36 channel 2: image file is truncated
+[2026-04-13 18:24:18] Retry 3/30 for frame 36 channel 2: image file is truncated
+[2026-04-13 18:24:19] 00036_channel2: 60.849 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:24:19] Frame 36: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:24:20] Frame 36: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:24:36] 00037_channel1: 59.562 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:24:36] Retry 1/30 for frame 37 channel 2: image file is truncated
+[2026-04-13 18:24:37] Retry 2/30 for frame 37 channel 2: image file is truncated
+[2026-04-13 18:24:38] Retry 3/30 for frame 37 channel 2: image file is truncated
+[2026-04-13 18:24:39] 00037_channel2: 60.926 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:24:39] Frame 37: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:24:40] Frame 37: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:24:55] 00038_channel1: 59.854 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:24:55] Retry 1/30 for frame 38 channel 2: image file is truncated
+[2026-04-13 18:24:57] Retry 2/30 for frame 38 channel 2: image file is truncated
+[2026-04-13 18:24:58] Retry 3/30 for frame 38 channel 2: image file is truncated
+[2026-04-13 18:24:59] 00038_channel2: 60.797 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:24:59] Frame 38: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:24:59] Frame 38: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:25:15] 00039_channel1: 59.987 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:25:15] Retry 1/30 for frame 39 channel 2: image file is truncated
+[2026-04-13 18:25:16] Retry 2/30 for frame 39 channel 2: image file is truncated
+[2026-04-13 18:25:17] Retry 3/30 for frame 39 channel 2: image file is truncated
+[2026-04-13 18:25:19] 00039_channel2: 60.789 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:25:19] Frame 39: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:25:19] Frame 39: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:25:35] 00040_channel1: 59.798 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:25:35] Retry 1/30 for frame 40 channel 2: image file is truncated
+[2026-04-13 18:25:36] Retry 2/30 for frame 40 channel 2: image file is truncated
+[2026-04-13 18:25:37] Retry 3/30 for frame 40 channel 2: image file is truncated
+[2026-04-13 18:25:38] 00040_channel2: 61.115 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:25:38] Frame 40: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:25:39] Frame 40: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:25:54] 00041_channel1: 60.333 -> add acidic media (setpoint=60.200)
+[2026-04-13 18:25:54] Retry 1/30 for frame 41 channel 2: image file is truncated
+[2026-04-13 18:25:55] Retry 2/30 for frame 41 channel 2: image file is truncated
+[2026-04-13 18:25:56] Retry 3/30 for frame 41 channel 2: image file is truncated
+[2026-04-13 18:25:58] 00041_channel2: 60.959 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:25:58] Frame 41: wrote actions.toml -> {'1': 'add acidic media', '2': 'add neutral media'}
+[2026-04-13 18:25:58] Channel 1: acid pulse STARTED (30s)
+[2026-04-13 18:25:58] Frame 41: processed crossings {'1': 'add acidic media', '2': 'add neutral media'}
+[2026-04-13 18:25:58] State change: NN -> AN
+[2026-04-13 18:25:58] Aborting current experiment due to new experiment request...
+[2026-04-13 18:25:58] Aborting run...
+[2026-04-13 18:25:58] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:25:58] Closing and saving...
+[2026-04-13 18:25:59] Experiment complete.
+[2026-04-13 18:25:59] Completed experiment: NN
+[2026-04-13 18:25:59] Starting ACIDIC experiment: AN (runs until state change)
+[2026-04-13 18:25:59] Starting experiment: <ONIX_EXPERIMENTS_DIR>\AN.OnixExp
+[2026-04-13 18:25:59] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-25-59.OnixExp
+[2026-04-13 18:26:01] Verifying active experiment...
+[2026-04-13 18:26:01] Correct file is already open.
+[2026-04-13 18:26:01] Performing pre-run safety checks...
+[2026-04-13 18:26:01] File confirmed clean (No Run Data).
+[2026-04-13 18:26:01] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:26:01] Hardware is IDLE. Ready to start.
+[2026-04-13 18:26:01] Enforcing pre-run save...
+[2026-04-13 18:26:01] Starting run...
+[2026-04-13 18:26:01] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:26:14] 00042_channel1: 60.062 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:26:15] Retry 1/30 for frame 42 channel 2: image file is truncated
+[2026-04-13 18:26:16] Retry 2/30 for frame 42 channel 2: image file is truncated
+[2026-04-13 18:26:17] Retry 3/30 for frame 42 channel 2: image file is truncated
+[2026-04-13 18:26:18] 00042_channel2: 60.892 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:26:18] Frame 42: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:26:18] Frame 42: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:26:28] Channel 1: acid pulse EXPIRED after 30.2s
+[2026-04-13 18:26:28] State change: AN -> NN
+[2026-04-13 18:26:28] Aborting current experiment due to new experiment request...
+[2026-04-13 18:26:28] Aborting run...
+[2026-04-13 18:26:28] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:26:28] Closing and saving...
+[2026-04-13 18:26:29] Experiment complete.
+[2026-04-13 18:26:29] Completed experiment: AN
+[2026-04-13 18:26:29] Starting NEUTRAL experiment: NN (runs until state change)
+[2026-04-13 18:26:29] Starting experiment: <ONIX_EXPERIMENTS_DIR>\NN.OnixExp
+[2026-04-13 18:26:29] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-26-29.OnixExp
+[2026-04-13 18:26:31] Verifying active experiment...
+[2026-04-13 18:26:31] Correct file is already open.
+[2026-04-13 18:26:31] Performing pre-run safety checks...
+[2026-04-13 18:26:31] File confirmed clean (No Run Data).
+[2026-04-13 18:26:31] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:26:31] Hardware is IDLE. Ready to start.
+[2026-04-13 18:26:31] Enforcing pre-run save...
+[2026-04-13 18:26:31] Starting run...
+[2026-04-13 18:26:31] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:26:34] 00043_channel1: 59.066 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:26:34] Retry 1/30 for frame 43 channel 2: broken PNG file (chunk b'\xdd\\\xb9,')
+[2026-04-13 18:26:35] Retry 2/30 for frame 43 channel 2: image file is truncated
+[2026-04-13 18:26:36] Retry 3/30 for frame 43 channel 2: image file is truncated
+[2026-04-13 18:26:38] 00043_channel2: 61.047 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:26:38] Frame 43: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:26:38] Frame 43: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:26:55] 00044_channel1: 57.612 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:26:55] Retry 1/30 for frame 44 channel 2: image file is truncated
+[2026-04-13 18:26:56] Retry 2/30 for frame 44 channel 2: image file is truncated
+[2026-04-13 18:26:57] Retry 3/30 for frame 44 channel 2: image file is truncated
+[2026-04-13 18:26:58] 00044_channel2: 61.058 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:26:58] Frame 44: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:26:58] Frame 44: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:27:14] 00045_channel1: 57.807 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:27:14] Retry 1/30 for frame 45 channel 2: image file is truncated
+[2026-04-13 18:27:15] Retry 2/30 for frame 45 channel 2: image file is truncated
+[2026-04-13 18:27:16] Retry 3/30 for frame 45 channel 2: image file is truncated
+[2026-04-13 18:27:17] 00045_channel2: 60.614 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:27:17] Frame 45: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:27:17] Frame 45: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:27:33] 00046_channel1: 58.017 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:27:33] Retry 1/30 for frame 46 channel 2: image file is truncated
+[2026-04-13 18:27:34] Retry 2/30 for frame 46 channel 2: image file is truncated
+[2026-04-13 18:27:35] Retry 3/30 for frame 46 channel 2: image file is truncated
+[2026-04-13 18:27:36] 00046_channel2: 61.195 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:27:36] Frame 46: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:27:36] Frame 46: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:27:52] 00047_channel1: 58.561 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:27:52] Retry 1/30 for frame 47 channel 2: image file is truncated
+[2026-04-13 18:27:53] Retry 2/30 for frame 47 channel 2: image file is truncated
+[2026-04-13 18:27:55] Retry 3/30 for frame 47 channel 2: image file is truncated
+[2026-04-13 18:27:56] 00047_channel2: 61.160 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:27:56] Frame 47: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:27:56] Frame 47: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:28:12] 00048_channel1: 58.817 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:28:12] Retry 1/30 for frame 48 channel 2: image file is truncated
+[2026-04-13 18:28:13] Retry 2/30 for frame 48 channel 2: image file is truncated
+[2026-04-13 18:28:14] Retry 3/30 for frame 48 channel 2: image file is truncated
+[2026-04-13 18:28:15] 00048_channel2: 61.381 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:28:15] Frame 48: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:28:15] Frame 48: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:28:31] 00049_channel1: 58.716 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:28:31] Retry 1/30 for frame 49 channel 2: broken PNG file (chunk b'K\x83g:')
+[2026-04-13 18:28:32] Retry 2/30 for frame 49 channel 2: image file is truncated
+[2026-04-13 18:28:33] Retry 3/30 for frame 49 channel 2: image file is truncated
+[2026-04-13 18:28:34] 00049_channel2: 61.015 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:28:34] Frame 49: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:28:34] Frame 49: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:28:50] 00050_channel1: 58.908 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:28:50] Retry 1/30 for frame 50 channel 2: image file is truncated
+[2026-04-13 18:28:51] Retry 2/30 for frame 50 channel 2: image file is truncated
+[2026-04-13 18:28:53] Retry 3/30 for frame 50 channel 2: image file is truncated
+[2026-04-13 18:28:54] 00050_channel2: 61.474 -> add acidic media (setpoint=61.400)
+[2026-04-13 18:28:54] Frame 50: wrote actions.toml -> {'1': 'add neutral media', '2': 'add acidic media'}
+[2026-04-13 18:28:54] Channel 2: acid pulse STARTED (30s)
+[2026-04-13 18:28:54] Frame 50: processed crossings {'1': 'add neutral media', '2': 'add acidic media'}
+[2026-04-13 18:28:54] State change: NN -> NA
+[2026-04-13 18:28:54] Aborting current experiment due to new experiment request...
+[2026-04-13 18:28:54] Aborting run...
+[2026-04-13 18:28:54] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:28:55] Closing and saving...
+[2026-04-13 18:28:55] Experiment complete.
+[2026-04-13 18:28:55] Completed experiment: NN
+[2026-04-13 18:28:55] Starting ACIDIC experiment: NA (runs until state change)
+[2026-04-13 18:28:55] Starting experiment: <ONIX_EXPERIMENTS_DIR>\NA.OnixExp
+[2026-04-13 18:28:55] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-28-55.OnixExp
+[2026-04-13 18:28:57] Verifying active experiment...
+[2026-04-13 18:28:57] Correct file is already open.
+[2026-04-13 18:28:57] Performing pre-run safety checks...
+[2026-04-13 18:28:57] File confirmed clean (No Run Data).
+[2026-04-13 18:28:57] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:28:57] Hardware is IDLE. Ready to start.
+[2026-04-13 18:28:57] Enforcing pre-run save...
+[2026-04-13 18:28:57] Starting run...
+[2026-04-13 18:28:57] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:29:11] 00051_channel1: 58.990 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:29:11] Retry 1/30 for frame 51 channel 2: image file is truncated
+[2026-04-13 18:29:12] Retry 2/30 for frame 51 channel 2: image file is truncated
+[2026-04-13 18:29:13] Retry 3/30 for frame 51 channel 2: image file is truncated
+[2026-04-13 18:29:14] 00051_channel2: 61.080 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:29:14] Frame 51: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:29:14] Frame 51: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:29:24] Channel 2: acid pulse EXPIRED after 30.0s
+[2026-04-13 18:29:24] State change: NA -> NN
+[2026-04-13 18:29:24] Aborting current experiment due to new experiment request...
+[2026-04-13 18:29:24] Aborting run...
+[2026-04-13 18:29:24] System stopped (State: 0). Waiting for data flush...
+[2026-04-13 18:29:25] Closing and saving...
+[2026-04-13 18:29:25] Experiment complete.
+[2026-04-13 18:29:25] Completed experiment: NA
+[2026-04-13 18:29:25] Starting NEUTRAL experiment: NN (runs until state change)
+[2026-04-13 18:29:25] Starting experiment: <ONIX_EXPERIMENTS_DIR>\NN.OnixExp
+[2026-04-13 18:29:25] Creating: <ONIX_EXPERIMENTS_DIR>\Run_2026-04-13_18-29-25.OnixExp
+[2026-04-13 18:29:27] Verifying active experiment...
+[2026-04-13 18:29:27] Correct file is already open.
+[2026-04-13 18:29:27] Performing pre-run safety checks...
+[2026-04-13 18:29:27] File confirmed clean (No Run Data).
+[2026-04-13 18:29:27] Checking Hardware Ready Flag (Flags0, Bit 0)...
+[2026-04-13 18:29:27] Hardware is IDLE. Ready to start.
+[2026-04-13 18:29:27] Enforcing pre-run save...
+[2026-04-13 18:29:27] Starting run...
+[2026-04-13 18:29:27] Run STARTED. Running for 86400 seconds...
+[2026-04-13 18:29:30] 00052_channel1: 59.366 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:29:30] Retry 1/30 for frame 52 channel 2: image file is truncated
+[2026-04-13 18:29:31] Retry 2/30 for frame 52 channel 2: image file is truncated
+[2026-04-13 18:29:32] Retry 3/30 for frame 52 channel 2: broken PNG file (chunk b'c\xc1\xf1p')
+[2026-04-13 18:29:33] Retry 4/30 for frame 52 channel 2: image file is truncated
+[2026-04-13 18:29:35] 00052_channel2: 59.558 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:29:35] Frame 52: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:29:35] Frame 52: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:29:50] 00053_channel1: 59.240 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:29:50] Retry 1/30 for frame 53 channel 2: image file is truncated
+[2026-04-13 18:29:51] Retry 2/30 for frame 53 channel 2: image file is truncated
+[2026-04-13 18:29:52] Retry 3/30 for frame 53 channel 2: image file is truncated
+[2026-04-13 18:29:54] 00053_channel2: 58.768 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:29:54] Frame 53: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:29:54] Frame 53: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:30:10] 00054_channel1: 59.233 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:30:10] Retry 1/30 for frame 54 channel 2: image file is truncated
+[2026-04-13 18:30:11] Retry 2/30 for frame 54 channel 2: image file is truncated
+[2026-04-13 18:30:12] Retry 3/30 for frame 54 channel 2: image file is truncated
+[2026-04-13 18:30:13] 00054_channel2: 58.779 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:30:13] Frame 54: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:30:13] Frame 54: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:30:29] 00055_channel1: 59.542 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:30:29] Retry 1/30 for frame 55 channel 2: image file is truncated
+[2026-04-13 18:30:30] Retry 2/30 for frame 55 channel 2: image file is truncated
+[2026-04-13 18:30:31] Retry 3/30 for frame 55 channel 2: image file is truncated
+[2026-04-13 18:30:32] 00055_channel2: 58.896 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:30:32] Frame 55: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:30:33] Frame 55: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:30:49] 00056_channel1: 59.580 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:30:49] Retry 1/30 for frame 56 channel 2: image file is truncated
+[2026-04-13 18:30:50] Retry 2/30 for frame 56 channel 2: image file is truncated
+[2026-04-13 18:30:51] Retry 3/30 for frame 56 channel 2: image file is truncated
+[2026-04-13 18:30:52] 00056_channel2: 59.111 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:30:52] Frame 56: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:30:52] Frame 56: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:31:08] 00057_channel1: 59.502 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:31:08] Retry 1/30 for frame 57 channel 2: broken PNG file (chunk b'\xed\xf1\x9b\xb2')
+[2026-04-13 18:31:09] Retry 2/30 for frame 57 channel 2: image file is truncated
+[2026-04-13 18:31:10] Retry 3/30 for frame 57 channel 2: image file is truncated
+[2026-04-13 18:31:12] 00057_channel2: 59.430 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:31:12] Frame 57: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:31:12] Frame 57: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:31:28] 00058_channel1: 59.610 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:31:28] Retry 1/30 for frame 58 channel 2: image file is truncated
+[2026-04-13 18:31:29] Retry 2/30 for frame 58 channel 2: image file is truncated
+[2026-04-13 18:31:30] Retry 3/30 for frame 58 channel 2: image file is truncated
+[2026-04-13 18:31:31] 00058_channel2: 59.772 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:31:31] Frame 58: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:31:32] Frame 58: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:31:48] 00059_channel1: 59.539 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:31:48] Retry 1/30 for frame 59 channel 2: image file is truncated
+[2026-04-13 18:31:49] Retry 2/30 for frame 59 channel 2: image file is truncated
+[2026-04-13 18:31:50] Retry 3/30 for frame 59 channel 2: image file is truncated
+[2026-04-13 18:31:51] 00059_channel2: 60.193 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:31:51] Frame 59: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:31:51] Frame 59: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:32:07] 00060_channel1: 59.610 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:32:07] Retry 1/30 for frame 60 channel 2: image file is truncated
+[2026-04-13 18:32:09] Retry 2/30 for frame 60 channel 2: image file is truncated
+[2026-04-13 18:32:10] Retry 3/30 for frame 60 channel 2: image file is truncated
+[2026-04-13 18:32:11] 00060_channel2: 60.240 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:32:11] Frame 60: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:32:11] Frame 60: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:32:27] 00061_channel1: 59.449 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:32:27] Retry 1/30 for frame 61 channel 2: image file is truncated
+[2026-04-13 18:32:28] Retry 2/30 for frame 61 channel 2: image file is truncated
+[2026-04-13 18:32:29] Retry 3/30 for frame 61 channel 2: image file is truncated
+[2026-04-13 18:32:30] 00061_channel2: 60.495 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:32:30] Frame 61: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:32:30] Frame 61: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:32:46] 00062_channel1: 59.897 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:32:46] Retry 1/30 for frame 62 channel 2: image file is truncated
+[2026-04-13 18:32:47] Retry 2/30 for frame 62 channel 2: image file is truncated
+[2026-04-13 18:32:48] Retry 3/30 for frame 62 channel 2: image file is truncated
+[2026-04-13 18:32:50] 00062_channel2: 60.535 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:32:50] Frame 62: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:32:50] Frame 62: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:33:06] 00063_channel1: 59.895 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:33:06] Retry 1/30 for frame 63 channel 2: image file is truncated
+[2026-04-13 18:33:07] Retry 2/30 for frame 63 channel 2: image file is truncated
+[2026-04-13 18:33:08] Retry 3/30 for frame 63 channel 2: image file is truncated
+[2026-04-13 18:33:09] 00063_channel2: 60.408 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:33:09] Frame 63: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:33:09] Frame 63: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:33:25] 00064_channel1: 59.505 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:33:25] Retry 1/30 for frame 64 channel 2: image file is truncated
+[2026-04-13 18:33:26] Retry 2/30 for frame 64 channel 2: image file is truncated
+[2026-04-13 18:33:27] Retry 3/30 for frame 64 channel 2: image file is truncated
+[2026-04-13 18:33:28] 00064_channel2: 60.500 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:33:28] Frame 64: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:33:29] Frame 64: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:33:44] 00065_channel1: 59.911 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:33:44] Retry 1/30 for frame 65 channel 2: image file is truncated
+[2026-04-13 18:33:45] Retry 2/30 for frame 65 channel 2: image file is truncated
+[2026-04-13 18:33:46] Retry 3/30 for frame 65 channel 2: image file is truncated
+[2026-04-13 18:33:48] 00065_channel2: 60.401 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:33:48] Frame 65: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:33:48] Frame 65: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:34:04] 00066_channel1: 60.051 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:34:04] Retry 1/30 for frame 66 channel 2: image file is truncated
+[2026-04-13 18:34:05] Retry 2/30 for frame 66 channel 2: image file is truncated
+[2026-04-13 18:34:06] Retry 3/30 for frame 66 channel 2: image file is truncated
+[2026-04-13 18:34:07] 00066_channel2: 60.958 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:34:07] Frame 66: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:34:07] Frame 66: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:34:23] 00067_channel1: 59.522 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:34:23] Retry 1/30 for frame 67 channel 2: image file is truncated
+[2026-04-13 18:34:24] Retry 2/30 for frame 67 channel 2: image file is truncated
+[2026-04-13 18:34:25] Retry 3/30 for frame 67 channel 2: broken PNG file (chunk b'\xa4\xcc\xb2\xd3')
+[2026-04-13 18:34:26] 00067_channel2: 60.859 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:34:26] Frame 67: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:34:27] Frame 67: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:34:42] 00068_channel1: 59.905 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:34:42] Retry 1/30 for frame 68 channel 2: image file is truncated
+[2026-04-13 18:34:43] Retry 2/30 for frame 68 channel 2: broken PNG file (chunk b'\xeb\x0b\xd6G')
+[2026-04-13 18:34:44] Retry 3/30 for frame 68 channel 2: image file is truncated
+[2026-04-13 18:34:45] 00068_channel2: 60.551 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:34:45] Frame 68: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:34:46] Frame 68: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:35:02] 00069_channel1: 59.855 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:35:02] Retry 1/30 for frame 69 channel 2: image file is truncated
+[2026-04-13 18:35:03] Retry 2/30 for frame 69 channel 2: image file is truncated
+[2026-04-13 18:35:04] Retry 3/30 for frame 69 channel 2: image file is truncated
+[2026-04-13 18:35:05] 00069_channel2: 61.068 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:35:05] Frame 69: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:35:05] Frame 69: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:35:21] 00070_channel1: 59.993 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:35:21] Retry 1/30 for frame 70 channel 2: image file is truncated
+[2026-04-13 18:35:22] Retry 2/30 for frame 70 channel 2: image file is truncated
+[2026-04-13 18:35:23] Retry 3/30 for frame 70 channel 2: image file is truncated
+[2026-04-13 18:35:24] 00070_channel2: 60.821 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:35:24] Frame 70: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:35:24] Frame 70: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:35:40] 00071_channel1: 59.691 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:35:40] Retry 1/30 for frame 71 channel 2: image file is truncated
+[2026-04-13 18:35:42] Retry 2/30 for frame 71 channel 2: image file is truncated
+[2026-04-13 18:35:43] Retry 3/30 for frame 71 channel 2: image file is truncated
+[2026-04-13 18:35:44] 00071_channel2: 60.822 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:35:44] Frame 71: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:35:44] Frame 71: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:36:00] 00072_channel1: 59.774 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:36:00] Retry 1/30 for frame 72 channel 2: image file is truncated
+[2026-04-13 18:36:01] Retry 2/30 for frame 72 channel 2: image file is truncated
+[2026-04-13 18:36:02] Retry 3/30 for frame 72 channel 2: image file is truncated
+[2026-04-13 18:36:03] 00072_channel2: 60.594 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:36:03] Frame 72: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:36:03] Frame 72: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:36:19] 00073_channel1: 59.842 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:36:19] Retry 1/30 for frame 73 channel 2: image file is truncated
+[2026-04-13 18:36:20] Retry 2/30 for frame 73 channel 2: image file is truncated
+[2026-04-13 18:36:21] Retry 3/30 for frame 73 channel 2: image file is truncated
+[2026-04-13 18:36:23] 00073_channel2: 60.672 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:36:23] Frame 73: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:36:23] Frame 73: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:36:39] 00074_channel1: 59.839 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:36:39] Retry 1/30 for frame 74 channel 2: image file is truncated
+[2026-04-13 18:36:40] Retry 2/30 for frame 74 channel 2: image file is truncated
+[2026-04-13 18:36:41] Retry 3/30 for frame 74 channel 2: image file is truncated
+[2026-04-13 18:36:42] 00074_channel2: 60.709 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:36:42] Frame 74: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:36:42] Frame 74: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:36:58] 00075_channel1: 59.756 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:36:58] Retry 1/30 for frame 75 channel 2: image file is truncated
+[2026-04-13 18:36:59] Retry 2/30 for frame 75 channel 2: image file is truncated
+[2026-04-13 18:37:01] Retry 3/30 for frame 75 channel 2: broken PNG file (chunk b'T\x16\xd7\x1a')
+[2026-04-13 18:37:02] 00075_channel2: 60.805 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:37:02] Frame 75: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:37:02] Frame 75: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:37:17] 00076_channel1: 59.885 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:37:18] Retry 1/30 for frame 76 channel 2: image file is truncated
+[2026-04-13 18:37:19] Retry 2/30 for frame 76 channel 2: image file is truncated
+[2026-04-13 18:37:20] Retry 3/30 for frame 76 channel 2: image file is truncated
+[2026-04-13 18:37:21] 00076_channel2: 60.782 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:37:21] Frame 76: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:37:21] Frame 76: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:37:37] 00077_channel1: 59.789 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:37:37] Retry 1/30 for frame 77 channel 2: image file is truncated
+[2026-04-13 18:37:38] Retry 2/30 for frame 77 channel 2: image file is truncated
+[2026-04-13 18:37:39] Retry 3/30 for frame 77 channel 2: image file is truncated
+[2026-04-13 18:37:41] 00077_channel2: 60.707 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:37:41] Frame 77: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:37:41] Frame 77: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:37:56] 00078_channel1: 59.735 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:37:56] Retry 1/30 for frame 78 channel 2: image file is truncated
+[2026-04-13 18:37:57] Retry 2/30 for frame 78 channel 2: image file is truncated
+[2026-04-13 18:37:59] Retry 3/30 for frame 78 channel 2: image file is truncated
+[2026-04-13 18:38:00] 00078_channel2: 60.874 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:38:00] Frame 78: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:38:00] Frame 78: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:38:16] 00079_channel1: 59.835 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:38:16] Retry 1/30 for frame 79 channel 2: image file is truncated
+[2026-04-13 18:38:17] Retry 2/30 for frame 79 channel 2: image file is truncated
+[2026-04-13 18:38:18] Retry 3/30 for frame 79 channel 2: image file is truncated
+[2026-04-13 18:38:19] 00079_channel2: 60.884 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:38:19] Frame 79: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:38:19] Frame 79: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:38:35] 00080_channel1: 59.947 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:38:35] Retry 1/30 for frame 80 channel 2: image file is truncated
+[2026-04-13 18:38:36] Retry 2/30 for frame 80 channel 2: broken PNG file (chunk b'\xa1\x08\xa7#')
+[2026-04-13 18:38:37] Retry 3/30 for frame 80 channel 2: image file is truncated
+[2026-04-13 18:38:38] 00080_channel2: 60.877 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:38:38] Frame 80: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:38:39] Frame 80: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:38:54] 00081_channel1: 59.818 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:38:55] Retry 1/30 for frame 81 channel 2: image file is truncated
+[2026-04-13 18:38:56] Retry 2/30 for frame 81 channel 2: image file is truncated
+[2026-04-13 18:38:57] Retry 3/30 for frame 81 channel 2: image file is truncated
+[2026-04-13 18:38:58] 00081_channel2: 60.816 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:38:58] Frame 81: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:38:58] Frame 81: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:39:14] 00082_channel1: 59.923 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:39:14] Retry 1/30 for frame 82 channel 2: image file is truncated
+[2026-04-13 18:39:15] Retry 2/30 for frame 82 channel 2: image file is truncated
+[2026-04-13 18:39:16] Retry 3/30 for frame 82 channel 2: image file is truncated
+[2026-04-13 18:39:17] 00082_channel2: 60.834 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:39:17] Frame 82: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:39:17] Frame 82: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:39:33] 00083_channel1: 59.786 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:39:33] Retry 1/30 for frame 83 channel 2: image file is truncated
+[2026-04-13 18:39:34] Retry 2/30 for frame 83 channel 2: image file is truncated
+[2026-04-13 18:39:35] Retry 3/30 for frame 83 channel 2: image file is truncated
+[2026-04-13 18:39:37] 00083_channel2: 60.976 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:39:37] Frame 83: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:39:37] Frame 83: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:39:53] 00084_channel1: 59.882 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:39:53] Retry 1/30 for frame 84 channel 2: image file is truncated
+[2026-04-13 18:39:54] Retry 2/30 for frame 84 channel 2: image file is truncated
+[2026-04-13 18:39:55] Retry 3/30 for frame 84 channel 2: image file is truncated
+[2026-04-13 18:39:56] 00084_channel2: 60.757 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:39:56] Frame 84: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:39:56] Frame 84: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:40:12] 00085_channel1: 59.830 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:40:12] Retry 1/30 for frame 85 channel 2: image file is truncated
+[2026-04-13 18:40:13] Retry 2/30 for frame 85 channel 2: image file is truncated
+[2026-04-13 18:40:14] Retry 3/30 for frame 85 channel 2: image file is truncated
+[2026-04-13 18:40:15] 00085_channel2: 60.817 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:40:15] Frame 85: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:40:15] Frame 85: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:40:31] 00086_channel1: 59.911 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:40:31] Retry 1/30 for frame 86 channel 2: image file is truncated
+[2026-04-13 18:40:32] Retry 2/30 for frame 86 channel 2: image file is truncated
+[2026-04-13 18:40:33] Retry 3/30 for frame 86 channel 2: image file is truncated
+[2026-04-13 18:40:35] 00086_channel2: 60.613 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:40:35] Frame 86: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:40:35] Frame 86: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:40:51] 00087_channel1: 59.693 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:40:51] Retry 1/30 for frame 87 channel 2: image file is truncated
+[2026-04-13 18:40:52] Retry 2/30 for frame 87 channel 2: image file is truncated
+[2026-04-13 18:40:53] Retry 3/30 for frame 87 channel 2: broken PNG file (chunk b'i\x0cX\x18')
+[2026-04-13 18:40:55] 00087_channel2: 60.914 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:40:55] Frame 87: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:40:55] Frame 87: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:41:10] 00088_channel1: 59.822 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:41:10] Retry 1/30 for frame 88 channel 2: image file is truncated
+[2026-04-13 18:41:12] Retry 2/30 for frame 88 channel 2: image file is truncated
+[2026-04-13 18:41:13] Retry 3/30 for frame 88 channel 2: image file is truncated
+[2026-04-13 18:41:14] 00088_channel2: 60.562 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:41:14] Frame 88: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:41:14] Frame 88: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:41:30] 00089_channel1: 59.758 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:41:30] Retry 1/30 for frame 89 channel 2: image file is truncated
+[2026-04-13 18:41:31] Retry 2/30 for frame 89 channel 2: image file is truncated
+[2026-04-13 18:41:32] Retry 3/30 for frame 89 channel 2: image file is truncated
+[2026-04-13 18:41:33] 00089_channel2: 60.782 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:41:33] Frame 89: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:41:34] Frame 89: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:41:50] 00090_channel1: 59.817 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:41:50] Retry 1/30 for frame 90 channel 2: image file is truncated
+[2026-04-13 18:41:51] Retry 2/30 for frame 90 channel 2: image file is truncated
+[2026-04-13 18:41:52] Retry 3/30 for frame 90 channel 2: image file is truncated
+[2026-04-13 18:41:54] 00090_channel2: 60.610 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:41:54] Frame 90: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:41:54] Frame 90: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:42:09] 00091_channel1: 59.818 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:42:09] Retry 1/30 for frame 91 channel 2: image file is truncated
+[2026-04-13 18:42:10] Retry 2/30 for frame 91 channel 2: image file is truncated
+[2026-04-13 18:42:11] Retry 3/30 for frame 91 channel 2: image file is truncated
+[2026-04-13 18:42:13] 00091_channel2: 60.775 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:42:13] Frame 91: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:42:13] Frame 91: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:42:29] 00092_channel1: 59.901 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:42:29] Retry 1/30 for frame 92 channel 2: broken PNG file (chunk b'\xfdrC,')
+[2026-04-13 18:42:30] Retry 2/30 for frame 92 channel 2: image file is truncated
+[2026-04-13 18:42:31] Retry 3/30 for frame 92 channel 2: image file is truncated
+[2026-04-13 18:42:32] 00092_channel2: 60.597 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:42:32] Frame 92: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:42:32] Frame 92: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:42:49] 00093_channel1: 59.521 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:42:49] Retry 1/30 for frame 93 channel 2: image file is truncated
+[2026-04-13 18:42:50] Retry 2/30 for frame 93 channel 2: image file is truncated
+[2026-04-13 18:42:51] Retry 3/30 for frame 93 channel 2: image file is truncated
+[2026-04-13 18:42:52] 00093_channel2: 60.684 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:42:52] Frame 93: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:42:52] Frame 93: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:43:08] 00094_channel1: 59.822 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:43:08] Retry 1/30 for frame 94 channel 2: image file is truncated
+[2026-04-13 18:43:09] Retry 2/30 for frame 94 channel 2: image file is truncated
+[2026-04-13 18:43:10] Retry 3/30 for frame 94 channel 2: image file is truncated
+[2026-04-13 18:43:12] 00094_channel2: 60.671 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:43:12] Frame 94: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:43:12] Frame 94: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:43:27] 00095_channel1: 59.950 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:43:28] Retry 1/30 for frame 95 channel 2: image file is truncated
+[2026-04-13 18:43:29] Retry 2/30 for frame 95 channel 2: broken PNG file (chunk b'\xa0\xe8=x')
+[2026-04-13 18:43:30] Retry 3/30 for frame 95 channel 2: image file is truncated
+[2026-04-13 18:43:31] 00095_channel2: 61.013 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:43:31] Frame 95: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:43:31] Frame 95: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:43:47] 00096_channel1: 59.722 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:43:47] Retry 1/30 for frame 96 channel 2: image file is truncated
+[2026-04-13 18:43:48] Retry 2/30 for frame 96 channel 2: image file is truncated
+[2026-04-13 18:43:49] Retry 3/30 for frame 96 channel 2: image file is truncated
+[2026-04-13 18:43:51] 00096_channel2: 60.481 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:43:51] Frame 96: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:43:51] Frame 96: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:44:07] 00097_channel1: 59.519 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:44:07] Retry 1/30 for frame 97 channel 2: image file is truncated
+[2026-04-13 18:44:08] Retry 2/30 for frame 97 channel 2: image file is truncated
+[2026-04-13 18:44:09] Retry 3/30 for frame 97 channel 2: image file is truncated
+[2026-04-13 18:44:10] 00097_channel2: 60.742 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:44:10] Frame 97: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:44:10] Frame 97: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:44:27] 00098_channel1: 59.653 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:44:27] Retry 1/30 for frame 98 channel 2: image file is truncated
+[2026-04-13 18:44:28] Retry 2/30 for frame 98 channel 2: image file is truncated
+[2026-04-13 18:44:29] Retry 3/30 for frame 98 channel 2: image file is truncated
+[2026-04-13 18:44:30] 00098_channel2: 60.705 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:44:30] Frame 98: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:44:30] Frame 98: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:44:46] 00099_channel1: 59.689 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:44:46] Retry 1/30 for frame 99 channel 2: image file is truncated
+[2026-04-13 18:44:47] Retry 2/30 for frame 99 channel 2: image file is truncated
+[2026-04-13 18:44:49] Retry 3/30 for frame 99 channel 2: image file is truncated
+[2026-04-13 18:44:50] 00099_channel2: 60.522 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:44:50] Frame 99: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:44:50] Frame 99: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:45:06] 00100_channel1: 59.871 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:45:06] Retry 1/30 for frame 100 channel 2: image file is truncated
+[2026-04-13 18:45:07] Retry 2/30 for frame 100 channel 2: image file is truncated
+[2026-04-13 18:45:08] Retry 3/30 for frame 100 channel 2: image file is truncated
+[2026-04-13 18:45:09] 00100_channel2: 60.689 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:45:09] Frame 100: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:45:09] Frame 100: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:45:25] 00101_channel1: 59.755 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:45:26] Retry 1/30 for frame 101 channel 2: image file is truncated
+[2026-04-13 18:45:27] Retry 2/30 for frame 101 channel 2: image file is truncated
+[2026-04-13 18:45:28] Retry 3/30 for frame 101 channel 2: image file is truncated
+[2026-04-13 18:45:29] 00101_channel2: 60.819 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:45:29] Frame 101: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:45:29] Frame 101: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:45:45] 00102_channel1: 59.672 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:45:45] Retry 1/30 for frame 102 channel 2: image file is truncated
+[2026-04-13 18:45:46] Retry 2/30 for frame 102 channel 2: image file is truncated
+[2026-04-13 18:45:47] Retry 3/30 for frame 102 channel 2: image file is truncated
+[2026-04-13 18:45:49] 00102_channel2: 60.574 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:45:49] Frame 102: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:45:49] Frame 102: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:46:05] 00103_channel1: 59.857 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:46:05] Retry 1/30 for frame 103 channel 2: image file is truncated
+[2026-04-13 18:46:06] Retry 2/30 for frame 103 channel 2: image file is truncated
+[2026-04-13 18:46:07] Retry 3/30 for frame 103 channel 2: image file is truncated
+[2026-04-13 18:46:08] 00103_channel2: 60.534 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:46:08] Frame 103: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:46:08] Frame 103: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:46:24] 00104_channel1: 59.771 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:46:24] Retry 1/30 for frame 104 channel 2: image file is truncated
+[2026-04-13 18:46:25] Retry 2/30 for frame 104 channel 2: image file is truncated
+[2026-04-13 18:46:27] Retry 3/30 for frame 104 channel 2: image file is truncated
+[2026-04-13 18:46:28] 00104_channel2: 60.884 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:46:28] Frame 104: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:46:28] Frame 104: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:46:44] 00105_channel1: 59.483 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:46:44] Retry 1/30 for frame 105 channel 2: image file is truncated
+[2026-04-13 18:46:45] Retry 2/30 for frame 105 channel 2: image file is truncated
+[2026-04-13 18:46:46] Retry 3/30 for frame 105 channel 2: image file is truncated
+[2026-04-13 18:46:47] 00105_channel2: 60.597 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:46:47] Frame 105: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:46:47] Frame 105: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:47:03] 00106_channel1: 59.747 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:47:03] Retry 1/30 for frame 106 channel 2: image file is truncated
+[2026-04-13 18:47:05] Retry 2/30 for frame 106 channel 2: broken PNG file (chunk b'\x0cO\x077')
+[2026-04-13 18:47:06] Retry 3/30 for frame 106 channel 2: image file is truncated
+[2026-04-13 18:47:07] 00106_channel2: 60.509 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:47:07] Frame 106: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:47:07] Frame 106: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:47:23] 00107_channel1: 59.643 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:47:23] Retry 1/30 for frame 107 channel 2: image file is truncated
+[2026-04-13 18:47:24] Retry 2/30 for frame 107 channel 2: image file is truncated
+[2026-04-13 18:47:25] Retry 3/30 for frame 107 channel 2: image file is truncated
+[2026-04-13 18:47:26] 00107_channel2: 60.522 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:47:26] Frame 107: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:47:27] Frame 107: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:47:43] 00108_channel1: 59.759 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:47:43] Retry 1/30 for frame 108 channel 2: image file is truncated
+[2026-04-13 18:47:44] Retry 2/30 for frame 108 channel 2: image file is truncated
+[2026-04-13 18:47:45] Retry 3/30 for frame 108 channel 2: image file is truncated
+[2026-04-13 18:47:46] 00108_channel2: 60.613 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:47:46] Frame 108: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:47:46] Frame 108: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:48:02] 00109_channel1: 59.400 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:48:02] Retry 1/30 for frame 109 channel 2: broken PNG file (chunk b'\xe2\xa1\x12\xdf')
+[2026-04-13 18:48:03] Retry 2/30 for frame 109 channel 2: image file is truncated
+[2026-04-13 18:48:04] Retry 3/30 for frame 109 channel 2: image file is truncated
+[2026-04-13 18:48:05] 00109_channel2: 60.681 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:48:05] Frame 109: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:48:05] Frame 109: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:48:21] 00110_channel1: 59.678 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:48:21] Retry 1/30 for frame 110 channel 2: image file is truncated
+[2026-04-13 18:48:22] Retry 2/30 for frame 110 channel 2: image file is truncated
+[2026-04-13 18:48:23] Retry 3/30 for frame 110 channel 2: image file is truncated
+[2026-04-13 18:48:25] 00110_channel2: 60.472 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:48:25] Frame 110: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:48:25] Frame 110: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:48:41] 00111_channel1: 59.675 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:48:41] Retry 1/30 for frame 111 channel 2: image file is truncated
+[2026-04-13 18:48:42] Retry 2/30 for frame 111 channel 2: image file is truncated
+[2026-04-13 18:48:43] Retry 3/30 for frame 111 channel 2: image file is truncated
+[2026-04-13 18:48:44] 00111_channel2: 60.523 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:48:44] Frame 111: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:48:44] Frame 111: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:49:00] 00112_channel1: 59.868 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:49:00] Retry 1/30 for frame 112 channel 2: image file is truncated
+[2026-04-13 18:49:01] Retry 2/30 for frame 112 channel 2: image file is truncated
+[2026-04-13 18:49:03] Retry 3/30 for frame 112 channel 2: image file is truncated
+[2026-04-13 18:49:04] 00112_channel2: 60.677 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:49:04] Frame 112: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:49:04] Frame 112: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:49:20] 00113_channel1: 59.470 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:49:20] Retry 1/30 for frame 113 channel 2: image file is truncated
+[2026-04-13 18:49:21] Retry 2/30 for frame 113 channel 2: image file is truncated
+[2026-04-13 18:49:22] Retry 3/30 for frame 113 channel 2: image file is truncated
+[2026-04-13 18:49:23] 00113_channel2: 60.564 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:49:23] Frame 113: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:49:23] Frame 113: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:49:39] 00114_channel1: 59.617 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:49:39] Retry 1/30 for frame 114 channel 2: image file is truncated
+[2026-04-13 18:49:40] Retry 2/30 for frame 114 channel 2: image file is truncated
+[2026-04-13 18:49:41] Retry 3/30 for frame 114 channel 2: image file is truncated
+[2026-04-13 18:49:43] 00114_channel2: 60.285 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:49:43] Frame 114: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:49:43] Frame 114: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:49:58] 00115_channel1: 59.633 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:49:58] Retry 1/30 for frame 115 channel 2: image file is truncated
+[2026-04-13 18:49:59] Retry 2/30 for frame 115 channel 2: image file is truncated
+[2026-04-13 18:50:01] Retry 3/30 for frame 115 channel 2: image file is truncated
+[2026-04-13 18:50:02] 00115_channel2: 60.467 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:50:02] Frame 115: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:50:02] Frame 115: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:50:18] 00116_channel1: 59.803 -> add neutral media (setpoint=60.200)
+[2026-04-13 18:50:18] Retry 1/30 for frame 116 channel 2: image file is truncated
+[2026-04-13 18:50:19] Retry 2/30 for frame 116 channel 2: broken PNG file (chunk b'\x1b KE')
+[2026-04-13 18:50:20] Retry 3/30 for frame 116 channel 2: image file is truncated
+[2026-04-13 18:50:21] 00116_channel2: 60.385 -> add neutral media (setpoint=61.400)
+[2026-04-13 18:50:21] Frame 116: wrote actions.toml -> {'1': 'add neutral media', '2': 'add neutral media'}
+[2026-04-13 18:50:21] Frame 116: processed crossings {'1': 'add neutral media', '2': 'add neutral media'}
+>>> Shutting down pipeline... <<<

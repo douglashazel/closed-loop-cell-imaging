@@ -1,7 +1,4 @@
-"""Per-frame minutes lookup, time-window clipping, NRK setpoint regions.
-
-Copied verbatim from april28_final_figures.py.
-"""
+"""Per-frame minutes lookup, time-window clipping, NRK setpoint regions."""
 
 import os
 
@@ -67,7 +64,7 @@ def build_frame_to_minutes_lookups(experiments, state):
 
             # ---- C2C12 / PC3-with-CSV: timestamps.csv ---------------------
             elif "timestamps" in cfg and ch in cfg["timestamps"]:
-                ts_path = os.path.join(cfg["dir"], cfg["timestamps"][ch])
+                ts_path = cfg["timestamps"][ch]
                 df = pd.read_csv(
                     ts_path, header=None,
                     names=["filename", "datetime", "minutes"],

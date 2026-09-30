@@ -443,9 +443,9 @@ def analyze(experiments, state):
     thresholds = compute_responder_thresholds(
         experiments, state, alpha=ALPHA, baseline_n_pre=BASELINE_N_PRE, stat=STAT,
     )
-    rng = np.random.default_rng(RNG_SEED)
-
     for exp_name, cfg in experiments.items():
+        # Reseeded per experiment, as in compute_responder_thresholds.
+        rng = np.random.default_rng(RNG_SEED)
         channels, panels = _build_panels(
             exp_name, cfg, state, thresholds, rng)
         data = {"channels": channels, "panels": panels}

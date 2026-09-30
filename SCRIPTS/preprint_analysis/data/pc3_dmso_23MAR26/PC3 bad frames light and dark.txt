@@ -1,0 +1,25 @@
+FRAME(START FROM 0)	LIGHT/DARK
+21			dark
+26			dark
+124			light
+180			dark
+271			dark
+281			dark
+311			dark
+362			dark
+421			dark
+465			dark
+774			dark
+855			dark
+951			dark
+968			dark
+1081			dark
+1092			dark
+1165			dark
+1433			light
+1547			light
+1639			dark
+1744			light
+1753			dark
+1763			light
+1764			dark

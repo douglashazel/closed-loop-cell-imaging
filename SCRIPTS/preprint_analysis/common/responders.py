@@ -89,12 +89,17 @@ def compute_responder_thresholds(
     ``|statistic|`` — one aggregate test per cell, hence no Bonferroni
     correction over the stimulus count.
 
+    The generator is reseeded with ``rng_seed`` for every experiment, so an
+    experiment's thresholds do not depend on which other experiments are
+    passed in the same call (``run_aggregate_results.sh`` runs one experiment
+    per process; ``load_supplement.py`` runs them all in one).
+
     Returns ``{(exp_name, ch_name): threshold_magnitude}``.
     """
-    rng = np.random.default_rng(rng_seed)
     thresholds = {}
 
     for exp_name, cfg in experiments.items():
+        rng = np.random.default_rng(rng_seed)
         direction = cfg.get("response_direction", "increase")
 
         for ch in cfg["channels"]:

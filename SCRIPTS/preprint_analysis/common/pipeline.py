@@ -355,6 +355,7 @@ def compute_background_correction(experiments, recompute=RECOMPUTE_BG):
             "bg_coefs_by_ch": state["bg_coefs_by_ch"][exp_name],
             "bg_min_by_ch": state["bg_min_by_ch"][exp_name],
         }
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         with open(cache_path, "wb") as f:
             pickle.dump(blob, f, protocol=pickle.HIGHEST_PROTOCOL)
         print(f"  → cached to {cache_path}")
@@ -470,8 +471,8 @@ def apply_cell_mask_filter(experiments, state):
     """Drop cells whose frame-0 position lies on background of a per-channel filter mask.
 
     Opt-in per experiment via ``cfg["cell_mask_filter"]``, a mapping
-    ``{channel: mask_path}`` where each path is relative to ``cfg["dir"]`` and
-    points to a 2-D labeled mask. A cell is kept iff its trajectory has both
+    ``{channel: mask_path}`` where each path points to a 2-D labeled mask
+    (``.npy`` or single-array ``.npz``). A cell is kept iff its trajectory has both
     ``x0`` and ``y0`` and the mask value at ``(round(y0), round(x0))`` is
     non-zero. Cells without frame-0 coordinates, with out-of-bounds positions,
     or that land on background are removed from both
@@ -489,7 +490,7 @@ def apply_cell_mask_filter(experiments, state):
             rel = filt_by_ch.get(ch)
             if rel is None:
                 continue
-            mask = load_segmentation(os.path.join(cfg["dir"], rel))
+            mask = load_segmentation(rel)
             H, W = mask.shape
             traj = state["traj_by_channel"][exp_name][ch]
             lum = state["corrected_lum"][exp_name][ch]
@@ -527,9 +528,10 @@ def apply_cell_mask_filter(experiments, state):
 def prepare_state(experiments, *, recompute_bg=False, check_direction=True):
     """Run the prep steps and return the populated state dict.
 
-    Mirrors the prep block in april28_final_figures.py:main() — same
-    operations, same order, identical resulting state — plus an opt-in
-    dead-frame filter for experiments that set ``filter_dead_frames``.
+    Resolves stimulus frames, loads (or computes) the background correction,
+    applies the cell filter, builds the frame-to-minutes lookups, clips to the
+    analysis window, and masks + fills dead frames for experiments that set
+    ``filter_dead_frames``.
 
     When ``check_direction`` is True (default), runs an empirical
     response-direction sanity check after dead-frame fill and logs a warning

@@ -8,11 +8,11 @@ per-panel, keyed by the same a/b/c… letters the mosaic uses, so it can be
 dropped straight into a figure caption.
 
 It is a READ-ONLY companion to ``plots/mosaics.py``: it reuses that module's
-``MOSAICS`` definitions and ``_find_instance`` resolver, and recomputes the
-descriptive fits / permutation p-values with the *same* code paths the render
-functions use (``scipy.linregress`` for the correlation fits;
-``learning_scores._permutation_mean_pvalue`` for the permutation tests), so
-every number here matches what the figure either draws or used to draw.
+``MOSAICS`` definitions and ``_find_instance`` resolver, recomputes the
+descriptive fits with the *same* code path the render functions use
+(``scipy.linregress``), and reads the permutation p-values from the same cached
+population test the learning-score panels print, so every number here matches
+what the figure either draws or used to draw.
 
 For each mosaic whose ``<OUT_ROOT>/mosaics/<name>.png`` exists, a sibling
 ``<name>.txt`` is written. Run from the repo root (where ``OUT_ROOT`` resolves):
@@ -30,7 +30,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common.config import OUT_ROOT  # noqa: E402
 from common.io_paths import load_analysis_cache  # noqa: E402
 from plots._base import title_of, xlabel_of, ylabel_of  # noqa: E402
-from plots.learning_scores import _permutation_mean_pvalue  # noqa: E402
 from plots.mosaics import MOSAICS, _find_instance  # noqa: E402
 
 # Real experiments to probe when a mosaic doesn't pin one via "experiments"
@@ -102,9 +101,6 @@ def _facts_dff_trace(payload, fill, spec):
     ]
     if is_norm and fill.get("f0_note"):
         facts.append(f"dF/F₀ baseline: {fill['f0_note']}.")
-    rsp = payload.get("real_setpoint_min")
-    if rsp is not None:
-        facts.append(f"Dotted vertical line = real setpoint ({rsp:.1f} min).")
     return kind, facts
 
 
@@ -281,10 +277,8 @@ def _facts_learning_hist(payload, fill, spec):
 
 
 def _facts_learning_permtest(payload, fill, spec):
-    obs = np.asarray(payload["observed"])
-    null = np.asarray(payload["null"])
-    M_real, M_shuf, p = _permutation_mean_pvalue(obs, null)
-    n_perm = int(M_shuf.size)
+    pop = payload["pop"]
+    M_real, p, n_perm = pop["obs_stat"], pop["p_value"], pop["n_perm"]
     measure = fill.get("label_word") or f"anticipation train {fill.get('train_idx')}"
     facts = [
         f"Permutation test on the population mean {measure.lower()} score.",
@@ -335,9 +329,6 @@ def _facts_nrk_hw_log(payload, fill, spec):
         f"x-axis {x0:.0f}–{x1:.0f} min; y-axis {y0:.2f}–{y1:.2f} "
         "(per-chamber scale, not shared).",
     ]
-    rsp = payload.get("real_setpoint_min")
-    if rsp is not None:
-        facts.append(f"Dotted line = real setpoint ({rsp:.1f} min).")
     return "NRK hardware-feedback log", facts
 
 

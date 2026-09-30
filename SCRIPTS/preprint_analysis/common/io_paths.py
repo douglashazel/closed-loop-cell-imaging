@@ -1,11 +1,10 @@
-"""Path / I/O utilities. Originally copied from april28_final_figures.py;
-extended with the analysis-cache layer that decouples analysis from plotting."""
+"""Path / I/O utilities, including the analysis-cache layer that decouples
+analysis from plotting."""
 
 import os
 import pickle
 import re
 
-import matplotlib as mpl
 import numpy as np
 
 from common.config import OUT_ROOT
@@ -22,7 +21,9 @@ ANALYSIS_CACHE_DIR = os.path.join(OUT_ROOT, "analysis_cache")
 # Bump whenever a cached schema changes (mirrors pipeline.PIPELINE_VERSION). The
 # plotting layer passes require_version so a stale cache fails loud instead of
 # rendering wrong numbers.
-ANALYSIS_VERSION = 1
+# 2: learning_scores caches the two-tailed population permutation p that the
+#    figures print (<measure>_pop["p_value"], anticipation trains' "pop").
+ANALYSIS_VERSION = 2
 ANALYSIS_CACHE_PROTOCOL = pickle.HIGHEST_PROTOCOL  # matches bg_cache pickling
 
 
@@ -99,33 +100,19 @@ def fig_path(exp_name, name, ext="png"):
 
 
 def save_fig(fig, png_path, **savefig_kwargs):
-    """Save *fig* as a PNG at *png_path* and as an editable SVG alongside it.
-
-    The SVG is written to a sibling ``svg/`` directory with the same basename
-    (``<dir>/svg/<name>.svg``). SVG text is kept as live ``<text>`` elements
-    (``svg.fonttype='none'``) so fonts/labels can be edited in Illustrator or
-    Inkscape. ``savefig_kwargs`` (e.g. ``dpi``, ``bbox_inches``) are passed to
-    both saves — ``dpi`` still controls the resolution of any rasterized layers
-    embedded in the SVG.
-    """
+    """Save *fig* as a PNG at *png_path* (``savefig_kwargs`` go to ``savefig``)."""
     fig.savefig(png_path, **savefig_kwargs)
-    # svg_dir = os.path.join(os.path.dirname(png_path), "svg")
-    # os.makedirs(svg_dir, exist_ok=True)
-    # base = os.path.splitext(os.path.basename(png_path))[0]
-    # svg_path = os.path.join(svg_dir, base + ".svg")
-    # with mpl.rc_context({"svg.fonttype": "none"}):
-    #     fig.savefig(svg_path, **savefig_kwargs)
 
 
 def load_segmentation(path):
-    """Load a Cellpose / mask ``.npy`` file as a 2-D mask array."""
-    seg = np.load(path, allow_pickle=True)
-    if isinstance(seg, np.ndarray) and seg.dtype == object:
-        try:
-            seg = seg.item()["masks"]
-        except Exception:
-            pass
-    return np.asarray(seg)
+    """Load a 2-D integer label mask from ``.npy`` (Stage 1 masks) or ``.npz``
+    (the single-array masks vendored under ``data/``)."""
+    if path.endswith(".npz"):
+        with np.load(path) as z:
+            if len(z.files) != 1:
+                raise ValueError(f"{path}: expected one array, found {z.files}")
+            return np.asarray(z[z.files[0]])
+    return np.asarray(np.load(path))
 
 
 def sorted_image_files(frame_dir):

@@ -1,7 +1,4 @@
-"""Stimulus-timing helpers + F0 baseline + per-cell response delta.
-
-Copied verbatim from april28_final_figures.py.
-"""
+"""Stimulus-timing helpers + F0 baseline + per-cell response delta."""
 
 import sys
 
@@ -91,7 +88,13 @@ def per_cell_response_delta(
 ):
     """Return per-cell ``response_value − baseline`` for one stimulus.
 
-    See april28_final_figures.py for full doc.
+    The baseline is each cell's value at ``stim_col``; the response value is
+    the window extremum over ``[stim_col + lo, stim_col + hi)`` (minimum for
+    ``direction == "decrease"``, maximum otherwise). Cells get NaN when the
+    stimulus or window falls outside the recording. With ``return_width=True``
+    also returns each cell's response width in minutes: from the stimulus to
+    the first frame after the peak where the trace returns to its baseline,
+    capped at ``cap_col`` (``frame_to_min_fn`` converts frames to minutes).
     """
     n_cells, n_cols = values_by_col.shape
     lo, hi = window

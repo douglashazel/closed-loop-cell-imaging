@@ -273,15 +273,22 @@ def mantel_test(dist_a, dist_b, *, n_perm=999, rng_seed=42, within_groups=None):
 # Population-level inference from an existing per-cell permutation null
 # =============================================================================
 def population_permutation_pvalue(observed_per_cell, null_mat, *, statistic="mean"):
-    """Population-level one-tailed p-value from a per-cell permutation null.
+    """Population-level permutation p-value from a per-cell permutation null.
 
     ``observed_per_cell`` has shape ``(n_cells,)`` and ``null_mat`` shape
     ``(n_perm, n_cells)`` — the same null already produced for per-cell
     p-values. The population statistic (``mean`` or ``median`` across cells) is
     compared to its per-permutation null distribution, answering "does the
-    *population* score exceed chance" rather than "which individual cells do".
-    Returns the observed statistic, the null mean/std, a z-like effect size and
-    the one-tailed p (fraction of permutations at least as extreme).
+    *population* score differ from chance" rather than "which individual cells
+    do". Returns the observed statistic, the null mean/std, a z-like effect
+    size and two p-values:
+
+    * ``p_value`` — two-tailed: the fraction of permutation statistics whose
+      absolute deviation from the null mean is strictly larger than the
+      observed statistic's. This is the p the learning-score figures and
+      captions print (as ``< 1/n_perm`` when it is 0).
+    * ``p_one_tailed`` — upper tail with the +1 correction,
+      ``(1 + #{null >= observed}) / (1 + n_perm)``.
     """
     obs = np.asarray(observed_per_cell, dtype=float)
     null = np.asarray(null_mat, dtype=float)
@@ -294,8 +301,11 @@ def population_permutation_pvalue(observed_per_cell, null_mat, *, statistic="mea
     else:
         raise ValueError(f"Unknown statistic={statistic!r}")
     n_perm = int(null_stats.size)
-    p = (1.0 + float(np.sum(null_stats >= obs_stat))) / (1.0 + n_perm)
+    p_one_tailed = (1.0 + float(np.sum(null_stats >= obs_stat))) / (1.0 + n_perm)
     null_mean = float(np.nanmean(null_stats))
+    p_two_tailed = float(
+        np.mean(np.abs(null_stats - null_mean) > abs(obs_stat - null_mean))
+    )
     null_std = float(np.nanstd(null_stats, ddof=1)) if n_perm > 1 else np.nan
     z = ((obs_stat - null_mean) / null_std
          if np.isfinite(null_std) and null_std > 0 else np.nan)
@@ -304,7 +314,8 @@ def population_permutation_pvalue(observed_per_cell, null_mat, *, statistic="mea
         "null_mean": null_mean,
         "null_std": null_std,
         "z": float(z) if np.isfinite(z) else np.nan,
-        "p_value": float(p),
+        "p_value": p_two_tailed,
+        "p_one_tailed": float(p_one_tailed),
         "n_perm": n_perm,
     }
 

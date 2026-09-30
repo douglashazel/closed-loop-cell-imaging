@@ -1,4 +1,4 @@
-"""Background-fit primitives. Copied verbatim from april28_final_figures.py."""
+"""Background-fit primitives."""
 
 import os
 
