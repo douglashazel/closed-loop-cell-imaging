@@ -5,7 +5,7 @@ DEFAULT_GLOBAL_PATH = "/mnt/data/Close_Loop_Data"
 
 _DIR_KEYS = [
     "watch_dir", "mask_dir", "temp_overlays", "curr_mask_dir",
-    "decision_dir", "final_dir", "flags_dir",
+    "decision_dir", "final_dir",
 ]
 
 
@@ -25,7 +25,6 @@ def build_config(global_path=None, **overrides):
         "curr_mask_dir": f"{global_path}/current_masks",
         "decision_dir": f"{global_path}/temp_decisions",
         "final_dir": f"{global_path}/final_decisions",
-        "flags_dir": f"{global_path}/flags",
         "setpoint_file": f"{global_path}/setpoints.txt",
         "luminosity_file": f"{global_path}/luminosity_log.json",
         "log_path": f"{global_path}/monitoring.log",
@@ -54,13 +53,24 @@ def build_config(global_path=None, **overrides):
         "acidic_pulse_sec": 30,
         "neutral_experiment": "NN",
         "continuous_segmentation": False,
+        # True: SendDecisions simulates the ONIX and run_system.sh writes
+        # synthetic frames (fake_frames.py) -- no hardware or network needed
+        "dry_run": False,
     }
     config.update(overrides)
     return config
 
 
+def _write_json_atomic(path, data):
+    """Write via a temp file + os.replace so the daemons never read a partial file."""
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=4)
+    os.replace(tmp, path)
+
+
 def save_config(config, save_dir=None):
-    """Ensure all data directories exist and write config.json.
+    """Ensure all data directories exist and write config.json atomically.
 
     Returns the path to the saved file.
     """
@@ -70,15 +80,14 @@ def save_config(config, save_dir=None):
         if key in config:
             os.makedirs(config[key], exist_ok=True)
     save_path = os.path.join(save_dir, "config.json")
-    with open(save_path, "w") as f:
-        json.dump(config, f, indent=4)
+    _write_json_atomic(save_path, config)
     return save_path
 
 
 if __name__ == "__main__":
     save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
     if os.path.exists(save_path):
-        # Config already exists (e.g. saved by Napari UI) -- just ensure directories
+        # Config already exists (e.g. saved by the web GUI) -- just ensure directories
         with open(save_path) as f:
             cfg = json.load(f)
         for key in _DIR_KEYS:
@@ -87,8 +96,7 @@ if __name__ == "__main__":
         # Backfill log_path for configs written before it was added
         if "log_path" not in cfg and "global_path" in cfg:
             cfg["log_path"] = os.path.join(cfg["global_path"], "monitoring.log")
-            with open(save_path, "w") as f:
-                json.dump(cfg, f, indent=4)
+            _write_json_atomic(save_path, cfg)
         print(f"config.json exists -- ensured directories at {save_path}")
     else:
         cfg = build_config()

@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import numpy as np
 import json
@@ -9,7 +10,6 @@ from io_utils import log, load_config
 
 cfg = load_config()
 mask_dir        = cfg["mask_dir"]
-flags_dir       = cfg["flags_dir"]
 num_channels    = cfg["num_channels"]
 threshold_ratio = cfg["threshold_ratio"]
 
@@ -38,21 +38,36 @@ def get_frame_and_channel(filename):
     except ValueError:
         return None, None
 
-def create_flag_file(frame, channel, message):
-    """Create a text file in flags directory with the message."""
-    filename = f"{frame:05d}_channel{channel}.txt"
-    filepath = os.path.join(flags_dir, filename)
-    with open(filepath, 'w') as f:
-        f.write(message)
+def newest_masks():
+    """Paths of the newest mask per channel in mask_dir (and its _meta.json).
+
+    Cleanup skips these so the web GUI's mask preview and Push mask still find
+    the most recent segmentation after retention_time_hours has passed."""
+    newest = {}
+    for f in os.listdir(mask_dir):
+        m = re.match(r"^\d+_channel(\d+)\.npy$", f)
+        if not m:
+            continue
+        path = os.path.join(mask_dir, f)
+        mtime = os.path.getmtime(path)
+        ch = int(m.group(1))
+        if ch not in newest or mtime > newest[ch][0]:
+            newest[ch] = (mtime, path)
+    keep = set()
+    for _, path in newest.values():
+        keep.add(os.path.normpath(path))
+        keep.add(os.path.normpath(path[:-len(".npy")] + "_meta.json"))
+    return keep
 
 def cleanup_old_files():
     now = time.time()
-    retention_sec = cfg.get("retention_time_hours", 24) * 3600
+    retention_sec = cfg.get("retention_time_hours", 3) * 3600
     dirs = cfg.get("directories_to_clean", [])
     if not dirs:
         return
         
     archive_name = os.path.join(cfg["global_path"], f"archive_{time.strftime('%Y%m%d')}.zip")
+    keep = newest_masks()
     files_to_compress = []
     
     for d in dirs:
@@ -60,7 +75,7 @@ def cleanup_old_files():
         for root, _, filenames in os.walk(d):
             for f in filenames:
                 file_path = os.path.join(root, f)
-                if file_path == archive_name: continue
+                if file_path == archive_name or os.path.normpath(file_path) in keep: continue
                 if now - os.path.getmtime(file_path) > retention_sec:
                     files_to_compress.append(file_path)
     
@@ -115,14 +130,9 @@ while True:
 
                     # Check for significant change (5% of previous count)
                     if prev_count > 0 and abs(diff) / prev_count >= threshold_ratio:
-                        flag_msg = (
-                            f"Frame: {frame}\n"
-                            f"Channel: {channel}\n"
-                            f"Previous: {prev_count} cells\n"
-                            f"Current: {current_count} cells\n"
-                            f"Change: {sign}{diff} cells\n"
-                        )
-                        create_flag_file(frame, channel, flag_msg)
+                        log(f"FLAG: channel {channel} frame {frame}: {prev_count} -> "
+                            f"{current_count} cells ({sign}{diff}), at or above "
+                            f"threshold_ratio={threshold_ratio}")
 
             last_frame[channel] = frame
             last_count[channel] = current_count

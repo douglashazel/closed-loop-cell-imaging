@@ -31,7 +31,10 @@ def _luminosity_path(channel):
     return f"{base}_channel{channel}{ext}"
 
 def append_luminosity(frame, channel, mean_val, setpoint, decision_label):
-    """Append a luminosity record to the per-channel JSON log file."""
+    """Append a luminosity record to the per-channel JSON log file.
+
+    The file stays one JSON array (rewritten atomically each frame) because the
+    GUI and the Stage 2 analysis / published supplement read it in that format."""
     record = {
         "frame": frame,
         "channel": channel,
@@ -49,14 +52,12 @@ def append_luminosity(frame, channel, mean_val, setpoint, decision_label):
     tmp = path + ".tmp"
     with open(tmp, 'w') as f:
         json.dump(data, f)
-    os.rename(tmp, path)
+    os.replace(tmp, path)
 
 def get_latest_complete_frame():
     """Return the highest frame number that has all channels present, or -1."""
     frame_channels = {}
     for f in os.listdir(watch_dir):
-        if not f.endswith('.png'):
-            continue
         ch, frame_num = parse_filename(f)
         if ch is None:
             continue
@@ -69,8 +70,6 @@ def wait_for_frame(frame):
     while True:
         chs = set()
         for f in os.listdir(watch_dir):
-            if not f.endswith('.png'):
-                continue
             ch, frame_num = parse_filename(f)
             if ch is not None and frame_num == frame:
                 chs.add(ch)
@@ -83,18 +82,24 @@ def compute_setpoint(initial_masks):
     setpoints = {}
     for ch in range(1, num_channels + 1):
         img_file = next(
-            (f for f in os.listdir(watch_dir)
-             if f.endswith('.png') and parse_filename(f) == (ch, 0)), None
+            (f for f in os.listdir(watch_dir) if parse_filename(f) == (ch, 0)), None
         )
         if img_file is None:
+            log(f"compute_setpoint: no frame-0 image for channel {ch} in {watch_dir}")
             continue
         img_path = os.path.join(watch_dir, img_file)
         for attempt in range(cfg["num_tries"]):
             try:
                 img = np.array(Image.open(img_path), dtype=np.float32)
-                setpoints[ch] = float(img[initial_masks[ch]].mean()) * 2.0
+                mask = initial_masks[ch]
+                if mask.shape != img.shape[:2]:
+                    log(f"compute_setpoint: channel {ch} mask shape {mask.shape} does not "
+                        f"match image shape {img.shape[:2]} ({img_file}); no setpoint")
+                    break
+                setpoints[ch] = float(img[mask].mean()) * 2.0
                 break
-            except (OSError, ValueError, EOFError, AttributeError, SyntaxError) as e:
+            except (OSError, ValueError, EOFError, AttributeError, SyntaxError,
+                    KeyError, IndexError) as e:
                 log(f"compute_setpoint retry {attempt + 1}/{cfg['num_tries']} "
                     f"for channel {ch}: {e}")
                 time.sleep(1)
@@ -130,16 +135,20 @@ def process_frame(frame, initial_masks, default_setpoints):
     Evaluate a single frame.
     - continuous_segmentation=False: uses fixed in-memory frame-0 masks (no disk reads).
     - continuous_segmentation=True:  re-reads curr_mask_dir each frame, so any mask the user
-      pushes from preprocess.ipynb mid-experiment is picked up automatically (hot-swap).
+      pushes with the web GUI's Push mask action mid-experiment is picked up
+      automatically (hot-swap).
     """
     wait_for_frame(frame)
     setpoints = load_setpoints(default_setpoints)
 
     for ch in range(1, num_channels + 1):
-        setpoint = setpoints[ch]
+        setpoint = setpoints.get(ch)
+        if setpoint is None:
+            log(f"Frame {frame} channel {ch}: no setpoint in {setpoint_file} "
+                f"(set one in the web GUI). Skipping.")
+            continue
         img_file = next(
-            (f for f in os.listdir(watch_dir)
-             if f.endswith('.png') and parse_filename(f) == (ch, frame)), None
+            (f for f in os.listdir(watch_dir) if parse_filename(f) == (ch, frame)), None
         )
         if img_file is None:
             continue
@@ -164,6 +173,11 @@ def process_frame(frame, initial_masks, default_setpoints):
                 else:
                     mask = initial_masks[ch]
 
+                if mask.shape != img.shape[:2]:
+                    log(f"Frame {frame} channel {ch}: mask shape {mask.shape} does not match "
+                        f"image shape {img.shape[:2]} ({img_file}). Skipping.")
+                    break
+
                 mean_val = img[mask].mean()
 
                 if mean_val >= setpoint:
@@ -179,7 +193,8 @@ def process_frame(frame, initial_masks, default_setpoints):
                     f"(setpoint={setpoint:.3f})")
                 break
 
-            except (OSError, ValueError, EOFError, AttributeError, SyntaxError) as e:
+            except (OSError, ValueError, EOFError, AttributeError, SyntaxError,
+                    KeyError, IndexError) as e:
                 log(f"Retry {attempt + 1}/{cfg['num_tries']} for frame {frame} channel {ch}: {e}")
                 time.sleep(1)
         else:
@@ -190,20 +205,23 @@ def finalize_decisions(frame):
 
     The file contains per-channel threshold state (acid / neutral) so that
     SendDecisions can manage independent 30-second pulse timers.
-    """
-    # Wait until all channel decisions are written
-    while True:
-        decs = [f for f in os.listdir(decision_dir)
-                if f.startswith(f"{frame:05d}_channel") and f.endswith('.txt')]
-        if len(decs) >= num_channels:
-            break
-        time.sleep(cfg["sleep_time"])
 
+    process_frame() writes the decision files synchronously before this runs,
+    so a channel it skipped (no setpoint, unreadable image, mask mismatch) is
+    left out here rather than waited for.
+    """
     channel_states = {}
     for ch in range(1, num_channels + 1):
-        with open(os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt"), 'r') as f:
+        dec_path = os.path.join(decision_dir, f"{frame:05d}_channel{ch}.txt")
+        if not os.path.exists(dec_path):
+            log(f"Frame {frame}: no decision for channel {ch}; leaving it out of actions.toml")
+            continue
+        with open(dec_path, 'r') as f:
             dec = int(f.read().strip())
         channel_states[str(ch)] = decision_rev[dec]
+    if not channel_states:
+        log(f"Frame {frame}: no channel decisions; actions.toml not written")
+        return
 
     # Write atomically via lock file then rename
     lock_path    = os.path.join(final_dir, f"{frame:05d}.lock")
@@ -223,10 +241,10 @@ def finalize_decisions(frame):
             pass
 
 # ---- INITIAL SETUP ----
-# Stall here until the user has run preprocess.ipynb and executed the
-# "Update Masks" cell, which copies the approved frame-0 segmentation
-# into curr_mask_dir.  Nothing starts until the user is happy.
-log("Waiting for user to push approved frame-0 masks via preprocess.ipynb...")
+# Stall here until the user has pushed the approved frame-0 segmentation
+# into curr_mask_dir with the web GUI's Push mask action.  Nothing starts
+# until the user is happy.
+log("Waiting for user to push approved frame-0 masks (web GUI: Segmentation tab, Push mask)...")
 
 for ch in range(1, num_channels + 1):
     mask_path = os.path.join(curr_mask_dir, f"00000_channel{ch}.npy")
@@ -264,6 +282,7 @@ while True:
         process_frame(latest, initial_masks, setpoints)
         finalize_decisions(latest)
         last_processed = latest
-    except (OSError, ValueError, EOFError, AttributeError, SyntaxError) as e:
+    except (OSError, ValueError, EOFError, AttributeError, SyntaxError,
+            KeyError, IndexError) as e:
         log(f"Error on frame {last_processed + 1}: {e}")
         time.sleep(cfg["sleep_time"])

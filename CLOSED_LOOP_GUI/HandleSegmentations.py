@@ -12,9 +12,9 @@ cfg = load_config()
 watch_dir            = cfg["watch_dir"]
 mask_dir             = cfg["mask_dir"]
 temp_overlays        = cfg["temp_overlays"]
-continuous_seg       = cfg.get("continuous_segmentation", True)
 
-# curr_mask_dir is written exclusively by preprocess.ipynb (the user "push").
+# run_system.sh launches this script only when continuous_segmentation=True.
+# curr_mask_dir is written exclusively by the web GUI's Push mask action.
 # This script only archives masks to mask_dir.
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -22,8 +22,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 log("Loading Cellpose model...")
 model = models.CellposeModel(gpu=True)
 log("Cellpose model ready.")
-if not continuous_seg:
-    log("continuous_segmentation=False — will exit after frame 0 is fully segmented.")
 
 def mask_exists(frame, channel):
     return os.path.exists(os.path.join(mask_dir, f"{frame:05d}_channel{channel}.npy"))
@@ -42,16 +40,11 @@ def save_overlay(img, masks, save_base):
     plt.close(fig)
 
 while True:
-    images = sorted(f for f in os.listdir(watch_dir) if f.lower().endswith(('.png', '.jpg')))
     new_work = False
 
-    for fname in images:
+    for fname in sorted(os.listdir(watch_dir)):
         channel, frame = parse_filename(fname)
         if channel is None or mask_exists(frame, channel):
-            continue
-
-        # When continuous_segmentation is False, only process frame 0
-        if not continuous_seg and frame > 0:
             continue
 
         new_work = True
@@ -67,7 +60,7 @@ while True:
 
                 save_base = f"{frame:05d}_channel{channel}"
 
-                # Save to archive only — curr_mask_dir is owned by preprocess.ipynb
+                # Save to archive only — curr_mask_dir is owned by the web GUI's Push mask action
                 np.save(os.path.join(mask_dir, save_base + ".npy"), masks)
                 
                 # Write ROI metadata for MonitorPerformance.py
@@ -86,14 +79,6 @@ while True:
                 time.sleep(cfg["sleep_time"])
         else:
             log(f"Failed {fname} after {cfg['num_tries']} retries. Skipping.")
-
-    # In non-continuous mode, exit once all frame-0 channels are segmented
-    if not continuous_seg:
-        num_channels = cfg["num_channels"]
-        done = all(mask_exists(0, ch) for ch in range(1, num_channels + 1))
-        if done:
-            log("Frame 0 fully segmented. continuous_segmentation=False — exiting.")
-            break
 
     if not new_work:
         time.sleep(cfg["sleep_time"])

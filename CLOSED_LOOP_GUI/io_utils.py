@@ -5,11 +5,11 @@ All scripts import log(), load_config(), and parse_filename() from here.
 import os
 import re
 import json
-import time
 from datetime import datetime
 
-# Matches filenames like: channel_1_image_0_a_timepoint_00000.png
-_FILENAME_PATTERN = re.compile(r"channel_(\d+).*timepoint_(\d+)\.png$", re.IGNORECASE)
+# Matches filenames like: channel_1_image_0_a_timepoint_00000.png (.png or
+# .jpg/.jpeg, any case). Every script filters frames through parse_filename().
+_FILENAME_PATTERN = re.compile(r"channel_(\d+).*timepoint_(\d+)\.(?:png|jpe?g)$", re.IGNORECASE)
 
 def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
@@ -24,12 +24,3 @@ def parse_filename(fname):
     if not m:
         return None, None
     return int(m.group(1)), int(m.group(2))
-
-def wait_for_file(path, sleep_time=2, reminder_interval=60):
-    """Block until path exists on disk, logging a reminder periodically."""
-    waited = 0
-    while not os.path.exists(path):
-        time.sleep(sleep_time)
-        waited += sleep_time
-        if waited % reminder_interval < sleep_time:
-            log(f"Still waiting for {os.path.basename(path)} ({waited:.0f}s elapsed)")

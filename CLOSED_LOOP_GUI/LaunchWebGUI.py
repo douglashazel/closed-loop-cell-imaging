@@ -2,8 +2,9 @@
 Flask-based web GUI for the Closed-Loop Bio-Control Pipeline.
 
 Serves a single-page HTML dashboard on port 5000
-with the same Pipeline / Segmentation / Log controls. Intended for access
-via SSH port-forward:
+with the same Pipeline / Segmentation / Log controls. Binds 127.0.0.1 unless
+the HOST environment variable says otherwise. Intended for access via SSH
+port-forward:
 
     ssh -L 5000:localhost:5000 user@ssh-host
     # then browse http://localhost:5000 on your local machine
@@ -14,6 +15,7 @@ Launch with:  python LaunchWebGUI.py
 import atexit
 import io
 import json
+import math
 import os
 import re
 import shutil
@@ -22,12 +24,13 @@ import socket
 import subprocess
 import threading
 import time
+from urllib.parse import urlparse
 
 import numpy as np
 from flask import Flask, jsonify, request, render_template, send_file, abort
 from PIL import Image
 
-from io_utils import load_config, log
+from io_utils import load_config, log, parse_filename
 from config import build_config, save_config
 
 # ---------------------------------------------------------------------------
@@ -56,7 +59,71 @@ pipeline_proc = None  # subprocess.Popen | None
 seg_thread = None     # threading.Thread | None
 seg_status = {"state": "idle", "message": "Ready", "frame": 0, "channel": 1}
 
-_FILENAME_RE = re.compile(r"channel_(\d+).*timepoint_(\d+)\.png$", re.IGNORECASE)
+# Process-group id of the running pipeline, kept on disk so a restarted GUI
+# still knows about a pipeline an earlier GUI process started
+_PIDFILE = os.path.join(_APP_DIR, "pipeline.pid")
+# run_system.sh gives SendDecisions up to 60 s to abort and close the ONIX
+# run on Stop; wait a little longer than that before SIGKILLing the group
+_STOP_GRACE_SEC = 75
+
+
+def _read_pidfile():
+    try:
+        with open(_PIDFILE) as f:
+            return int(f.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _remove_pidfile():
+    try:
+        os.remove(_PIDFILE)
+    except FileNotFoundError:
+        pass
+
+
+def _pipeline_group_alive(pgid):
+    """True while process group *pgid* is alive and, if its leader is still
+    there, that leader is run_system.sh (not an unrelated process reusing the pid)."""
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    try:
+        with open(f"/proc/{pgid}/cmdline", "rb") as f:
+            return b"run_system.sh" in f.read()
+    except OSError:
+        return True  # leader already gone (or no /proc) but the group lives on
+
+
+def _running_pgid():
+    """Process-group id of the live pipeline, or None.
+
+    Covers the pipeline this GUI started and one left behind by an earlier
+    GUI process, so Start never launches a second pipeline on the same ONIX."""
+    if pipeline_proc is not None and pipeline_proc.poll() is None:
+        return pipeline_proc.pid
+    pgid = _read_pidfile()
+    if pgid is not None and _pipeline_group_alive(pgid):
+        return pgid
+    return None
+
+
+def _check_leftover_pipeline():
+    pgid = _read_pidfile()
+    if pgid is None:
+        return
+    if _pipeline_group_alive(pgid):
+        log(f"Pipeline started by an earlier GUI is still running (process group "
+            f"{pgid}); Start is refused until it is stopped (Stop button or "
+            f"kill -TERM -{pgid})")
+    else:
+        _remove_pidfile()
+
+
+_check_leftover_pipeline()
 
 
 # ---------------------------------------------------------------------------
@@ -70,8 +137,7 @@ def _image_path(watch_dir, channel, frame):
     if not os.path.isdir(watch_dir):
         return None
     for f in sorted(os.listdir(watch_dir)):
-        m = _FILENAME_RE.search(f)
-        if m and int(m.group(1)) == channel and int(m.group(2)) == frame:
+        if parse_filename(f) == (channel, frame):
             return os.path.join(watch_dir, f)
     return None
 
@@ -89,7 +155,7 @@ def _load_image_np(path):
 
 def _load_mask_np(path):
     try:
-        return np.load(path, allow_pickle=True)
+        return np.load(path)  # plain int label array; np.load refuses pickles by default
     except Exception:
         return None
 
@@ -148,6 +214,31 @@ app = Flask(
 )
 
 
+@app.before_request
+def _reject_cross_site_writes():
+    """CSRF guard: a state-changing request must carry a JSON body and come
+    from a page served by this server (Origin header, or Referer if the
+    browser sent no Origin). A form or script on another site cannot do both."""
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    source = request.headers.get("Origin") or request.headers.get("Referer") or ""
+    if not request.is_json or urlparse(source).netloc.lower() != request.host.lower():
+        log(f"Rejected {request.method} {request.path}: not a same-origin JSON request")
+        return jsonify({"ok": False,
+                        "error": "forbidden: only same-origin JSON requests are accepted"}), 403
+    return None
+
+
+def _json_object():
+    """The request's JSON body if it is an object, else None."""
+    body = request.get_json(silent=True)
+    return body if isinstance(body, dict) else None
+
+
+def _bad_body():
+    return jsonify({"ok": False, "error": "request body must be a JSON object"}), 400
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -159,33 +250,102 @@ def api_get_config():
     return jsonify(_load_cfg())
 
 
+# Fields a Save may set: (type, min, max), None = unbounded. The ranges match
+# the inputs in templates/index.html. Every other key keeps its config.json value.
+_CONFIG_FIELDS = {
+    "num_channels":            (int,   2, 2),
+    "threshold_ratio":         (float, 0, 1),
+    "num_tries":               (int,   1, 200),
+    "sleep_time":              (float, 0.01, 30),
+    "onix_server_ip":          (str,   None, None),
+    "onix_server_port":        (int,   1, 65535),
+    "retention_time_hours":    (int,   0, 720),
+    "cleanup_interval_sec":    (int,   60, 86400),
+    "run_duration_sec":        (int,   1, None),
+    "acidic_pulse_sec":        (int,   1, 7200),
+    "continuous_segmentation": (bool,  None, None),
+    "dry_run":                 (bool,  None, None),
+}
+
+
+def _coerce_field(key, value):
+    """Return *value* as the type config field *key* needs; ValueError if it can't be."""
+    kind, lo, hi = _CONFIG_FIELDS[key]
+    if kind is bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+            return value.strip().lower() == "true"
+        raise ValueError(f"{key} must be true or false, got {value!r}")
+    if kind is str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{key} must be a non-empty string")
+        return value.strip()
+    try:
+        if isinstance(value, bool):
+            raise TypeError
+        num = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{key} must be a number, got {value!r}")
+    if not math.isfinite(num):
+        raise ValueError(f"{key} must be a finite number, got {value!r}")
+    if kind is int:
+        if not num.is_integer():
+            raise ValueError(f"{key} must be a whole number, got {value!r}")
+        num = int(num)
+    if key == "num_channels" and num != 2:
+        raise ValueError("num_channels must be 2: the ONIX experiment templates "
+                         "(NN/AN/NA/AA) cover exactly two channels")
+    if (lo is not None and num < lo) or (hi is not None and num > hi):
+        bound = f"between {lo} and {hi}" if hi is not None else f"at least {lo}"
+        raise ValueError(f"{key} must be {bound}, got {num}")
+    return num
+
+
+def _rebase(value, old_root, new_root):
+    """Move a path (or list of paths) under old_root to the same place under new_root."""
+    if isinstance(value, list):
+        return [_rebase(v, old_root, new_root) for v in value]
+    old = old_root.rstrip("/")
+    if isinstance(value, str) and (value == old or value.startswith(old + "/")):
+        return new_root.rstrip("/") + value[len(old):]
+    return value
+
+
 @app.route("/api/config", methods=["POST"])
 def api_save_config():
-    """Rebuild config from posted fields and save to config.json.
+    """Validate posted fields and save config.json.
 
-    Uses build_config() to regenerate derived paths when global_path changes, 
-    then save_config() to ensure directories and write the file atomically via the stdlib pattern."""
-    body = request.get_json(force=True) or {}
-    global_path = body.get("global_path") or _load_cfg().get("global_path")
+    Keys the body does not set keep their current config.json value (so
+    watch_dir, experiment_templates, decision_key, dry_run, ... survive a
+    Save); when global_path changes, paths under the old root move to the
+    new one. Keys config.json lacks fall back to config.py defaults.
+    save_config() creates the directories and writes the file atomically."""
+    body = _json_object()
+    if body is None:
+        return _bad_body()
+    current = _load_cfg()
+    old_root = current.get("global_path")
+    global_path = body.get("global_path") or old_root
+    if not isinstance(global_path, str) or not os.path.isabs(global_path.strip()):
+        return jsonify({"ok": False,
+                        "error": f"global_path must be an absolute path, got {global_path!r}"}), 400
+    global_path = global_path.strip()
+    try:
+        updates = {key: _coerce_field(key, body[key])
+                   for key in _CONFIG_FIELDS if key in body}
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
 
-    overrides = {}
-    for key in (
-        "num_channels",
-        "threshold_ratio",
-        "num_tries",
-        "sleep_time",
-        "onix_server_ip",
-        "onix_server_port",
-        "retention_time_hours",
-        "cleanup_interval_sec",
-        "run_duration_sec",
-        "acidic_pulse_sec",
-        "continuous_segmentation",
-    ):
-        if key in body:
-            overrides[key] = body[key]
-
-    cfg = build_config(global_path, **overrides)
+    cfg = build_config(global_path)
+    for key in cfg:
+        if key == "global_path" or key not in current:
+            continue
+        value = current[key]
+        if old_root and global_path != old_root:
+            value = _rebase(value, old_root, global_path)
+        cfg[key] = value
+    cfg.update(updates)
     saved = save_config(cfg, _APP_DIR)
     log(f"Configuration saved via web GUI: global_path={global_path}")
     return jsonify({"ok": True, "saved_to": saved, "config": cfg})
@@ -196,15 +356,18 @@ def api_save_config():
 def api_pipeline_start():
     global pipeline_proc
     with _state_lock:
-        if pipeline_proc is not None and pipeline_proc.poll() is None:
-            return jsonify({"ok": False, "error": "already running",
-                            "pid": pipeline_proc.pid})
+        pgid = _running_pgid()
+        if pgid is not None:
+            return jsonify({"ok": False, "error": "already running", "pid": pgid})
         log("Launching run_system.sh from web GUI...")
         pipeline_proc = subprocess.Popen(
             ["bash", "./run_system.sh"],
             cwd=_APP_DIR,
             preexec_fn=os.setsid,
         )
+        # setsid makes run_system.sh the leader of a new group: pgid == pid
+        with open(_PIDFILE, "w") as f:
+            f.write(f"{pipeline_proc.pid}\n")
         return jsonify({"ok": True, "pid": pipeline_proc.pid})
 
 
@@ -212,36 +375,43 @@ def api_pipeline_start():
 def api_pipeline_stop():
     global pipeline_proc
     with _state_lock:
-        if pipeline_proc is None or pipeline_proc.poll() is not None:
+        pgid = _running_pgid()
+        if pgid is None:
             return jsonify({"ok": False, "error": "not running"})
-        log("Shutting down pipeline processes...")
+        log(f"Shutting down pipeline processes (waiting up to {_STOP_GRACE_SEC} s "
+            "for SendDecisions to abort and close the ONIX run)...")
         try:
-            os.killpg(os.getpgid(pipeline_proc.pid), signal.SIGTERM)
+            os.killpg(pgid, signal.SIGTERM)
         except ProcessLookupError:
             pass
-        # Give it a moment to exit cleanly, then SIGKILL if stuck
-        for _ in range(30):
-            if pipeline_proc.poll() is not None:
+        # run_system.sh waits for its daemons, then exits; SIGKILL if stuck
+        deadline = time.time() + _STOP_GRACE_SEC
+        while time.time() < deadline:
+            if pipeline_proc is not None:
+                pipeline_proc.poll()  # reap run_system.sh once it exits
+            if not _pipeline_group_alive(pgid):
                 break
-            time.sleep(0.1)
+            time.sleep(0.2)
         else:
+            log(f"Pipeline still running after {_STOP_GRACE_SEC} s -- sending SIGKILL")
             try:
-                os.killpg(os.getpgid(pipeline_proc.pid), signal.SIGKILL)
+                os.killpg(pgid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
         pipeline_proc = None
+        _remove_pidfile()
         return jsonify({"ok": True})
 
 
 @app.route("/api/pipeline/status", methods=["GET"])
 def api_pipeline_status():
-    global pipeline_proc
+    pgid = _running_pgid()
+    if pgid is not None:
+        return jsonify({"running": True, "pid": pgid, "exit_code": None})
     if pipeline_proc is None:
         return jsonify({"running": False, "pid": None, "exit_code": None})
-    rc = pipeline_proc.poll()
-    if rc is None:
-        return jsonify({"running": True, "pid": pipeline_proc.pid, "exit_code": None})
-    return jsonify({"running": False, "pid": pipeline_proc.pid, "exit_code": rc})
+    return jsonify({"running": False, "pid": pipeline_proc.pid,
+                    "exit_code": pipeline_proc.returncode})
 
 
 # ---- System readiness -----------------------------------------------------
@@ -259,11 +429,9 @@ def _frame0_present(watch_dir, num_channels):
     if not os.path.isdir(watch_dir):
         return present
     for f in os.listdir(watch_dir):
-        m = _FILENAME_RE.search(f)
-        if m and int(m.group(2)) == 0:
-            ch = int(m.group(1))
-            if ch in present:
-                present[ch] = True
+        ch, frame = parse_filename(f)
+        if frame == 0 and ch in present:
+            present[ch] = True
     return present
 
 
@@ -297,7 +465,6 @@ def api_system_readiness():
     """Snapshot of operator-facing system state — drives the readiness strip
     and the per-channel mask chips. All values are cheap derivations of state
     the pipeline already produces; nothing is cached."""
-    global pipeline_proc
     cfg = _load_cfg()
     num_channels = int(cfg.get("num_channels", 2))
     watch_dir = cfg.get("watch_dir", "")
@@ -314,7 +481,7 @@ def api_system_readiness():
         cfg.get("luminosity_file", ""), num_channels
     )
 
-    pipeline_running = (pipeline_proc is not None and pipeline_proc.poll() is None)
+    pipeline_running = _running_pgid() is not None
 
     return jsonify({
         "config_saved": os.path.isfile(_CONFIG_PATH),
@@ -417,7 +584,9 @@ def api_set_setpoints():
     Merges with any existing values so partial updates don't wipe channels
     the user didn't touch. CreateDecisions.load_setpoints() re-reads the file
     on every frame, so changes take effect on the next decision."""
-    body = request.get_json(force=True) or {}
+    body = _json_object()
+    if body is None:
+        return _bad_body()
     updates_in = body.get("channels") or {}
     try:
         updates = {int(k): float(v) for k, v in updates_in.items()
@@ -491,19 +660,19 @@ def api_luminosity_plot():
             except Exception as e:
                 log(f"luminosity plot: failed to read {fname}: {e}")
 
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    # Figure (Agg) rather than pyplot: pyplot's global state is not thread-safe
+    from matplotlib.figure import Figure
 
     channels = sorted(by_channel.keys())
     if not channels:
-        fig, ax = plt.subplots(figsize=(8, 3), dpi=_PLOT_PARAMS["dpi"])
+        fig = Figure(figsize=(8, 3), dpi=_PLOT_PARAMS["dpi"])
+        ax = fig.subplots()
         ax.text(0.5, 0.5, "No luminosity logs found yet",
                 ha="center", va="center", transform=ax.transAxes)
         ax.set_axis_off()
     else:
-        fig, axes = plt.subplots(len(channels), 1, dpi=_PLOT_PARAMS["dpi"],
-                                 figsize=(8, 3 * len(channels)), sharex=True)
+        fig = Figure(figsize=(8, 3 * len(channels)), dpi=_PLOT_PARAMS["dpi"])
+        axes = fig.subplots(len(channels), 1, sharex=True)
         if len(channels) == 1:
             axes = [axes]
         for ax, ch in zip(axes, channels):
@@ -534,16 +703,15 @@ def api_luminosity_plot():
                          fontweight=_PLOT_PARAMS["title_fontweight"])
             ax.set_ylabel("Mean Luminosity")
             ax.spines[["top", "right"]].set_visible(False)
-            ax.legend(loc="lower left", fontsize=8)
+            ax.legend(loc="lower left", fontsize=8);
         axes[-1].set_xlabel("Frame")
         fig.suptitle("Mean Luminosity Over Frames",
                      fontsize=_PLOT_PARAMS["title_fontsize"],
                      fontweight=_PLOT_PARAMS["title_fontweight"])
-        fig.tight_layout()
+        fig.tight_layout();
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
-    plt.close(fig)
     buf.seek(0)
     return send_file(buf, mimetype="image/png")
 
@@ -569,7 +737,9 @@ def api_media_status():
 @app.route("/api/segmentation/run", methods=["POST"])
 def api_segmentation_run():
     global seg_thread, seg_status
-    body = request.get_json(force=True) or {}
+    body = _json_object()
+    if body is None:
+        return _bad_body()
     channel = int(body.get("channel", 1))
     frame = int(body.get("frame", 0))
     diameter = int(body.get("diameter", 50))
@@ -648,10 +818,9 @@ def _segmentation_worker(img_path, channel, frame, mask_dir, temp_overlays,
             overlay = np.stack([overlay] * 3, axis=-1)
         overlay[outlines] = [255, 0, 0]
 
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5), dpi=300)
+        from matplotlib.figure import Figure
+        fig = Figure(figsize=(10, 5), dpi=300)
+        axes = fig.subplots(1, 2)
         axes[0].imshow(overlay)
         axes[0].set_title("With segmentation")
         axes[0].axis("off")
@@ -660,7 +829,6 @@ def _segmentation_worker(img_path, channel, frame, mask_dir, temp_overlays,
         axes[1].axis("off")
         fig.savefig(os.path.join(temp_overlays, base + "_overlay.png"),
                     dpi=300, bbox_inches="tight")
-        plt.close(fig)
 
         num_cells = int(len(np.unique(masks)) - 1)
         seg_status = {"state": "done",
@@ -681,7 +849,9 @@ def api_segmentation_status():
 @app.route("/api/segmentation/update-masks", methods=["POST"])
 def api_segmentation_update_masks():
     """Copy mask_dir/{frame}_channel{ch}.npy -> curr_mask_dir/00000_channel{ch}.npy."""
-    body = request.get_json(force=True) or {}
+    body = _json_object()
+    if body is None:
+        return _bad_body()
     channel = int(body.get("channel", 1))
     frame = int(body.get("frame", 0))
     cfg = _load_cfg()
@@ -714,9 +884,8 @@ def api_frames():
     frames = {}
     if os.path.isdir(watch_dir):
         for f in os.listdir(watch_dir):
-            m = _FILENAME_RE.search(f)
-            if m:
-                ch, fr = int(m.group(1)), int(m.group(2))
+            ch, fr = parse_filename(f)
+            if ch is not None:
                 frames.setdefault(fr, set()).add(ch)
     out = [{"frame": fr, "channels": sorted(list(chs))}
            for fr, chs in sorted(frames.items())]
@@ -772,6 +941,9 @@ atexit.register(_cleanup)
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    log("Starting web GUI on http://0.0.0.0:5000  (forward via: ssh -L 5000:localhost:5000 ...)")
+    # Loopback only by default. HOST=0.0.0.0 exposes this unauthenticated GUI,
+    # which can start the hardware pipeline, to the whole network.
+    host = os.environ.get("HOST", "127.0.0.1")
+    log(f"Starting web GUI on http://{host}:5000  (forward via: ssh -L 5000:localhost:5000 ...)")
     # threaded=True so log polls + segmentation don't block each other
-    app.run(host="0.0.0.0", port=5000, threaded=True, debug=False, use_reloader=False)
+    app.run(host=host, port=5000, threaded=True, debug=False, use_reloader=False)

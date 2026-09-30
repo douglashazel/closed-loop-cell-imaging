@@ -1,6 +1,7 @@
 import os
 import json as _json
 import time
+import signal
 import threading
 import tomlkit
 import requests
@@ -12,7 +13,8 @@ cfg = load_config()
 global_dir   = cfg["global_path"]
 final_dir    = cfg["final_dir"]
 sleep_time   = cfg.get("sleep_time", 0.5)
-run_duration = cfg.get("run_duration_sec", 6000)
+run_duration = cfg.get("run_duration_sec", 86400)
+DRY_RUN      = cfg.get("dry_run", False)
 
 # ONIX Configuration
 ONIX_SERVER_IP   = cfg.get("onix_server_ip", "192.0.2.10")
@@ -20,6 +22,14 @@ ONIX_SERVER_PORT = cfg.get("onix_server_port", 8881)
 
 # Experiment name to template path mapping
 EXPERIMENT_TEMPLATES = cfg.get("experiment_templates", {})
+
+# Delay before restarting an experiment thread that ended: 5 s, doubled for
+# each consecutive failure up to 5 min, back to 5 s after a successful run
+RESTART_BACKOFF_MIN_SEC = 5.0
+RESTART_BACKOFF_MAX_SEC = 300.0
+
+# Set by SIGTERM/SIGINT: the watcher aborts the ONIX run, then exits
+stop_event = threading.Event()
 
 if not EXPERIMENT_TEMPLATES:
     log("WARNING: No experiment templates found in config.json!")
@@ -32,12 +42,15 @@ class OnixController:
         self.session = requests.Session()
         self._abort_event = threading.Event()
         self.current_experiment = None  # track current experiment name
-        log(f"Connecting to ONIX2 Server at: {self.base_url}")
+        # (experiment_name, filename) created by an attempt that failed before
+        # StartRun; the next attempt at the same state reopens it
+        self._pending_file = None
         self._check_connectivity()
         self.init_logging()
 
     def _check_connectivity(self):
         """Quick health check — log a clear warning if the ONIX server is unreachable."""
+        log(f"Connecting to ONIX2 Server at: {self.base_url}")
         try:
             status = self.session.get(f"{self.base_url}/Status", timeout=5).json()
             log(f"ONIX server reachable (RunState={status.get('RunState', '?')})")
@@ -94,9 +107,17 @@ class OnixController:
     def get_status(self):
         return self._send_request("Status")
 
-    def _poll_for_state(self, target_states, timeout=30):
+    def _poll_for_state(self, target_states, timeout=30, abortable=True):
+        """Poll RunState until it is in target_states. Returns (reached, state).
+
+        An abortable poll gives up as soon as an abort is requested. Polls that
+        confirm an Abort already sent, or a run already started, pass
+        abortable=False so they run to completion."""
         start_time = time.time()
+        current_state = -999
         while time.time() - start_time < timeout:
+            if abortable and self._abort_event.is_set():
+                return False, current_state
             status = self.get_status()
             self.log_telemetry("Polling_Wait", status)
             
@@ -115,6 +136,8 @@ class OnixController:
         log("Checking Hardware Ready Flag (Flags0, Bit 0)...")
         start = time.time()
         while time.time() - start < timeout:
+            if self._abort_event.is_set():
+                return False
             status = self.get_status()
             self.log_telemetry("Wait_For_Idle", status)
             
@@ -131,14 +154,40 @@ class OnixController:
         log("Warning: Hardware Ready Flag did not set (System Busy).")
         return False
 
-    def run_experiment(self, template_path, experiment_name, run_duration=run_duration):  # MODIFIED: added experiment_name
+    def ensure_stopped(self):
+        """Shutdown check: if the ONIX still reports a live run (RunState 1),
+        Abort it and close the experiment without saving."""
+        try:
+            status = self.get_status()
+            if int(status.get("RunState", -999)) != 1:
+                return
+            log("ONIX still running at shutdown. Aborting run...")
+            self._send_request("Abort")
+            self._poll_for_state([-2, 30, 0], timeout=10, abortable=False)
+            log("Closing experiment without saving...")
+            self._send_request("CloseExperiment", {"save": "false"})
+        except Exception as e:
+            log(f"Warning: shutdown check failed: {e}")
+
+    def _abort_requested(self, step):
+        """True (and logged) if an abort arrived before this setup step."""
+        if not self._abort_event.is_set():
+            return False
+        log(f"Abort requested before {step}; skipping the rest of the setup.")
+        self.current_experiment = None
+        return True
+
+    def run_experiment(self, template_path, experiment_name, run_duration=run_duration):
         """
         Execute a single ONIX experiment:
         Create -> Open -> Start -> Wait -> Abort -> Close(Save)
+
+        An abort (state change or stop signal) is checked before every setup
+        step. Once StartRun has been accepted, the run is always Aborted and
+        Closed with save before this returns.
         """
         log(f"Starting experiment: {template_path}")
         self.log_telemetry(f"Start_{os.path.basename(template_path)}")
-        self._abort_event.clear()
         self.current_experiment = experiment_name
         
         # 1. ENSURE CLEAN SLATE
@@ -146,6 +195,8 @@ class OnixController:
         #    so we must Abort first. A crashed prior run can leave the server
         #    wedged in this state, and without the Abort every subsequent
         #    CreateExperiment fails.
+        if self._abort_requested("cleanup"):
+            return False
         try:
             status = self._send_request("Status")
             run_state = int(status.get("RunState", 0))
@@ -168,24 +219,36 @@ class OnixController:
             log(f"Warning: Cleanup check failed: {e}")
         
         # 2. CREATE NEW EXPERIMENT
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        if "\\" in template_path:
-            template_dir = template_path.rsplit("\\", 1)[0]
-            new_filename = f"{template_dir}\\Run_{timestamp}.OnixExp"
-        else:
-            new_filename = f"Run_{timestamp}.OnixExp"
-
-        log(f"Creating: {os.path.basename(new_filename)}")
-        params = {"filename": new_filename, "templatename": template_path}
-        create_resp = self._send_request("CreateExperiment", params)
-        if not create_resp.get("success"):
-            log(f"Create failed: {create_resp}")
-            self.current_experiment = None  # NEW: clear on failure
+        #    A file that an earlier attempt at this same state created, but
+        #    never started, holds no run data: reopen it rather than leave a
+        #    new .OnixExp behind on every retry.
+        if self._abort_requested("create"):
             return False
+        if self._pending_file and self._pending_file[0] == experiment_name:
+            new_filename = self._pending_file[1]
+            log(f"Reusing: {os.path.basename(new_filename)}")
+        else:
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            if "\\" in template_path:
+                template_dir = template_path.rsplit("\\", 1)[0]
+                new_filename = f"{template_dir}\\Run_{experiment_name}_{timestamp}.OnixExp"
+            else:
+                new_filename = f"Run_{experiment_name}_{timestamp}.OnixExp"
 
-        time.sleep(sleep_time)
+            log(f"Creating: {os.path.basename(new_filename)}")
+            params = {"filename": new_filename, "templatename": template_path}
+            create_resp = self._send_request("CreateExperiment", params)
+            if not create_resp.get("success"):
+                log(f"Create failed: {create_resp}")
+                self.current_experiment = None
+                return False
+            self._pending_file = (experiment_name, new_filename)
+
+            time.sleep(sleep_time)
 
         # 3. VERIFY AND OPEN
+        if self._abort_requested("open"):
+            return False
         log("Verifying active experiment...")
         check_open = self._send_request("IsExperimentOpen")
         
@@ -203,13 +266,16 @@ class OnixController:
             open_resp = self._send_request("OpenExperiment", {"filename": new_filename})
             if not open_resp.get("success"):
                 log(f"Open failed: {open_resp}")
-                self.current_experiment = None  # NEW: clear on failure
+                self._pending_file = None  # create a fresh file next time
+                self.current_experiment = None
                 return False
             time.sleep(sleep_time)
         else:
             log("Correct file is already open.")
 
         # 4. PRE-RUN SAFETY CHECKS
+        if self._abort_requested("pre-run checks"):
+            return False
         log("Performing pre-run safety checks...")
         for attempt in range(5):
             check = self._send_request("IsExperimentOpen")
@@ -222,20 +288,23 @@ class OnixController:
                 time.sleep(sleep_time)
         else:
             log("Error: System insists file has run data. Cannot start.")
-            self.current_experiment = None  # NEW: clear on failure
+            self._pending_file = None  # create a fresh file next time
+            self.current_experiment = None
             return False
 
-        # Wait for Hardware Ready
-        if not self.wait_for_hardware_idle():
+        # Wait for Hardware Ready (the waits return False early on abort)
+        if not self.wait_for_hardware_idle() and not self._abort_event.is_set():
             log("System stuck BUSY. Sending Force Abort to reset...")
             self._send_request("Abort")
             time.sleep(sleep_time)
-            if not self.wait_for_hardware_idle():
+            if not self.wait_for_hardware_idle() and not self._abort_event.is_set():
                 log("Error: Hardware refused to go Idle.")
                 self.log_telemetry("Hardware_Stuck_Busy")
-                self.current_experiment = None  # NEW: clear on failure
+                self.current_experiment = None
                 return False
         
+        if self._abort_requested("start"):
+            return False
         log("Hardware is IDLE. Ready to start.")
 
         # Clear Errors and Save
@@ -263,19 +332,22 @@ class OnixController:
              status = self.get_status()
              log(f"DEBUG RunState: {status.get('RunState')}")
              log(f"DEBUG Flags1: {status.get('Flags1')}")
-             self.current_experiment = None  # NEW: clear on failure
+             self.current_experiment = None
              return False
+
+        # The file now holds run data; a later attempt needs a new one
+        self._pending_file = None
         
-        success, state = self._poll_for_state([1])
+        success, state = self._poll_for_state([1], abortable=False)
         if not success:
             log(f"Run started but state did not transition to 1. State: {state}")
-            self.current_experiment = None  # NEW: clear on failure
+            self.current_experiment = None
             return False
         
         log(f"Run STARTED. Running for {run_duration} seconds...")
         self.log_telemetry("Run_Started")
         
-        # 6. WAIT FOR RUN DURATION (MODIFIED to check for abort signal)
+        # 6. WAIT FOR RUN DURATION, OR UNTIL AN ABORT IS REQUESTED
         start_run_time = time.time()
         while time.time() - start_run_time < run_duration:
             time.sleep(sleep_time)
@@ -285,18 +357,17 @@ class OnixController:
                 break
             
             if self._abort_event.is_set():
-                log("Aborting current experiment due to new experiment request...")
-                self._abort_event.clear()
+                log("Aborting current experiment (state change or stop request)...")
                 break
 
         # 7. ABORT
         log("Aborting run...")
         self._send_request("Abort")
         
-        success, state = self._poll_for_state([-2, 30, 0])
+        success, state = self._poll_for_state([-2, 30, 0], abortable=False)
         if not success:
             log("Error: System did not stop.")
-            self.current_experiment = None  # NEW: clear on failure
+            self.current_experiment = None
             return False
             
         log(f"System stopped (State: {state}). Waiting for data flush...")
@@ -308,19 +379,53 @@ class OnixController:
         
         log("Experiment complete.")
         self.log_telemetry("Experiment_Complete")
-        self.current_experiment = None  # NEW: clear after completion
+        self.current_experiment = None
         return True
+
+
+class FakeOnixController(OnixController):
+    """Dry-run stand-in for OnixController (config "dry_run": true).
+
+    Answers every ONIX command locally, so the full Create/Open/Start/Wait/
+    Abort/Close sequence runs with no network I/O; the inherited wait loop
+    then just sleeps until an abort or run_duration."""
+
+    def __init__(self):
+        self._run_state = 0
+        self._open_file = ""
+        super().__init__(host_ip="dry-run", port=0)
+
+    def _check_connectivity(self):
+        log("DRY RUN: simulating the ONIX server; no network requests are sent")
+
+    def _send_request(self, command, params=None):
+        if command == "StartRun":
+            self._run_state = 1
+        elif command == "Abort":
+            self._run_state = 0
+        elif command in ("CreateExperiment", "OpenExperiment"):
+            self._open_file = params["filename"]
+        elif command == "CloseExperiment":
+            self._open_file = ""
+        return {
+            "success": True,
+            "RunState": self._run_state,
+            "Flags0": "0" * 15 + "1",  # bit 0 set = system ready
+            "experimentOpen": bool(self._open_file),
+            "experimentFile": self._open_file,
+            "containsRunData": False,
+        }
 
 NEUTRAL_EXPERIMENT = cfg.get("neutral_experiment", "NN")
 ACIDIC_PULSE_SEC   = cfg.get("acidic_pulse_sec", 30)
 num_channels       = cfg.get("num_channels", 2)
 
-# Live media-status file read by the Napari GUI
+# Live media-status file read by the web GUI
 _STATUS_FILE = os.path.join(final_dir, "media_status.json")
 
 
 def _write_media_status(experiment, pulse_manager):
-    """Atomically write per-channel pulse state for the Napari indicator."""
+    """Atomically write per-channel pulse state for the web GUI's media indicator."""
     channels_data = {}
     for ch in range(1, pulse_manager.num_channels + 1):
         ps = pulse_manager.pulse_start[ch]
@@ -384,29 +489,44 @@ class PulseManager:
             letters.append("A" if self.pulse_start[ch] is not None else "N")
         return "".join(letters)
 
-    def any_pulsing(self):
-        return any(v is not None for v in self.pulse_start.values())
 
-    def pulsing_channels(self):
-        return [ch for ch, v in self.pulse_start.items() if v is not None]
+def run_experiment_blocking(experiment_name, onix_controller, result):
+    """Run an ONIX experiment until aborted (state change / stop) or completion.
 
-
-def run_experiment_blocking(experiment_name, onix_controller):
-    """Run an ONIX experiment until aborted (by state change) or completion."""
-    template_path = EXPERIMENT_TEMPLATES[experiment_name]
-    is_neutral = experiment_name == NEUTRAL_EXPERIMENT
-    duration = run_duration if is_neutral else run_duration  # always long; abort controls transitions
-
-    kind = "NEUTRAL" if is_neutral else "ACIDIC"
-    log(f"Starting {kind} experiment: {experiment_name} (runs until state change)")
-
-    success = onix_controller.run_experiment(template_path, experiment_name,
-                                             run_duration=duration)
+    Every state runs for run_duration; a state change aborts it sooner.
+    result["success"] records the outcome for the watcher's restart backoff."""
+    success = False
+    try:
+        template_path = EXPERIMENT_TEMPLATES[experiment_name]
+        kind = "NEUTRAL" if experiment_name == NEUTRAL_EXPERIMENT else "ACIDIC"
+        log(f"Starting {kind} experiment: {experiment_name} (runs until state change)")
+        success = onix_controller.run_experiment(template_path, experiment_name,
+                                                 run_duration=run_duration)
+    except Exception as e:
+        log(f"Experiment {experiment_name} error: {e}")
     if success:
         log(f"Completed experiment: {experiment_name}")
+    elif onix_controller._abort_event.is_set():
+        log(f"Experiment {experiment_name} stopped early (abort requested)")
     else:
         log(f"Failed experiment: {experiment_name}")
+    result["success"] = success
     return success
+
+
+def _start_experiment(experiment_name, onix_controller):
+    """Start run_experiment_blocking in a non-daemon thread.
+
+    Called only once the previous experiment thread has returned, so clearing
+    the abort flag here cannot cancel an abort that thread still needs."""
+    onix_controller._abort_event.clear()
+    result = {}
+    thread = threading.Thread(
+        target=run_experiment_blocking,
+        args=(experiment_name, onix_controller, result),
+    )
+    thread.start()
+    return thread, result
 
 
 def watch_for_actions():
@@ -417,37 +537,50 @@ def watch_for_actions():
     experiment is active. When the state changes — either because a new
     channel crosses the threshold or because a pulse timer expires — the
     current experiment is aborted and the new one is started.
+
+    SIGTERM / SIGINT end the loop; the running experiment is then Aborted
+    and Closed on the ONIX before the process exits.
     """
     log(f"Starting pulse-state watcher on directory: {final_dir}")
 
-    onix = OnixController(host_ip=ONIX_SERVER_IP, port=ONIX_SERVER_PORT)
+    if DRY_RUN:
+        onix = FakeOnixController()
+    else:
+        onix = OnixController(host_ip=ONIX_SERVER_IP, port=ONIX_SERVER_PORT)
+
+    def _request_stop(signum, frame):
+        # Only set flags here: logging from a signal handler can re-enter print()
+        stop_event.set()
+        onix._abort_event.set()
+
+    signal.signal(signal.SIGTERM, _request_stop)
+    signal.signal(signal.SIGINT, _request_stop)
+
     actions_path = os.path.join(final_dir, "actions.toml")
+    claimed_path = actions_path + ".processing"
     pulses = PulseManager(num_channels, ACIDIC_PULSE_SEC)
-    experiment_thread = None
     current_experiment = NEUTRAL_EXPERIMENT
     # Backoff so a failing ONIX CreateExperiment doesn't hot-loop the server
-    restart_backoff_sec = 5.0
-    next_restart_allowed = 0.0
+    consecutive_failures = 0
+    next_restart_at = None  # set once an ended experiment thread is noticed
 
     # Start with neutral experiment
     _write_media_status(NEUTRAL_EXPERIMENT, pulses)
-    experiment_thread = threading.Thread(
-        target=run_experiment_blocking,
-        args=(NEUTRAL_EXPERIMENT, onix),
-        daemon=True,
-    )
-    experiment_thread.start()
+    experiment_thread, last_result = _start_experiment(NEUTRAL_EXPERIMENT, onix)
 
-    while True:
+    while not stop_event.is_set():
         try:
             state_changed = False
 
-            # 1. Check for new threshold crossings from CreateDecisions
+            # 1. Check for new threshold crossings from CreateDecisions.
+            #    Claim the file by renaming it first, so a newer actions.toml
+            #    written meanwhile is neither read half-written nor deleted unread.
             if os.path.exists(actions_path):
                 try:
-                    with open(actions_path, 'r') as f:
+                    os.replace(actions_path, claimed_path)
+                    with open(claimed_path, 'r') as f:
                         data = tomlkit.load(f)
-                    os.remove(actions_path)
+                    os.remove(claimed_path)
 
                     channels = data.get("channels", {})
                     frame = data.get("frame", "?")
@@ -478,48 +611,60 @@ def watch_for_actions():
                     log(f"State change: {current_experiment} -> {target}")
                     current_experiment = target
 
-                    # Abort current experiment thread
-                    thread_running = (experiment_thread is not None
-                                      and experiment_thread.is_alive())
-                    if thread_running:
+                    # Abort the current experiment and wait until its thread
+                    # has returned, so only one thread ever drives the ONIX
+                    if experiment_thread.is_alive():
                         onix._abort_event.set()
-                        experiment_thread.join(timeout=15)
+                        experiment_thread.join(timeout=30)
+                        if experiment_thread.is_alive():
+                            log("Warning: previous experiment still shutting down "
+                                "after 30 s; waiting for it before starting "
+                                f"{current_experiment}...")
+                            experiment_thread.join()
+                    if stop_event.is_set():
+                        break
 
-                    # Update status for Napari
+                    # Update status for the web GUI
                     _write_media_status(current_experiment, pulses)
 
                     # Start new experiment
-                    experiment_thread = threading.Thread(
-                        target=run_experiment_blocking,
-                        args=(current_experiment, onix),
-                        daemon=True,
-                    )
-                    experiment_thread.start()
+                    experiment_thread, last_result = _start_experiment(current_experiment, onix)
+                    next_restart_at = None
 
-            # 4. If no experiment running (thread died), restart current state
-            #    but back off so a persistent ONIX failure doesn't hot-loop.
-            thread_running = (experiment_thread is not None
-                              and experiment_thread.is_alive())
-            if not thread_running and not state_changed:
+            # 4. If no experiment running (run_duration elapsed or the thread
+            #    failed), restart the current state after a backoff delay so a
+            #    persistent ONIX failure doesn't hot-loop.
+            if not experiment_thread.is_alive() and not state_changed:
                 now = time.time()
-                if now >= next_restart_allowed:
+                if next_restart_at is None:
+                    if last_result.get("success"):
+                        consecutive_failures = 0
+                        delay = RESTART_BACKOFF_MIN_SEC
+                    else:
+                        consecutive_failures += 1
+                        delay = min(RESTART_BACKOFF_MIN_SEC * 2 ** (consecutive_failures - 1),
+                                    RESTART_BACKOFF_MAX_SEC)
+                    next_restart_at = now + delay
+                    log(f"Experiment thread ended; restarting "
+                        f"{pulses.get_experiment_name()} in {delay:.0f} s")
+                elif now >= next_restart_at:
+                    next_restart_at = None
                     current_experiment = pulses.get_experiment_name()
-                    next_restart_allowed = now + restart_backoff_sec
-                    experiment_thread = threading.Thread(
-                        target=run_experiment_blocking,
-                        args=(current_experiment, onix),
-                        daemon=True,
-                    )
-                    experiment_thread.start()
+                    experiment_thread, last_result = _start_experiment(current_experiment, onix)
 
             time.sleep(sleep_time)
 
-        except KeyboardInterrupt:
-            log("Watcher stopped by user")
-            break
         except Exception as e:
             log(f"Unexpected error in watcher loop: {e}")
             time.sleep(sleep_time)
+
+    # Stop requested: let the experiment thread Abort and Close its run,
+    # then make sure the ONIX is not left running.
+    log("Stop requested -- aborting the ONIX run before exit...")
+    onix._abort_event.set()
+    experiment_thread.join()
+    onix.ensure_stopped()
+    log("SendDecisions stopped.")
 
 if __name__ == "__main__":
     watch_for_actions()

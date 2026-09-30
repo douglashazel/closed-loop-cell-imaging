@@ -611,10 +611,6 @@
   }
   [data-theme="dark"] .log { background: #050607; }
   .log .ts { color: var(--text-faint); }
-  .log .lvl-info { color: var(--blue); }
-  .log .lvl-ok { color: var(--green); }
-  .log .lvl-warn { color: var(--amber); }
-  .log .lvl-err { color: var(--red); }
   .log .mod { color: var(--text-muted); }
 
   /* ============================== RAIL CARDS ============================== */

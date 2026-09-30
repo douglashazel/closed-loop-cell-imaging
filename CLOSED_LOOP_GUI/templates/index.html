@@ -147,7 +147,7 @@
             <div class="field">
               <label class="lbl" for="cfg-global-path">
                 Global Data Path
-                <span class="help" data-tip="Root directory for the experiment. All derived paths (watch_dir, mask_dir, curr_mask_dir, decision_dir, etc.) are rebuilt from this when you save.">?</span>
+                <span class="help" data-tip="Root directory for the experiment. When you change it and save, every path under the old root (watch_dir, mask_dir, curr_mask_dir, decision_dir, etc.) moves under the new one. Keys this form does not show (watch_dir, experiment templates, dry_run, ...) keep their config.json values.">?</span>
               </label>
               <input type="text" id="cfg-global-path" value="/mnt/data/Close_Loop_Data">
             </div>
@@ -161,21 +161,21 @@
               <div class="field">
                 <label class="lbl" for="cfg-num-channels">
                   Number of channels
-                  <span class="help" data-tip="How many imaging channels to process in parallel. Each channel gets its own segmentation mask, its own decision, and switches its own ONIX experiment independently.">?</span>
+                  <span class="help" data-tip="How many imaging channels to process in parallel. Each channel gets its own segmentation mask, its own decision, and switches its own ONIX experiment independently. Must be 2: the ONIX templates (NN/AN/NA/AA) cover exactly two channels.">?</span>
                 </label>
-                <input type="number" id="cfg-num-channels" value="2" min="1" max="10">
+                <input type="number" id="cfg-num-channels" value="2" min="2" max="2">
               </div>
               <div class="field">
                 <label class="lbl" for="cfg-run-duration">
                   Run duration (sec)
-                  <span class="help" data-tip="Total wall-clock duration of the neutral-media run. 86400 = 24 hours. When reached, the pipeline stops on its own.">?</span>
+                  <span class="help" data-tip="Maximum length of one ONIX run, for any template. 86400 = 24 hours. When it elapses the run is aborted and saved, and a new run of the current state starts about 5 s later. The pipeline never stops on its own; press Stop.">?</span>
                 </label>
                 <input type="number" id="cfg-run-duration" value="86400" min="1">
               </div>
               <div class="field">
                 <label class="lbl" for="cfg-acidic-pulse">
                   Acidic pulse duration (sec)
-                  <span class="help" data-tip="How long each acidic pulse lasts before the system auto-switches back to neutral media on that channel.">?</span>
+                  <span class="help" data-tip="How long each acidic pulse lasts before the system auto-switches back to neutral media on that channel. Timed from the decision, not from the ONIX run start, so the few seconds of ONIX setup come out of it.">?</span>
                 </label>
                 <input type="number" id="cfg-acidic-pulse" value="30" min="1" max="7200">
               </div>
@@ -251,7 +251,7 @@
               <div class="field">
                 <label class="lbl" for="cfg-retention-hours">
                   Retention time (hours)
-                  <span class="help" data-tip="Files older than this in the cleanup directories (processed_masks, temp_overlays) are deleted to keep disk usage bounded.">?</span>
+                  <span class="help" data-tip="Files older than this in the cleanup directories (processed_masks, temp_overlays) are moved into a dated archive zip under the global path to keep disk usage bounded. The newest mask per channel is always kept, so the mask preview and Push mask keep working.">?</span>
                 </label>
                 <input type="number" id="cfg-retention-hours" value="3" min="0" max="720">
               </div>
@@ -447,7 +447,7 @@
                 <li>Click <b>Start pipeline</b>.</li>
                 <li>On the <b>Segmentation</b> tab, load frame&nbsp;0, tune Cellpose, and <b>Push mask</b>.</li>
                 <li>Watch media switching on the <b>Experiment Log</b> tab.</li>
-                <li><b>Stop pipeline</b> when done (or let <code>run_duration_sec</code> elapse).</li>
+                <li><b>Stop pipeline</b> when done. Stop aborts and closes the running ONIX experiment before the processes exit; the pipeline does not stop on its own.</li>
               </ol>
             </div>
           </div>

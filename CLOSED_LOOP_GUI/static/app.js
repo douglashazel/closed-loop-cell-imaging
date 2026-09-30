@@ -110,7 +110,7 @@ function setPipelineUi(state) {
 btnStart.addEventListener('click', async () => {
   // Soft gate: if any required reference mask hasn't been pushed yet,
   // CreateDecisions will block on startup. Surface that to the operator and
-  // let them override (preprocess.ipynb mode pushes masks after launch).
+  // let them override (masks can also be pushed after launch).
   if (lastReadiness && lastReadiness.masks_ready) {
     const missing = Object.entries(lastReadiness.masks_ready)
       .filter(([, ok]) => !ok).map(([ch]) => ch);
@@ -120,16 +120,27 @@ btnStart.addEventListener('click', async () => {
       if (!window.confirm(msg)) return;
     }
   }
-  // Save config first (matching original app.js behavior)
+  // Save config first (matching original app.js behavior); don't start on a
+  // config the server rejected
   try {
-    await fetch('/api/config', {
+    const r = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(collectConfig()),
     });
+    const data = await r.json();
+    if (!data.ok) {
+      flashStatus($('save-status'), `Not started: ${data.error || 'config save failed'}`);
+      return;
+    }
   } catch (e) {}
   try {
-    const r = await fetch('/api/pipeline/start', { method: 'POST' });
+    // The server only accepts JSON POSTs (CSRF guard), so send an empty object
+    const r = await fetch('/api/pipeline/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
     const data = await r.json();
     if (!data.ok && data.error !== 'already running') {
       flashStatus($('save-status'), `Start failed: ${data.error}`);
@@ -140,7 +151,13 @@ btnStart.addEventListener('click', async () => {
 });
 
 btnStop.addEventListener('click', async () => {
-  try { await fetch('/api/pipeline/stop', { method: 'POST' }); } catch (e) {}
+  try {
+    await fetch('/api/pipeline/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+  } catch (e) {}
 });
 
 // -----------------------------------------------------------------------------
@@ -458,16 +475,12 @@ async function pollLog() {
   } catch (e) { /* silent */ }
 }
 
-// Colorize log lines client-side: INFO / WARN / ERROR etc.
+// Dim the "[YYYY-MM-DD HH:MM:SS]" prefix that io_utils.log() writes
 function colorizeLogLine(line) {
-  const m = line.match(/^(\S+\s+\S+)\s+\[(\w+)\]\s+(.*)$/);
+  const m = line.match(/^\[([^\]]+)\]\s+(.*)$/);
   if (!m) return escapeHtml(line);
-  const [, ts, lvl, rest] = m;
-  const cls = {
-    INFO: 'lvl-info', WARNING: 'lvl-warn', WARN: 'lvl-warn',
-    ERROR: 'lvl-err', ERR: 'lvl-err', OK: 'lvl-ok', DEBUG: 'lvl-debug',
-  }[lvl.toUpperCase()] || 'lvl-info';
-  return `<span class="ts">${escapeHtml(ts)}</span> <span class="${cls}">[${escapeHtml(lvl)}]</span> ${escapeHtml(rest)}`;
+  const [, ts, rest] = m;
+  return `<span class="ts">[${escapeHtml(ts)}]</span> ${escapeHtml(rest)}`;
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({
