@@ -1,7 +1,15 @@
+"""Render per-cell contour GIFs from a Stage 1 run (optional, not used by the paper).
+
+Run from the project root, e.g.::
+
+    python3 SCRIPTS/core_pipeline/CreateGifsJson.py \
+        --experiment_dir "EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26/channel 1" \
+        --max_cells 5 --max_frames 100
+"""
 import os
 import re
 import shutil
-import msgpack
+import argparse
 import numpy as np
 from tqdm import tqdm
 import imageio.v2 as imageio
@@ -9,15 +17,13 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from skimage.measure import find_contours
 
+from io_utils import load_msgpack
+
 def extract_number(filename):
     match = re.search(r'timepoint_(\d+)', filename)
-    return int(match.group(1)) if match else -1
-
-def load_json(path):
-    if os.path.exists(path):
-        with open(path, 'rb') as f:
-            return msgpack.unpack(f, raw=False)
-    return {}
+    if match is None:
+        raise ValueError(f"No 'timepoint_NNNNN' token in frame filename {filename!r}")
+    return int(match.group(1))
 
 def process_cell(args):
     cell_id, coords, png_files, tif_path, mask_dir, save_path, movie, FIXED_CROP_SIZE = args
@@ -29,7 +35,8 @@ def process_cell(args):
 
     # pick fixed anchor location = first valid coordinate
     anchor_x, anchor_y = None, None
-    for frame_idx in range(len(png_files)):
+    for png_file in png_files:
+        frame_idx = extract_number(png_file)
         xkey = f"x{frame_idx}"
         ykey = f"y{frame_idx}"
 
@@ -43,7 +50,8 @@ def process_cell(args):
         shutil.rmtree(output_dir)
         return
 
-    for frame_idx, png_file in enumerate(png_files[:100]):
+    for png_file in png_files:
+        frame_idx = extract_number(png_file)
         xkey = f"x{frame_idx}"
         ykey = f"y{frame_idx}"
         curr_x = int(coords[xkey]) if coords.get(xkey) is not None else anchor_x
@@ -55,7 +63,7 @@ def process_cell(args):
 
         contours = []
         if os.path.exists(mask_path):
-            mask_all = np.load(mask_path, allow_pickle=True)
+            mask_all = np.load(mask_path)
             if 0 <= curr_y < mask_all.shape[0] and 0 <= curr_x < mask_all.shape[1]:
                 mask_id = mask_all[curr_y, curr_x]
                 if mask_id > 0:
@@ -109,33 +117,45 @@ def process_cell(args):
     print(f"GIF saved at: {gif_path}")
     shutil.rmtree(output_dir)
 
-# ----- CHANGE HERE (paths are relative to the project root; run from there) ----- #
-global_path = "EXPERIMENTS/other"
-movie = "resize30perc_NRK_ArcLight_acids_05FEB26_3646_of_4374"
-FIXED_CROP_SIZE = 0  # Set to 0 for entire frame size, or specify a fixed size (e.g., 128) for fixed cropping
-save_path = "gifs"
-NUM_WORKERS = 5
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--experiment_dir",
+                        default="EXPERIMENTS/other/c2c12_dmso_pulses_perfusion_09APR26/channel 1",
+                        help="Directory holding frames/, masks/ and analysis/ (relative to the project root)")
+    parser.add_argument("--save_path", default="gifs", help="Output directory for the GIFs")
+    parser.add_argument("--crop_size", type=int, default=0,
+                        help="0 = whole frame, otherwise a fixed square crop (e.g. 128) around the cell")
+    parser.add_argument("--max_frames", type=int, default=100, help="Frames per GIF (0 = all)")
+    parser.add_argument("--max_cells", type=int, default=5, help="Cells to render (0 = all complete cells)")
+    parser.add_argument("--workers", type=int, default=5)
+    args = parser.parse_args()
 
-tif_path = f"{global_path}/{movie}/frames"
-mask_dir = f"{global_path}/{movie}/masks"
-save_cell_path = f"{global_path}/{movie}/analysis"
-traj_path = f"{save_cell_path}/trajectories_complete.json"
+    movie = os.path.normpath(args.experiment_dir)  # "/" becomes "_" in the GIF names
+    tif_path = os.path.join(args.experiment_dir, "frames")
+    mask_dir = os.path.join(args.experiment_dir, "masks")
+    traj_path = os.path.join(args.experiment_dir, "analysis", "trajectories_complete.json")
 
-if not os.path.exists(traj_path):
-    print(f"Missing trajectories file: {traj_path}")
-    exit()
-if not os.path.exists(tif_path):
-    print(f"Missing movie frames: {tif_path}")
-    exit()
+    if not os.path.exists(traj_path):
+        raise SystemExit(f"Missing trajectories file: {traj_path}")
+    if not os.path.exists(tif_path):
+        raise SystemExit(f"Missing movie frames: {tif_path}")
 
-png_files = sorted([f for f in os.listdir(tif_path) if f.endswith('.png')], key=extract_number)
-traj_dict = load_json(traj_path)
-os.makedirs(save_path, exist_ok=True)
+    png_files = sorted([f for f in os.listdir(tif_path) if f.endswith('.png')], key=extract_number)
+    if args.max_frames > 0:
+        png_files = png_files[:args.max_frames]
+    traj_dict = load_msgpack(traj_path)
+    os.makedirs(args.save_path, exist_ok=True)
 
-cell_ids = [val for idx, val in enumerate(traj_dict.keys()) if idx<=4]
+    cell_ids = list(traj_dict.keys())
+    if args.max_cells > 0:
+        cell_ids = cell_ids[:args.max_cells]
 
-args_list = [(cell_id, traj_dict[cell_id], png_files, tif_path, mask_dir, save_path, movie, FIXED_CROP_SIZE) for cell_id in cell_ids]
+    args_list = [(cell_id, traj_dict[cell_id], png_files, tif_path, mask_dir, args.save_path, movie, args.crop_size)
+                 for cell_id in cell_ids]
+
+    with Pool(processes=args.workers) as pool:
+        list(tqdm(pool.imap_unordered(process_cell, args_list), total=len(args_list), desc="Processing cells"))
+
 
 if __name__ == "__main__":
-    with Pool(processes=NUM_WORKERS) as pool:
-        list(tqdm(pool.imap_unordered(process_cell, args_list), total=len(args_list), desc="Processing cells"))
+    main()

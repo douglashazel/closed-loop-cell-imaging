@@ -3,31 +3,38 @@ import gc
 import re
 import sys
 import csv
+import json
 import time
 import numba
-import msgpack
 import argparse
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
 from multiprocessing import Pool
 
+from io_utils import load_msgpack, save_msgpack
+
+# Tracking parameters recorded in <save_path>/run_params.json. A resumed run
+# must use the same values, or trajectories.json would mix two settings.
+TRACKING_PARAMS = ("max_distance", "grace_period", "radius", "radius_y",
+                   "radius_x", "shift_frame", "shift_xy")
+
 # ---------------- helpers from tracking code ---------------- #
 def extract_number(filename):
     match = re.search(r'timepoint_(\d+)', filename)
-    return int(match.group(1)) if match else -1
+    if match is None:
+        raise ValueError(f"No 'timepoint_NNNNN' token in frame filename {filename!r}")
+    return int(match.group(1))
 
 def load_image(path):
-    return np.array(Image.open(path))
+    img = np.array(Image.open(path))
+    if img.ndim == 3:
+        # Same grayscale conversion as PostAnalysis.load_image_float.
+        img = img.astype(np.float32).mean(axis=-1)
+    return img
 
 def load_segmentation(path):
-    seg = np.load(path, allow_pickle=True)
-    if isinstance(seg, dict):
-        return seg['masks']
-    try:
-        return seg.item()['masks']
-    except Exception:
-        return seg
+    return np.load(path)
 
 def calculate_circle_mask(image, radius, y_shift=0, x_shift=0):
     h, w = image.shape[:2]
@@ -35,21 +42,6 @@ def calculate_circle_mask(image, radius, y_shift=0, x_shift=0):
     yy, xx = np.ogrid[:h, :w]
     circle_mask = (xx - cx)**2 + (yy - cy)**2 <= radius**2
     return circle_mask, (cx, cy)
-
-@numba.jit(nopython=True)
-def run_all(curr_center, next_centers, max_distance=40.0):
-    min_distance = np.inf
-    min_idx = -1
-    for i in range(next_centers.shape[0]):
-        dx = next_centers[i, 0] - curr_center[0]
-        dy = next_centers[i, 1] - curr_center[1]
-        distance = np.sqrt(dx * dx + dy * dy)
-        if distance < min_distance:
-            min_distance = distance
-            min_idx = i
-    status = min_distance <= max_distance
-    match = min_idx if status else -1
-    return status, match
 
 def parallel_extract_centers(args):
     seg, cell_ids = args
@@ -66,17 +58,21 @@ def parallel_extract_centers(args):
             partial_centers.append(None)
     return partial_centers
 
-def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
+def get_and_save_cell_centers(seg_path, center_save_path, pool, num_workers):
     center_file = os.path.join(
         center_save_path,
         os.path.basename(seg_path).replace('.npy', '_centers.npy')
     )
 
+    # The cache is keyed by mask filename only, so reuse it only when it is
+    # newer than the mask it was computed from.
     if os.path.exists(center_file):
-        try:
-            return np.load(center_file, allow_pickle=True)
-        except (EOFError, ValueError, OSError):
-            os.remove(center_file)
+        if os.path.getmtime(center_file) >= os.path.getmtime(seg_path):
+            try:
+                return np.load(center_file)
+            except (EOFError, ValueError, OSError):
+                pass
+        os.remove(center_file)
 
     seg = load_segmentation(seg_path)
     num_masks = np.max(seg)
@@ -84,8 +80,7 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
     chunks = [all_ids[i::num_workers] for i in range(num_workers)]
 
     args = [(seg, chunk) for chunk in chunks]
-    with Pool(processes=num_workers) as pool:
-        results = pool.map(parallel_extract_centers, args)
+    results = pool.map(parallel_extract_centers, args)
 
     frame_centers = [c for partial in results for c in partial if c is not None]
     os.makedirs(center_save_path, exist_ok=True)
@@ -99,21 +94,26 @@ def get_and_save_cell_centers(seg_path, center_save_path, num_workers=20):
         print(f"  error: {e}")
         print(f"  n={len(frame_centers)}  weird entries (first 5): {weird[:5]}")
         raise
-    np.save(
-        os.path.join(center_save_path, os.path.basename(seg_path).replace('.npy', '_centers.npy')),
-        arr
-    )
+    np.save(center_file, arr)
     return frame_centers
 
 
 # ---------------- in-memory trajectory tracking ---------------- #
-def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_period=3, max_distance=40.0):
+def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, frame_shift,
+                                grace_period=3, max_distance=40.0):
     """
     Mutates traj_dict in place. No disk I/O.
     traj_dict: {cell_id_str: {"x5": 100.0, "y5": 200.0, ...}}
-    """
-    frame_shift = {shift_frame: (shift_dx, shift_dy)}
+    frame_shift: {frame_id: (dx, dy)} stage shift applied to tracks that cross
+    that frame.
 
+    Each detection goes to at most one track: every (track, detection) pair
+    within max_distance is a candidate, and candidates are taken nearest first,
+    skipping tracks and detections that are already matched. A track left
+    without a detection misses this frame (the grace period covers it); a
+    detection left without a track starts a new one. When no two tracks want
+    the same detection, every track gets its nearest detection.
+    """
     valid_centers = [c for c in new_centers if c is not None]
     new_centers_np = np.array(valid_centers, dtype=np.float64) if valid_centers else np.empty((0, 2))
     new_assignments = [None] * len(new_centers)
@@ -122,6 +122,8 @@ def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_peri
     ykey = f"y{new_frame_id}"
 
     if traj_dict:
+        track_ids = []
+        cand_dist, cand_track, cand_det = [], [], []
         for cell_id, coords in traj_dict.items():
             last_seen = None
             for look_back in range(1, grace_period + 2):
@@ -148,16 +150,34 @@ def update_trajectories_inplace(traj_dict, new_frame_id, new_centers, grace_peri
                     dx += sdx
                     dy += sdy
 
-            curr_center = np.array([prev_x + dx, prev_y + dy], dtype=np.float64)
-
             if len(new_centers_np) == 0:
                 continue
 
-            status, match_idx = run_all(curr_center, new_centers_np, max_distance=max_distance)
-            if status and match_idx != -1:
-                coords[xkey] = float(valid_centers[match_idx][0])
-                coords[ykey] = float(valid_centers[match_idx][1])
+            ddx = new_centers_np[:, 0] - (prev_x + dx)
+            ddy = new_centers_np[:, 1] - (prev_y + dy)
+            dist = np.sqrt(ddx * ddx + ddy * ddy)
+            near = np.nonzero(dist <= max_distance)[0]
+            if near.size:
+                cand_dist.append(dist[near])
+                cand_track.append(np.full(near.size, len(track_ids)))
+                cand_det.append(near)
+            track_ids.append(cell_id)
+
+        if cand_dist:
+            cand_dist = np.concatenate(cand_dist)
+            cand_track = np.concatenate(cand_track)
+            cand_det = np.concatenate(cand_det)
+            # Nearest first; ties go to the earlier track, then the lower detection index.
+            track_matched = set()
+            for k in np.lexsort((cand_det, cand_track, cand_dist)):
+                t, match_idx = int(cand_track[k]), int(cand_det[k])
+                if t in track_matched or new_assignments[match_idx] is not None:
+                    continue
+                cell_id = track_ids[t]
+                traj_dict[cell_id][xkey] = float(valid_centers[match_idx][0])
+                traj_dict[cell_id][ykey] = float(valid_centers[match_idx][1])
                 new_assignments[match_idx] = cell_id
+                track_matched.add(t)
 
         max_id = max((int(k) for k in traj_dict.keys()), default=-1)
         for idx, center in enumerate(new_centers):
@@ -230,126 +250,6 @@ def update_luminosity_inplace(lum_dict, traj_dict, frame_id, image, segmentation
             lum_dict[cell_id] = {}
         lum_dict[cell_id][new_col] = lum_val
 
-# ---------------- disk save/load ---------------- #
-def save_json(data, path):
-    with open(path, 'wb') as f:
-        msgpack.pack(data, f)
-
-def load_json(path):
-    if os.path.exists(path):
-        with open(path, 'rb') as f:
-            return msgpack.unpack(f, raw=False)
-    return {}
-
-# ---------------- segmentation + live processing ---------------- #
-parser = argparse.ArgumentParser()
-parser.add_argument("--image_dir", required=True)
-parser.add_argument("--mask_dir", required=True)
-parser.add_argument("--save_path", required=True)
-parser.add_argument("--max_distance", type=float, default=40.0, help="Max distance for trajectory linking")
-parser.add_argument("--grace_period", type=int, default=3, help="Number of frames to look back for linking")
-parser.add_argument("--radius", type=int, default=0, help="Radius for circular mask (0 to disable)")
-parser.add_argument("--radius_y", type=int, default=0, help="Y shift for circular mask")
-parser.add_argument("--radius_x", type=int, default=0, help="X shift for circular mask")
-parser.add_argument("--shift_frame", type=int, default=5, help="Frame where shift occurs")
-parser.add_argument("--shift_xy", type=float, nargs=2, default=[0, 0], help="Shift dx dy for frame")
-parser.add_argument("--save_interval", type=int, default=10, help="Save to disk every N frames")
-args = parser.parse_args()
-
-image_dir = args.image_dir
-mask_dir = args.mask_dir
-save_path = args.save_path
-max_distance = args.max_distance
-grace_period = args.grace_period
-
-shift_frame = args.shift_frame
-shift_dx, shift_dy = args.shift_xy
-save_interval = args.save_interval
-
-radius = args.radius
-y_shift = args.radius_y
-x_shift = args.radius_x
-circle_mask = None
-
-os.makedirs(mask_dir, exist_ok=True)
-os.makedirs(save_path, exist_ok=True)
-
-traj_json_path = os.path.join(save_path, "trajectories.json")
-lum_json_path  = os.path.join(save_path, "luminosity.json")
-
-# Load from disk if resuming
-traj_dict = load_json(traj_json_path)
-lum_dict  = load_json(lum_json_path)
-
-processed_frames = {int(k[1:]) for coords in traj_dict.values()
-                    for k in coords if k.startswith('x') and k[1:].isdigit()}
-exit_loop = False
-start_time = time.time()
-frames_since_save = 0
-
-while not exit_loop:
-    images = sorted([f for f in os.listdir(image_dir) if f.endswith(('.png', '.jpg'))], key=extract_number)
-
-    all_masked = all(os.path.exists(os.path.join(mask_dir, os.path.splitext(f)[0] + ".npy")) for f in images)
-    if all_masked and len(images) > 0:
-        exit_loop = True
-
-    for f in tqdm(images, desc="Processing images...", unit="image", colour="green"):
-        frame_id = extract_number(f)
-        mask_path = os.path.join(mask_dir, os.path.splitext(f)[0] + ".npy")
-
-        if frame_id not in processed_frames and os.path.exists(mask_path):
-
-            image = load_image(os.path.join(image_dir, f))
-            segmentation = load_segmentation(mask_path)
-
-            if circle_mask is None:
-                circle_mask, dimensions = calculate_circle_mask(image, radius, y_shift, x_shift)
-                cx, cy = dimensions
-                cell_ids = np.unique(segmentation)
-
-            if radius == 0:
-                filtered_segmentation = segmentation
-            else:
-                filtered_segmentation = segmentation.copy()
-                filtered_segmentation[~circle_mask] = 0
-
-            center_path = os.path.join(save_path, "cellpose_centers")
-            centers = get_and_save_cell_centers(mask_path, center_path, num_workers=20)
-            if radius == 0:
-                filtered_centers = [tuple(c) for c in centers if c is not None]
-            else:
-                filtered_centers = [tuple(c) for c in centers if c is not None and
-                                    (float(c[0]) - cx)**2 + (float(c[1]) - cy)**2 <= radius**2]
-            os.makedirs(center_path, exist_ok=True)
-
-            # Pure in-memory updates — no disk I/O
-            update_trajectories_inplace(traj_dict, frame_id, filtered_centers, grace_period=grace_period, max_distance=max_distance)
-            update_luminosity_inplace(lum_dict, traj_dict, frame_id, image, filtered_segmentation)
-
-            processed_frames.add(frame_id)
-            frames_since_save += 1
-            gc.collect()
-            start_time = time.time()
-
-            # Periodic disk save
-            if frames_since_save >= save_interval:
-                save_json(traj_dict, traj_json_path)
-                save_json(lum_dict, lum_json_path)
-                frames_since_save = 0
-
-    elapsed = int(time.time() - start_time)
-    sys.stdout.write(f"\rWaiting for new masks... {elapsed} sec elapsed")
-    sys.stdout.flush()
-
-    time.sleep(3)
-
-# Final save when all frames done
-save_json(traj_dict, traj_json_path)
-save_json(lum_dict, lum_json_path)
-print("\nAll frames processed.")
-
-
 # ---------------- filter first frame cells ---------------- #
 def filter_first_frame_cells(traj_dict):
     all_frames = set()
@@ -367,11 +267,6 @@ def filter_first_frame_cells(traj_dict):
     return {cid: coords for cid, coords in traj_dict.items()
             if xkey in coords and ykey in coords
             and coords[xkey] is not None and coords[ykey] is not None}
-
-firstframe_traj = filter_first_frame_cells(traj_dict)
-out_path = os.path.join(save_path, "trajectories_firstframe.json")
-save_json(firstframe_traj, out_path)
-print("Saved:", out_path)
 
 # ---------------- filter complete cells ---------------- #
 def filter_complete_cells(traj_dict, lum_dict):
@@ -400,15 +295,6 @@ def filter_complete_cells(traj_dict, lum_dict):
     lum_complete = {cid: v for cid, v in lum_dict.items() if cid in complete_ids}
     return complete_traj, lum_complete
 
-complete_traj, lum_complete = filter_complete_cells(traj_dict, lum_dict)
-
-traj_out = os.path.join(save_path, "trajectories_complete.json")
-lum_out  = os.path.join(save_path, "luminosity_complete.json")
-save_json(complete_traj, traj_out)
-save_json(lum_complete, lum_out)
-print("Saved:", traj_out)
-print("Saved:", lum_out)
-
 # CSV exports for quick inspection
 def save_dict_as_csv(data, path):
     if not data:
@@ -421,11 +307,188 @@ def save_dict_as_csv(data, path):
         for cell_id, row in data.items():
             writer.writerow([cell_id] + [row.get(k) for k in all_keys])
 
-traj_csv = os.path.join(save_path, "trajectories_complete.csv")
-lum_csv  = os.path.join(save_path, "luminosity_complete.csv")
-save_dict_as_csv(complete_traj, traj_csv)
-save_dict_as_csv(lum_complete, lum_csv)
-print("Saved:", traj_csv)
-print("Saved:", lum_csv)
+# ---------------- run parameters ---------------- #
+def check_run_params(args, save_path, resuming):
+    """Record the tracking parameters; refuse to resume a run made with different ones."""
+    params = {k: getattr(args, k) for k in TRACKING_PARAMS}
+    params_path = os.path.join(save_path, "run_params.json")
+    if resuming:
+        if os.path.exists(params_path):
+            with open(params_path) as f:
+                previous = json.load(f)
+            changed = {k: (previous.get(k), v) for k, v in params.items() if previous.get(k) != v}
+            if changed and not args.force_resume:
+                sys.exit(
+                    f"{save_path} holds a run made with different tracking parameters "
+                    f"(previous, now): {changed}. Delete that analysis/ directory to start "
+                    f"over, or pass --force_resume to continue anyway."
+                )
+        else:
+            print(f"Warning: resuming {save_path} without run_params.json; "
+                  f"cannot check that the tracking parameters match the earlier run.")
+    with open(params_path, "w") as f:
+        json.dump(params, f, indent=2)
 
-print("Done.")
+# ---------------- segmentation + live processing ---------------- #
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--image_dir", required=True)
+    parser.add_argument("--mask_dir", required=True)
+    parser.add_argument("--save_path", required=True)
+    parser.add_argument("--max_distance", type=float, default=40.0, help="Max distance for trajectory linking")
+    parser.add_argument("--grace_period", type=int, default=3, help="Number of frames to look back for linking")
+    parser.add_argument("--radius", type=int, default=0, help="Radius for circular mask (0 to disable)")
+    parser.add_argument("--radius_y", type=int, default=0, help="Y shift for circular mask")
+    parser.add_argument("--radius_x", type=int, default=0, help="X shift for circular mask")
+    parser.add_argument("--shift_frame", type=int, default=5,
+                        help="timepoint_NNNNN token of the frame where the shift occurs")
+    parser.add_argument("--shift_xy", type=float, nargs=2, default=[0, 0], help="Shift dx dy for frame")
+    parser.add_argument("--save_interval", type=int, default=10, help="Save to disk every N frames")
+    parser.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2),
+                        help="Worker processes for cell-centre extraction (default: half the CPUs)")
+    parser.add_argument("--mask_timeout_sec", type=float, default=3600,
+                        help="Exit with an error when no new mask appears for this long")
+    parser.add_argument("--force_resume", action="store_true",
+                        help="Resume even if run_params.json records different tracking parameters")
+    args = parser.parse_args()
+
+    image_dir = args.image_dir
+    mask_dir = args.mask_dir
+    save_path = args.save_path
+    max_distance = args.max_distance
+    grace_period = args.grace_period
+
+    frame_shift = {args.shift_frame: tuple(args.shift_xy)}
+    save_interval = args.save_interval
+
+    radius = args.radius
+    y_shift = args.radius_y
+    x_shift = args.radius_x
+    circle_mask = None
+
+    os.makedirs(mask_dir, exist_ok=True)
+    os.makedirs(save_path, exist_ok=True)
+
+    traj_json_path = os.path.join(save_path, "trajectories.json")
+    lum_json_path  = os.path.join(save_path, "luminosity.json")
+
+    # Load from disk if resuming
+    resuming = os.path.exists(traj_json_path)
+    check_run_params(args, save_path, resuming)
+    traj_dict = load_msgpack(traj_json_path) if resuming else {}
+    lum_dict  = load_msgpack(lum_json_path) if os.path.exists(lum_json_path) else {}
+
+    processed_frames = {int(k[1:]) for coords in traj_dict.values()
+                        for k in coords if k.startswith('x') and k[1:].isdigit()}
+    exit_loop = False
+    start_time = time.time()
+    last_progress = time.time()
+    frames_since_save = 0
+    center_path = os.path.join(save_path, "cellpose_centers")
+
+    with Pool(processes=args.workers) as pool:
+        while not exit_loop:
+            images = sorted([f for f in os.listdir(image_dir) if f.endswith(('.png', '.jpg'))], key=extract_number)
+
+            all_masked = all(os.path.exists(os.path.join(mask_dir, os.path.splitext(f)[0] + ".npy")) for f in images)
+            if all_masked and len(images) > 0:
+                exit_loop = True
+
+            for f in tqdm(images, desc="Processing images...", unit="image", colour="green"):
+                frame_id = extract_number(f)
+                mask_path = os.path.join(mask_dir, os.path.splitext(f)[0] + ".npy")
+
+                if frame_id not in processed_frames and os.path.exists(mask_path):
+
+                    try:
+                        segmentation = load_segmentation(mask_path)
+                    except (ValueError, OSError, EOFError) as e:
+                        print(f"\nCould not read {mask_path} ({e}); retrying on the next pass")
+                        exit_loop = False
+                        continue
+                    image = load_image(os.path.join(image_dir, f))
+
+                    if circle_mask is None:
+                        circle_mask, dimensions = calculate_circle_mask(image, radius, y_shift, x_shift)
+                        cx, cy = dimensions
+
+                    if radius == 0:
+                        filtered_segmentation = segmentation
+                    else:
+                        filtered_segmentation = segmentation.copy()
+                        filtered_segmentation[~circle_mask] = 0
+
+                    centers = get_and_save_cell_centers(mask_path, center_path, pool, args.workers)
+                    if radius == 0:
+                        filtered_centers = [tuple(c) for c in centers if c is not None]
+                    else:
+                        filtered_centers = [tuple(c) for c in centers if c is not None and
+                                            (float(c[0]) - cx)**2 + (float(c[1]) - cy)**2 <= radius**2]
+
+                    # Pure in-memory updates — no disk I/O
+                    update_trajectories_inplace(traj_dict, frame_id, filtered_centers, frame_shift,
+                                                grace_period=grace_period, max_distance=max_distance)
+                    update_luminosity_inplace(lum_dict, traj_dict, frame_id, image, filtered_segmentation)
+
+                    processed_frames.add(frame_id)
+                    frames_since_save += 1
+                    gc.collect()
+                    start_time = time.time()
+                    last_progress = time.time()
+
+                    # Periodic disk save
+                    if frames_since_save >= save_interval:
+                        save_msgpack(traj_dict, traj_json_path)
+                        save_msgpack(lum_dict, lum_json_path)
+                        frames_since_save = 0
+
+            if exit_loop:
+                break
+
+            if time.time() - last_progress > args.mask_timeout_sec:
+                save_msgpack(traj_dict, traj_json_path)
+                save_msgpack(lum_dict, lum_json_path)
+                n_missing = len(images) - len(processed_frames)
+                sys.exit(
+                    f"\nNo new mask in {args.mask_timeout_sec:.0f} s and {n_missing} frame(s) "
+                    f"still unprocessed; giving up. Progress saved to {save_path}; "
+                    f"rerun to resume once the masks exist."
+                )
+
+            elapsed = int(time.time() - start_time)
+            sys.stdout.write(f"\rWaiting for new masks... {elapsed} sec elapsed")
+            sys.stdout.flush()
+
+            time.sleep(3)
+
+    # Final save when all frames done
+    save_msgpack(traj_dict, traj_json_path)
+    save_msgpack(lum_dict, lum_json_path)
+    print("\nAll frames processed.")
+
+    firstframe_traj = filter_first_frame_cells(traj_dict)
+    out_path = os.path.join(save_path, "trajectories_firstframe.json")
+    save_msgpack(firstframe_traj, out_path)
+    print("Saved:", out_path)
+
+    complete_traj, lum_complete = filter_complete_cells(traj_dict, lum_dict)
+
+    traj_out = os.path.join(save_path, "trajectories_complete.json")
+    lum_out  = os.path.join(save_path, "luminosity_complete.json")
+    save_msgpack(complete_traj, traj_out)
+    save_msgpack(lum_complete, lum_out)
+    print("Saved:", traj_out)
+    print("Saved:", lum_out)
+
+    traj_csv = os.path.join(save_path, "trajectories_complete.csv")
+    lum_csv  = os.path.join(save_path, "luminosity_complete.csv")
+    save_dict_as_csv(complete_traj, traj_csv)
+    save_dict_as_csv(lum_complete, lum_csv)
+    print("Saved:", traj_csv)
+    print("Saved:", lum_csv)
+
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()

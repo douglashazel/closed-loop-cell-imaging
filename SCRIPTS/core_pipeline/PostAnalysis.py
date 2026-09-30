@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import argparse
 import numpy as np
 import pandas as pd
@@ -36,7 +37,12 @@ PLOT_PARAMS = {
 
 
 # ── Spline background correction ─────────────────────────────────────────────
-def estimate_background_surface(image, mask, grid_size=6):
+# Stage 1 QC only: the published figures use Stage 2's polynomial background
+# (SCRIPTS/preprint_analysis/common/bg_fit.py), so these numbers differ from them.
+BG_GRID_SIZE = 6
+
+
+def estimate_background_surface(image, mask, grid_size=BG_GRID_SIZE):
     h, w = image.shape
     ys = np.linspace(0, h - 1, grid_size)
     xs = np.linspace(0, w - 1, grid_size)
@@ -62,7 +68,7 @@ def estimate_background_surface(image, mask, grid_size=6):
     return spline(np.arange(h), np.arange(w))
 
 
-def illumination_correct(img, grid_size=6, sigma_threshold=1.5, max_iters=20, tol=1e-3):
+def illumination_correct(img, grid_size=BG_GRID_SIZE, sigma_threshold=1.5, max_iters=20, tol=1e-3):
     corrected = img.copy()
     prev_bg = np.zeros_like(img)
 
@@ -87,7 +93,9 @@ def illumination_correct(img, grid_size=6, sigma_threshold=1.5, max_iters=20, to
 # ── Image loading ─────────────────────────────────────────────────────────────
 def extract_number(filename):
     match = re.search(r'timepoint_(\d+)', filename)
-    return int(match.group(1)) if match else -1
+    if match is None:
+        raise ValueError(f"No 'timepoint_NNNNN' token in frame filename {filename!r}")
+    return int(match.group(1))
 
 
 def load_image_float(path):
@@ -98,23 +106,24 @@ def load_image_float(path):
 
 
 # ── Background correction logic ──────────────────────────────────────────────
-def compute_per_cell_background(images, image_dir, traj_df, n_frames):
-    """For each frame, compute spline bg surface and query at each cell's position."""
+def compute_per_cell_background(frames_by_token, image_dir, traj_df):
+    """For each frame, compute spline bg surface and query at each cell's position.
+
+    ``frames_by_token`` maps the ``timepoint_NNNNN`` token to the frame filename.
+    Trajectory columns ``x<N>``/``y<N>`` use the same token, so background and
+    luminosity stay aligned even when the token sequence has gaps.
+    """
     cell_ids = traj_df['CellID'].values
     bg_values = {int(cid): {} for cid in cell_ids}
+    tokens = sorted(t for t in frames_by_token
+                    if f'x{t}' in traj_df.columns and f'y{t}' in traj_df.columns)
 
-    for frame_idx in tqdm(range(n_frames), desc="Spline background correction"):
-        if frame_idx >= len(images):
-            break
-
-        img = load_image_float(os.path.join(image_dir, images[frame_idx]))
+    for frame_idx in tqdm(tokens, desc="Spline background correction"):
+        img = load_image_float(os.path.join(image_dir, frames_by_token[frame_idx]))
         _, bg_surface = illumination_correct(img)
 
         xcol = f'x{frame_idx}'
         ycol = f'y{frame_idx}'
-
-        if xcol not in traj_df.columns or ycol not in traj_df.columns:
-            continue
 
         for _, row in traj_df.iterrows():
             cid = int(row['CellID'])
@@ -134,8 +143,6 @@ def apply_correction(lum_dict, bg_values):
     corrected = {}
     for cell_id_str, frames in lum_dict.items():
         cid = int(cell_id_str)
-        if cid == 0:
-            continue
         corrected_frames = {}
         for fkey, val in frames.items():
             if val is None:
@@ -284,9 +291,12 @@ if __name__ == "__main__":
     parser.add_argument("--exp", required=True)
     parser.add_argument("--image_dir", required=True)
     parser.add_argument("--analysis_dir", required=True)
-    parser.add_argument("--f0_frame", type=int, default=None)
+    parser.add_argument("--f0_frame", type=int, default=None,
+                        help="timepoint_NNNNN token of the F0 frame")
     parser.add_argument("--stim_frames", type=str, default=None,
-                        help="Comma-separated stimulus frame indices")
+                        help="Comma-separated stimulus frame tokens")
+    parser.add_argument("--recompute_bg", action="store_true",
+                        help="Ignore analysis/bg_values_cache.npy and recompute it")
     args = parser.parse_args()
 
     analysis_dir = args.analysis_dir
@@ -296,11 +306,12 @@ if __name__ == "__main__":
     if args.stim_frames:
         stim_frames = [int(x.strip()) for x in args.stim_frames.split(',')]
 
-    # Load image file list
+    # Load image file list, keyed by timepoint token
     images = sorted(
         [f for f in os.listdir(image_dir) if f.endswith(('.png', '.jpg'))],
         key=extract_number
     )
+    frames_by_token = {extract_number(f): f for f in images}
     n_frames = len(images)
     print(f"Found {n_frames} frames in {image_dir}")
 
@@ -313,33 +324,42 @@ if __name__ == "__main__":
     print(f"Loaded {len(traj_df)} complete cell trajectories")
 
     # ── Step 1: Spline background correction ──────────────────────────────
+    # The cache (a pickled dict) records what it was computed from; it is reused
+    # only when the frame count, grid size and trajectory file are unchanged.
     bg_cache_path = os.path.join(analysis_dir, 'bg_values_cache.npy')
+    bg_key = {"n_frames": n_frames, "grid_size": BG_GRID_SIZE,
+              "traj_mtime": os.path.getmtime(traj_path)}
 
-    if os.path.exists(bg_cache_path):
-        print(f">>> Loading cached background values from {bg_cache_path}")
-        bg_values = np.load(bg_cache_path, allow_pickle=True).item()
-    else:
+    bg_values = None
+    if os.path.exists(bg_cache_path) and not args.recompute_bg:
+        cached = np.load(bg_cache_path, allow_pickle=True).item()
+        if isinstance(cached, dict) and cached.get("key") == bg_key:
+            print(f">>> Loading cached background values from {bg_cache_path}")
+            bg_values = cached["bg_values"]
+        else:
+            print(f">>> {bg_cache_path} was computed from different inputs; recomputing")
+    if bg_values is None:
         print(f">>> Computing spline background correction for {args.exp}")
-        bg_values = compute_per_cell_background(images, image_dir, traj_df, n_frames)
-        np.save(bg_cache_path, bg_values)
+        bg_values = compute_per_cell_background(frames_by_token, image_dir, traj_df)
+        np.save(bg_cache_path, {"key": bg_key, "bg_values": bg_values})
         print(f"  Cached background values to {bg_cache_path}")
 
-    for tag in ['_complete', '']:
-        lum_path = os.path.join(analysis_dir, f'luminosity{tag}.json')
-        if not os.path.exists(lum_path):
-            print(f"  Skipping {lum_path} (not found)")
-            continue
-
+    # Backgrounds exist only for the complete trajectories, so only the complete
+    # cells are corrected.
+    lum_path = os.path.join(analysis_dir, 'luminosity_complete.json')
+    if os.path.exists(lum_path):
         lum_dict = load_msgpack(lum_path)
         corrected_dict = apply_correction(lum_dict, bg_values)
 
-        out_path = os.path.join(analysis_dir, f'luminosity_corrected{tag}.json')
+        out_path = os.path.join(analysis_dir, 'luminosity_corrected_complete.json')
         save_msgpack(corrected_dict, out_path)
         print(f"  Saved {out_path}")
 
         corrected_df = lum_dict_to_df(corrected_dict)
-        plot_corrected_traces(corrected_df, analysis_dir, tag)
-        print(f"  Saved corrected_traces{tag}.png")
+        plot_corrected_traces(corrected_df, analysis_dir, '_complete')
+        print("  Saved corrected_traces_complete.png")
+    else:
+        print(f"  Skipping {lum_path} (not found)")
 
     # ── Step 2: Derivative and STD (complete cells only) ──────────────────
     corrected_complete_path = os.path.join(analysis_dir, 'luminosity_corrected_complete.json')
@@ -358,5 +378,9 @@ if __name__ == "__main__":
         df_complete = lum_dict_to_df(load_msgpack(corrected_complete_path))
         plot_avg_and_dff(df_complete, analysis_dir, args.f0_frame, stim_frames)
         print("  Saved avg_and_dff_complete.png")
+
+    # Completion marker (the TUNE_GUI progress view polls for it).
+    with open(os.path.join(analysis_dir, 'post_analysis_complete.txt'), 'w') as f:
+        f.write(time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
 
     print(f">>> Post-analysis finished for {args.exp}")

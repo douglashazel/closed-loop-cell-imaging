@@ -20,9 +20,3 @@ def traj_dict_to_df(data):
     df = pd.DataFrame(rows)
     coord_cols = sorted([c for c in df.columns if c != 'CellID'], key=lambda c: (int(c[1:]), c[0]))
     return df[['CellID'] + coord_cols].sort_values('CellID').reset_index(drop=True)
-
-def log_message(log_file_path, message, print_to_console=False):
-    with open(log_file_path, 'a') as f:
-        f.write(message + '\n')
-    if print_to_console:
-        print(message)
