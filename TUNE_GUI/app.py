@@ -1,11 +1,11 @@
-"""Flask web GUI for the Patrick cell-analysis preprocessing pipeline.
+"""Flask web GUI for the Cell Trainer preprocessing pipeline.
 
 Launch:  python TUNE_GUI/app.py
 Browse:  http://localhost:5001
 
 Ports the functionality of ../preprocess_gui.py (napari) to a browser and adds
-a "Run & Monitor" tab that launches run_processes.sh / run_post_processes.sh
-directly with the parameters the user tuned.
+a "Run & Monitor" tab that saves the tuned parameters to the experiment's
+pipeline_config.yaml and launches run_processes.sh / run_post_processes.sh on it.
 """
 
 import atexit
@@ -13,15 +13,19 @@ import hashlib
 import json
 import os
 import random
+import re
+import shlex
 import signal
 import subprocess
+import sys
 import threading
 import time
+from urllib.parse import urlsplit
 
 import numpy as np
 from flask import (
-    Flask, Response, abort, jsonify, render_template, request, send_file,
-    stream_with_context,
+    Flask, Response, abort, jsonify, make_response, render_template, request,
+    send_file, stream_with_context,
 )
 from PIL import Image
 
@@ -35,32 +39,38 @@ from pipeline_logic import (
     list_masks_in_dir,
     load_segmentation,
     normalize_gray,
-    phase_correlation_shift,
-    roi_filter,
     scan_experiments,
     split_frames_png,
+    timepoint_token,
 )
-from state import PipelineState, SessionStore, parse_config_txt
+from state import (
+    PATH_FIELDS, PipelineState, SessionStore, parse_config_txt, patch_from_config, within_root,
+)
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_HERE)
-_EXPERIMENTS_ROOT = os.path.join(_PROJECT_ROOT, "EXPERIMENTS")
+_EXPERIMENTS_ROOT = os.path.realpath(os.path.join(_PROJECT_ROOT, "EXPERIMENTS"))
 _SESSION_JSON = os.path.join(_HERE, "session.json")
 _TMP_DIR = os.path.join(_HERE, "tmp")
 _CACHE_DIR = os.path.join(_TMP_DIR, "cache")
 _PIPELINE_LOG = os.path.join(_TMP_DIR, "pipeline.log")
-_PIPELINE_SCRIPT = os.path.join(_TMP_DIR, "current_run.sh")
+
+# The pipeline_config.yaml schema the run_*.sh drivers read lives with the
+# core scripts.
+sys.path.append(os.path.join(_PROJECT_ROOT, "SCRIPTS", "core_pipeline"))
+import pipeline_config  # noqa: E402
 
 os.makedirs(_TMP_DIR, exist_ok=True)
 os.makedirs(_CACHE_DIR, exist_ok=True)
 
 # ── Global runtime state ───────────────────────────────────────────────────
-session = SessionStore(_SESSION_JSON)
+session = SessionStore(_SESSION_JSON, _EXPERIMENTS_ROOT)
 cellpose_job = CellposeJob()
 _state_lock = threading.Lock()
 
 pipeline_proc: subprocess.Popen | None = None
+pipeline_pgid: int | None = None  # outlives pipeline_proc: see api_pipeline_stop
 pipeline_started_at: float | None = None
 pipeline_kind: str | None = None  # "run_processes" | "run_post_processes"
 pipeline_log_fh = None
@@ -68,7 +78,6 @@ pipeline_log_fh = None
 dup_status = {"state": "idle", "message": "", "progress": 0, "total": 0}
 dup_thread: threading.Thread | None = None
 
-progress_cache = {"ts": 0.0, "data": None}
 stage_cache = {"sig": None, "stage": None}
 
 
@@ -78,6 +87,29 @@ app = Flask(
     template_folder=os.path.join(_HERE, "templates"),
     static_folder=os.path.join(_HERE, "static"),
 )
+
+
+@app.before_request
+def _refuse_cross_site_writes():
+    """CSRF guard: a state-changing request must be JSON and come from a page
+    this server served (Origin, else Referer, host:port equals Host). A form
+    post or fetch from another site cannot satisfy both."""
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    source = request.headers.get("Origin") or request.headers.get("Referer") or ""
+    if not request.is_json or urlsplit(source).netloc.lower() != request.host.lower():
+        return jsonify({"ok": False,
+                        "error": "refused: POST must be JSON from this app's own page"}), 403
+    return None
+
+
+def _json_body() -> dict:
+    """The request's JSON object; aborts with 400 if missing or malformed."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        abort(make_response(
+            jsonify({"ok": False, "error": "expected a JSON object body"}), 400))
+    return body
 
 
 def _cache_namespace() -> str:
@@ -139,8 +171,16 @@ def api_session_get():
 
 @app.route("/api/session", methods=["POST"])
 def api_session_post():
-    body = request.get_json(force=True) or {}
-    return jsonify(session.apply_patch(body))
+    body = _json_body()
+    blocked = sorted(set(body) & set(PATH_FIELDS))
+    if blocked:
+        return jsonify({"ok": False,
+                        "error": f"{', '.join(blocked)} can only be set by "
+                                 f"choosing an experiment"}), 400
+    try:
+        return jsonify(session.apply_patch(body))
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 
 @app.route("/api/experiments", methods=["GET"])
@@ -151,9 +191,9 @@ def api_experiments():
 
 @app.route("/api/experiment", methods=["POST"])
 def api_experiment_select():
-    body = request.get_json(force=True) or {}
+    body = _json_body()
     path = body.get("path") or ""
-    if not path:
+    if not path or not isinstance(path, str):
         return jsonify({"ok": False, "error": "path required"}), 400
 
     if cellpose_job.is_running():
@@ -165,7 +205,10 @@ def api_experiment_select():
 
     if not os.path.isabs(path):
         path = os.path.join(_PROJECT_ROOT, path)
-    path = os.path.normpath(path)
+    path = os.path.realpath(path)
+    if not within_root(path, _EXPERIMENTS_ROOT):
+        return jsonify({"ok": False,
+                        "error": f"Experiment must be inside {_EXPERIMENTS_ROOT}"}), 400
 
     frames_dir = os.path.join(path, "frames")
     masks_dir = os.path.join(path, "masks")
@@ -193,20 +236,35 @@ def api_experiment_select():
         "validation_warnings": [],
     }
 
-    # Resume-from-config prefill
-    cfg_path = os.path.join(analysis_dir, "config.txt")
-    resumed = False
+    # Stimulus frames belong to one experiment; don't carry them over.
+    patch.update({"f0_frame": 1, "stim_frames": ""})
+
+    # Resume from the experiment's pipeline_config.yaml, else from the
+    # analysis/config.txt that runs before it wrote.
+    cfg_path = os.path.join(path, pipeline_config.CONFIG_NAME)
+    prefill, config_error = {}, None
     if os.path.isfile(cfg_path):
-        prefill = parse_config_txt(cfg_path)
-        if prefill:
-            patch.update(prefill)
-            resumed = True
+        try:
+            values = pipeline_config.validate(
+                pipeline_config.read_config(cfg_path), [], cfg_path)
+            prefill = patch_from_config(values, all_frames)
+        except pipeline_config.ConfigError as e:
+            config_error = str(e)
+    elif os.path.isfile(os.path.join(analysis_dir, "config.txt")):
+        cfg_path = os.path.join(analysis_dir, "config.txt")
+        prefill = parse_config_txt(cfg_path, all_frames)
 
     session.temp_segmentation = None
     session.temp_segmentation_version += 1
     snapshot = session.apply_patch(patch)
-    snapshot["resumed_from_config"] = resumed
-    snapshot["config_txt_path"] = cfg_path if resumed else None
+    if prefill:
+        try:
+            snapshot = session.apply_patch(prefill)
+        except ValueError as e:  # e.g. a fractional shift_xy the GUI can't hold
+            config_error, prefill = f"{cfg_path}: {e}", {}
+    snapshot["resumed_from_config"] = bool(prefill)
+    snapshot["config_path"] = cfg_path if prefill else None
+    snapshot["config_error"] = config_error
     return jsonify({"ok": True, **snapshot})
 
 
@@ -306,18 +364,21 @@ def api_frames_split():
 # ═══════════════════════════════════════════════════════════════════════════
 @app.route("/api/cellpose/run", methods=["POST"])
 def api_cellpose_run():
-    body = request.get_json(force=True) or {}
-    patch = {
-        "frame_idx": int(body.get("frame_idx", session.snapshot()["frame_idx"])),
-        "flow_threshold": float(body["flow_threshold"]),
-        "cellprob_threshold": float(body["cellprob_threshold"]),
-        "niter": int(body["niter"]),
-        "diameter": int(body["diameter"]),
-    }
-    s = session.apply_patch(patch)
+    body = _json_body()
+    try:
+        patch = {
+            "frame_idx": int(body.get("frame_idx", session.snapshot()["frame_idx"])),
+            "flow_threshold": float(body["flow_threshold"]),
+            "cellprob_threshold": float(body["cellprob_threshold"]),
+            "niter": int(body["niter"]),
+            "diameter": int(body["diameter"]),
+        }
+        s = session.apply_patch(patch)
+    except (KeyError, TypeError, ValueError) as e:
+        return jsonify({"ok": False, "error": f"bad Cellpose parameters: {e}"}), 400
 
-    img = _read_frame(s["frame_idx"])
-    if img is None:
+    img_path = _frame_path(s["frame_idx"])
+    if img_path is None or not os.path.isfile(img_path):
         return jsonify({"ok": False, "error": "no frame loaded"}), 400
 
     def _on_done(masks):
@@ -340,7 +401,7 @@ def api_cellpose_run():
             print(f"[mask preview pre-render] {e}", flush=True)
 
     started = cellpose_job.start(
-        img, s["frame_idx"],
+        img_path, s["frame_idx"],
         s["flow_threshold"], s["cellprob_threshold"], s["niter"], s["diameter"],
         on_done=_on_done,
     )
@@ -358,11 +419,6 @@ def _cellpose_status_snapshot() -> dict:
     if session.temp_segmentation is not None:
         out["n_cells"] = int(session.temp_segmentation.max())
     return out
-
-
-@app.route("/api/cellpose/status", methods=["GET"])
-def api_cellpose_status():
-    return jsonify(_cellpose_status_snapshot())
 
 
 @app.route("/api/cellpose/stream", methods=["GET"])
@@ -434,59 +490,11 @@ def api_cellpose_centroids():
     })
 
 
-@app.route("/api/cellpose/stats.png", methods=["GET"])
-def api_cellpose_stats_png():
-    """Histogram of cell areas for the current temp_segmentation."""
-    seg = session.temp_segmentation
-    if seg is None:
-        abort(404)
-    cache = _cache_path("cellpose-stats", session.temp_segmentation_version)
-    if os.path.isfile(cache):
-        return _png_response(cache, max_age=3600)
-    ids = np.unique(seg)
-    ids = ids[ids != 0]
-    if len(ids) == 0:
-        abort(404)
-    areas = np.array([(seg == c).sum() for c in ids], dtype=np.int64)
-
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(5, 2.2), dpi=140)
-    ax.hist(areas, bins=30, color="#4f9aa8", edgecolor="#1d3b44")
-    ax.set_xlabel("Cell area (px)")
-    ax.set_ylabel("Count")
-    ax.set_title(f"{len(ids)} cells — mean area {areas.mean():.0f} px",
-                 fontsize=10, fontweight="bold")
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(cache, format="png", bbox_inches="tight")
-    plt.close(fig)
-    return _png_response(cache, max_age=3600)
-
-
 @app.route("/api/cellpose/review", methods=["POST"])
 def api_cellpose_review():
-    body = request.get_json(force=True) or {}
+    body = _json_body()
     reviewed = bool(body.get("reviewed", True))
     return jsonify(session.apply_patch({"segmentation_reviewed": reviewed}))
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Shift
-# ═══════════════════════════════════════════════════════════════════════════
-@app.route("/api/shift/auto", methods=["POST"])
-def api_shift_auto():
-    body = request.get_json(force=True) or {}
-    idx = int(body.get("idx", session.snapshot()["shift_frame_idx"]))
-    prev = _read_frame(idx - 1)
-    curr = _read_frame(idx)
-    if prev is None or curr is None:
-        return jsonify({"ok": False, "error": "frames unavailable"}), 400
-    dx, dy = phase_correlation_shift(prev, curr)
-    session.apply_patch({"shift_xy": (dx, dy), "shift_frame_idx": idx})
-    return jsonify({"ok": True, "dx": dx, "dy": dy})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -494,7 +502,7 @@ def api_shift_auto():
 # ═══════════════════════════════════════════════════════════════════════════
 @app.route("/api/maxdistance/compute", methods=["POST"])
 def api_maxdistance_compute():
-    body = request.get_json(force=True) or {}
+    body = _json_body()
     seg = session.temp_segmentation
     if seg is None:
         return jsonify({"ok": False,
@@ -619,65 +627,12 @@ def api_maxdistance_visualization_png():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ROI
-# ═══════════════════════════════════════════════════════════════════════════
-@app.route("/api/roi/count", methods=["POST"])
-def api_roi_count():
-    body = request.get_json(force=True) or {}
-    seg = session.temp_segmentation
-    if seg is None:
-        return jsonify({"ok": False,
-                        "error": "Run Cellpose Preview first (Tab 1)"}), 400
-
-    radius = int(body.get("radius", session.snapshot()["radius"]))
-    y_shift = int(body.get("y_shift", session.snapshot()["y_shift"]))
-    x_shift = int(body.get("x_shift", session.snapshot()["x_shift"]))
-    _, n_inside, (cx, cy) = roi_filter(seg, radius, y_shift, x_shift)
-    session.apply_patch({
-        "radius": radius,
-        "y_shift": y_shift,
-        "x_shift": x_shift,
-        "last_roi_count": n_inside,
-    })
-    h, w = seg.shape[:2]
-    return jsonify({
-        "ok": True,
-        "n_inside": n_inside,
-        "center_xy": [float(cx), float(cy)],
-        "radius": radius,
-        "image_size": [int(w), int(h)],
-    })
-
-
-@app.route("/api/roi/mask.png", methods=["GET"])
-def api_roi_mask_png():
-    seg = session.temp_segmentation
-    if seg is None:
-        abort(404)
-    s = session.snapshot()
-    alpha = int(request.args.get("alpha", 140))
-    cache = _cache_path(
-        "roi-mask",
-        session.temp_segmentation_version,
-        s["radius"],
-        s["y_shift"],
-        s["x_shift"],
-        alpha,
-    )
-    if not os.path.isfile(cache):
-        filtered, _, _ = roi_filter(seg, s["radius"], s["y_shift"], s["x_shift"])
-        rgba = colorize_labels(filtered, alpha=alpha)
-        _write_png_if_missing(cache, rgba, mode="RGBA")
-    return _png_response(cache, max_age=3600)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
 # Duplicate (Tab 6)
 # ═══════════════════════════════════════════════════════════════════════════
 @app.route("/api/duplicate/run", methods=["POST"])
 def api_duplicate_run():
     global dup_thread, dup_status
-    body = request.get_json(force=True) or {}
+    body = _json_body()
     mode = body.get("mode", "both")  # centers | masks | both
     source = body.get("source", "temp")  # temp | masks_dir
 
@@ -803,8 +758,12 @@ def _validation_state(run_mode: str = "full") -> dict:
             add("roi", True, "ROI disabled", "Pipeline will include every cell.")
         add("max_distance", float(s.get("max_distance") or 0) > 0, "Track distance set",
             f"{float(s.get('max_distance') or 0):.1f} px.")
-        add("shift", int(s.get("shift_frame_idx") or 0) >= 0, "Frame shift reviewed",
-            f"shift_frame {s.get('shift_frame_idx')}, shift_xy {s.get('shift_xy')}.")
+        shift_idx = int(s.get("shift_frame_idx") or 0)
+        shift_ok = (tuple(s.get("shift_xy") or (0, 0)) == (0, 0)
+                    or 0 <= shift_idx < len(frames))
+        add("shift", shift_ok, "Frame shift reviewed",
+            f"shift_frame {shift_idx}, shift_xy {s.get('shift_xy')}." if shift_ok else
+            f"shift_frame {shift_idx} is outside frames 0..{len(frames) - 1}.")
 
     writable = bool(save_parent and os.path.isdir(save_parent) and os.access(save_parent, os.W_OK))
     add("writable", writable, "Output folder writable",
@@ -820,194 +779,147 @@ def api_validation():
     return jsonify(_validation_state(mode))
 
 
-def _build_run_processes_script(s: dict, run_mode: str = "full") -> str:
-    """Render a shell script equivalent to run_processes.sh but with the
-    session parameters baked in. Mirrors preprocess_gui.py::_generate_script."""
-    global_dir = s["global_dir"]
-    rel_dir = os.path.relpath(global_dir, _PROJECT_ROOT)
-    shift_x, shift_y = s["shift_xy"]
-    # When the user disables the ROI, send a sentinel radius huge enough to
-    # include every cell in any plausibly-sized image so trajectories.py
-    # behaves as if no ROI filter were active.
-    effective_radius = s["radius"] if s.get("roi_enabled", True) else 999999999
-    return f"""#!/bin/bash
-set -euo pipefail
-
-cd "{_PROJECT_ROOT}"
-
-GLOBAL_DIR="{rel_dir}"
-IMAGE_DIR="${{GLOBAL_DIR}}/frames"
-MASK_DIR="${{GLOBAL_DIR}}/masks"
-SAVE_PATH="${{GLOBAL_DIR}}/analysis"
-
-SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
-SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
-
-FLOW_THRESHOLD={s['flow_threshold']}
-CELLPROB_THRESHOLD={s['cellprob_threshold']}
-NITER={s['niter']}
-DIAMETER={s['diameter']}
-
-MAX_DISTANCE={s['max_distance']:.1f}
-GRACE_PERIOD={s['grace_period']}
-RADIUS={effective_radius}
-RADIUS_Y={s['y_shift']}
-RADIUS_X={s['x_shift']}
-SHIFT_FRAME={s['shift_frame_idx']}
-SHIFT_XY="{shift_x} {shift_y}"
-SAVE_INTERVAL={s['save_interval']}
-RUN_MODE="{run_mode}"
-
-mkdir -p "$SAVE_PATH"
-CONFIG_FILE="${{SAVE_PATH}}/config.txt"
-cat > "$CONFIG_FILE" <<CFGEOF
-Run date: $(date)
-
-[PATHS]
-GLOBAL_DIR=$GLOBAL_DIR
-IMAGE_DIR=$IMAGE_DIR
-MASK_DIR=$MASK_DIR
-SAVE_PATH=$SAVE_PATH
-
-[CELLPOSE]
-FLOW_THRESHOLD=$FLOW_THRESHOLD
-CELLPROB_THRESHOLD=$CELLPROB_THRESHOLD
-NITER=$NITER
-DIAMETER=$DIAMETER
-
-[TRAJECTORIES]
-MAX_DISTANCE=$MAX_DISTANCE
-GRACE_PERIOD=$GRACE_PERIOD
-RADIUS=$RADIUS
-RADIUS_Y=$RADIUS_Y
-RADIUS_X=$RADIUS_X
-SHIFT_FRAME=$SHIFT_FRAME
-SHIFT_XY=$SHIFT_XY
-SAVE_INTERVAL=$SAVE_INTERVAL
-CFGEOF
-echo "Config saved to $CONFIG_FILE"
-
-echo "--- Accessing ${{GLOBAL_DIR}} ---"
-echo "Run mode: $RUN_MODE"
-
-if [[ "$RUN_MODE" == "preview_only" ]]; then
-    echo "Preview only: config was generated, but no analysis jobs were launched."
-else
-    PID1=""
-    if [[ "$RUN_MODE" == "full" ]]; then
-        echo ">>> STAGE: SEGMENTATION <<<"
-        python3 -u "$SCRIPT1" \\
-            --image_dir "$IMAGE_DIR" \\
-            --mask_dir "$MASK_DIR" \\
-            --flow_threshold "$FLOW_THRESHOLD" \\
-            --cellprob_threshold "$CELLPROB_THRESHOLD" \\
-            --niter "$NITER" \\
-            --diameter "$DIAMETER" &
-        PID1=$!
-        sleep 5
-    else
-        echo ">>> STAGE: SEGMENTATION <<<"
-        echo "Skipping segmentation; using existing mask files in $MASK_DIR"
-    fi
-
-    echo ">>> STAGE: TRAJECTORIES <<<"
-    python3 -u "$SCRIPT2" \\
-        --mask_dir "$MASK_DIR" \\
-        --image_dir "$IMAGE_DIR" \\
-        --save_path "$SAVE_PATH" \\
-        --max_distance "$MAX_DISTANCE" \\
-        --grace_period "$GRACE_PERIOD" \\
-        --radius "$RADIUS" \\
-        --radius_y "$RADIUS_Y" \\
-        --radius_x "$RADIUS_X" \\
-        --shift_frame "$SHIFT_FRAME" \\
-        --shift_xy $SHIFT_XY \\
-        --save_interval "$SAVE_INTERVAL" &
-    PID2=$!
-
-    if [[ -n "$PID1" ]]; then
-        wait "$PID1"
-    fi
-    wait "$PID2"
-
-    echo ">>> STAGE: PRE-ANALYSIS <<<"
-    python3 -u SCRIPTS/core_pipeline/PreAnalysis.py \\
-        --exp "$GLOBAL_DIR" \\
-        --analysis_dir "$SAVE_PATH"
-fi
-
-echo ">>> DONE <<<"
-"""
+_RUN_MODES = ("full", "existing_masks", "preview_only", "post")
 
 
-def _build_run_post_processes_script(s: dict, f0_frame: int, stim_frames: str) -> str:
-    global_dir = s["global_dir"]
-    rel_dir = os.path.relpath(global_dir, _PROJECT_ROOT)
-    return f"""#!/bin/bash
-set -euo pipefail
+def _frame_token(frames: list, idx: int) -> int:
+    """Map a 0-based position in the sorted frame list to that frame's
+    timepoint_NNNNN token, which is what trajectories.py --shift_frame and
+    PostAnalysis.py --f0_frame compare against."""
+    if not 0 <= idx < len(frames):
+        raise ValueError(f"frame index {idx} is outside 0..{len(frames) - 1}")
+    token = timepoint_token(frames[idx])
+    if token < 0:
+        raise ValueError(f"{frames[idx]} has no timepoint_NNNNN token")
+    return token
 
-cd "{_PROJECT_ROOT}"
 
-GLOBAL_DIR="{rel_dir}"
-IMAGE_DIR="${{GLOBAL_DIR}}/frames"
-ANALYSIS_DIR="${{GLOBAL_DIR}}/analysis"
+def _check_stim_frames(text: str) -> str:
+    """Comma-separated frame numbers (whitespace ignored); "" means none."""
+    stim = re.sub(r"\s+", "", str(text))
+    if stim and not re.fullmatch(r"\d+(,\d+)*", stim):
+        raise ValueError(f"stim_frames must be comma-separated frame numbers, "
+                         f"got {text!r:.80}")
+    return stim
 
-F0_FRAME={f0_frame}
-STIM_FRAMES="{stim_frames}"
 
-echo "--- Accessing ${{GLOBAL_DIR}} ---"
-echo ">>> STAGE: POST-ANALYSIS <<<"
-python3 -u SCRIPTS/core_pipeline/PostAnalysis.py \\
-    --exp "$GLOBAL_DIR" \\
-    --image_dir "$IMAGE_DIR" \\
-    --analysis_dir "$ANALYSIS_DIR" \\
-    --f0_frame "$F0_FRAME" \\
-    --stim_frames "$STIM_FRAMES"
+def _config_updates(s: dict) -> dict:
+    """The session's parameters as pipeline_config.yaml sections. Frame
+    positions become timepoint_NNNNN tokens, which is what trajectories.py
+    --shift_frame and PostAnalysis.py --f0_frame compare against.
 
-echo ">>> DONE <<<"
-"""
+    Raises ValueError/TypeError/KeyError if the session holds something
+    unusable (the calling route returns 400)."""
+    frames = s["all_frames"]
+    shift_x, shift_y = (int(v) for v in s["shift_xy"])
+    shift_idx = int(s["shift_frame_idx"])
+    if (shift_x, shift_y) == (0, 0) and not 0 <= shift_idx < len(frames):
+        # No shift to apply, so the frame is moot (e.g. the "1000" sentinel
+        # resumed from an old config); pass it through unchanged.
+        shift_frame = shift_idx
+    else:
+        shift_frame = _frame_token(frames, shift_idx)
+    stim = _check_stim_frames(s.get("stim_frames", ""))
+    return {
+        "segmentation": {
+            "flow_threshold": float(s["flow_threshold"]),
+            "cellprob_threshold": float(s["cellprob_threshold"]),
+            "niter": int(s["niter"]),
+            "diameter": int(s["diameter"]),
+        },
+        "tracking": {
+            "max_distance": round(float(s["max_distance"]), 1),
+            "grace_period": int(s["grace_period"]),
+            # trajectories.py treats radius 0 as "no ROI filter".
+            "radius": int(s["radius"]) if s.get("roi_enabled", True) else 0,
+            "radius_y": int(s["y_shift"]),
+            "radius_x": int(s["x_shift"]),
+            "shift_frame": shift_frame,
+            "shift_xy": [shift_x, shift_y],
+            "save_interval": int(s["save_interval"]),
+        },
+        "post_analysis": {
+            "f0_frame": _frame_token(frames, int(s["f0_frame"])),
+            "stim_frames": [int(x) for x in stim.split(",")] if stim else [],
+        },
+    }
+
+
+def _config_path(s: dict) -> str:
+    return os.path.join(s["global_dir"], pipeline_config.CONFIG_NAME)
+
+
+def _driver_command(s: dict, kind: str, run_mode: str) -> list:
+    """The run_*.sh call for this run, from the project root."""
+    exp = os.path.relpath(s["global_dir"], _PROJECT_ROOT)
+    if kind == "run_post_processes":
+        return ["bash", "run_post_processes.sh", exp]
+    if run_mode == "full":
+        return ["bash", "run_processes.sh", exp]
+    return ["bash", "run_processes.sh", "--skip-segmentation", exp]
+
+
+def _pipeline_group_alive() -> bool:
+    """True while any process in the last run's process group is alive.
+    bash can exit before its children (trajectories.py polling for masks),
+    so pipeline_proc.poll() alone is not enough."""
+    global pipeline_pgid
+    pgid = pipeline_pgid
+    if pgid is None:
+        return False
+    if pipeline_proc is not None:
+        pipeline_proc.poll()  # reap bash so a zombie leader does not count
+    try:
+        os.killpg(pgid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        if pipeline_pgid == pgid:
+            pipeline_pgid = None  # never signal the id once it is recycled
+        return False
 
 
 @app.route("/api/pipeline/run", methods=["POST"])
 def api_pipeline_run():
-    global pipeline_proc, pipeline_started_at, pipeline_kind, pipeline_log_fh
-    body = request.get_json(force=True) or {}
+    global pipeline_proc, pipeline_pgid, pipeline_started_at, pipeline_kind, pipeline_log_fh
+    body = _json_body()
     kind = body.get("kind", "run_processes")
     run_mode = body.get("run_mode", "full")
     if kind not in ("run_processes", "run_post_processes"):
         return jsonify({"ok": False, "error": f"unknown kind: {kind}"}), 400
-    if run_mode not in ("full", "existing_masks", "preview_only", "post"):
+    if run_mode not in _RUN_MODES:
         return jsonify({"ok": False, "error": f"unknown run_mode: {run_mode}"}), 400
 
     with _state_lock:
-        if pipeline_proc is not None and pipeline_proc.poll() is None:
+        if _pipeline_group_alive():
             return jsonify({"ok": False, "error": "already running",
-                            "pid": pipeline_proc.pid})
+                            "pid": pipeline_pgid})
 
         s = session.snapshot()
         if not s.get("global_dir"):
             return jsonify({"ok": False, "error": "no experiment loaded"}), 400
         session.apply_patch({"last_run_mode": run_mode})
 
-        if kind == "run_processes":
-            validation = _validation_state(run_mode)
+        try:
+            if kind == "run_post_processes":
+                f0 = int(body.get("f0_frame", s.get("f0_frame", 1)))
+                stim = str(body.get("stim_frames", s.get("stim_frames", "")))
+                s = session.apply_patch({"f0_frame": f0, "stim_frames": stim})
+            validation = _validation_state("post" if kind == "run_post_processes" else run_mode)
             if not validation["ok"]:
                 return jsonify({"ok": False, "error": "validation failed",
                                 "validation": validation}), 400
-            script_text = _build_run_processes_script(s, run_mode)
-        else:
-            f0 = int(body.get("f0_frame", s.get("f0_frame", 1)))
-            stim = str(body.get("stim_frames", s.get("stim_frames", "")))
-            session.apply_patch({"f0_frame": f0, "stim_frames": stim})
-            validation = _validation_state("post")
-            if not validation["ok"]:
-                return jsonify({"ok": False, "error": "validation failed",
-                                "validation": validation}), 400
-            script_text = _build_run_post_processes_script(s, f0, stim)
+            # Every run, and "Save config only", saves the parameters first;
+            # the driver then reads them from this file.
+            cfg_path = _config_path(s)
+            pipeline_config.write_config(cfg_path, _config_updates(s), "TUNE_GUI")
+        except (KeyError, TypeError, ValueError, pipeline_config.ConfigError) as e:
+            return jsonify({"ok": False, "error": str(e)}), 400
+        except OSError as e:
+            return jsonify({"ok": False, "error": f"could not save the config: {e}"}), 400
 
-        with open(_PIPELINE_SCRIPT, "w") as f:
-            f.write(script_text)
-        os.chmod(_PIPELINE_SCRIPT, 0o755)
+        if kind == "run_processes" and run_mode == "preview_only":
+            return jsonify({"ok": True, "saved_only": True, "config_path": cfg_path})
+        cmd = _driver_command(s, kind, run_mode)
 
         # Truncate log
         if pipeline_log_fh is not None:
@@ -1016,46 +928,51 @@ def api_pipeline_run():
             except Exception:
                 pass
         pipeline_log_fh = open(_PIPELINE_LOG, "w")
-        pipeline_log_fh.write(f"=== {kind} started at {time.ctime()} ===\n")
+        pipeline_log_fh.write(f"=== {kind} started at {time.ctime()} ===\n"
+                              f"$ {shlex.join(cmd)}\n")
         pipeline_log_fh.flush()
 
         pipeline_proc = subprocess.Popen(
-            ["bash", _PIPELINE_SCRIPT],
+            cmd,
             cwd=_PROJECT_ROOT,
             stdout=pipeline_log_fh,
             stderr=subprocess.STDOUT,
             preexec_fn=os.setsid,
         )
+        pipeline_pgid = pipeline_proc.pid  # setsid: bash leads its own group
         pipeline_started_at = time.time()
         pipeline_kind = run_mode if kind == "run_processes" else "post"
         return jsonify({"ok": True, "pid": pipeline_proc.pid,
                         "kind": kind, "run_mode": run_mode,
-                        "script": _PIPELINE_SCRIPT})
+                        "config_path": cfg_path, "command": shlex.join(cmd)})
 
 
 @app.route("/api/pipeline/stop", methods=["POST"])
 def api_pipeline_stop():
-    global pipeline_proc, pipeline_log_fh
+    global pipeline_proc, pipeline_pgid, pipeline_log_fh
     with _state_lock:
-        if pipeline_proc is None or pipeline_proc.poll() is not None:
+        # Signal the stored group even if bash itself has already exited.
+        pgid = pipeline_pgid
+        if not _pipeline_group_alive():
             return jsonify({"ok": False, "error": "not running"})
         try:
-            os.killpg(os.getpgid(pipeline_proc.pid), signal.SIGTERM)
+            os.killpg(pgid, signal.SIGTERM)
         except ProcessLookupError:
             pass
         for _ in range(30):
-            if pipeline_proc.poll() is not None:
+            if not _pipeline_group_alive():
                 break
             time.sleep(0.1)
         else:
             try:
-                os.killpg(os.getpgid(pipeline_proc.pid), signal.SIGKILL)
+                os.killpg(pgid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
         if pipeline_log_fh is not None:
             pipeline_log_fh.write(f"\n=== STOPPED at {time.ctime()} ===\n")
             pipeline_log_fh.flush()
         pipeline_proc = None
+        pipeline_pgid = None
         return jsonify({"ok": True})
 
 
@@ -1075,13 +992,11 @@ def _pipeline_status_snapshot() -> dict:
         out.update({"running": True, "pid": pipeline_proc.pid})
     else:
         out.update({"pid": pipeline_proc.pid, "exit_code": rc})
+        # bash exited but a child may still run; keep Stop available.
+        if _pipeline_group_alive():
+            out["running"] = True
     out["stage"] = _infer_stage()
     return out
-
-
-@app.route("/api/pipeline/status", methods=["GET"])
-def api_pipeline_status():
-    return jsonify(_pipeline_status_snapshot())
 
 
 def _pipeline_progress_snapshot() -> dict:
@@ -1094,16 +1009,16 @@ def _pipeline_progress_snapshot() -> dict:
     if masks_dir and os.path.isdir(masks_dir):
         n_masks = sum(1 for f in os.listdir(masks_dir) if f.endswith(".npy"))
 
+    # trajectories.py writes trajectories.json at every checkpoint and
+    # trajectories_complete.json only once all frames are tracked.
     traj_pct = 0.0
-    lumi_path = os.path.join(save_path, "luminosity.json")
-    if os.path.isfile(lumi_path):
+    if os.path.isfile(os.path.join(save_path, "trajectories_complete.json")):
         traj_pct = 100.0
-    else:
-        lumi_partial = os.path.join(save_path, "luminosity_partial.json")
-        if os.path.isfile(lumi_partial):
-            traj_pct = 50.0
+    elif os.path.isfile(os.path.join(save_path, "trajectories.json")):
+        traj_pct = 50.0
 
     pre_done = os.path.isdir(os.path.join(save_path, "plots"))
+    # Written by PostAnalysis.py as its last step.
     post_done = os.path.isfile(os.path.join(save_path, "post_analysis_complete.txt"))
     return {
         "total_frames": total,
@@ -1245,34 +1160,6 @@ def _infer_stage() -> str | None:
     return None
 
 
-@app.route("/api/pipeline/log", methods=["GET"])
-def api_pipeline_log():
-    pos = int(request.args.get("pos", 0))
-    if not os.path.isfile(_PIPELINE_LOG):
-        return jsonify({"text": "", "pos": 0, "exists": False})
-    try:
-        size = os.path.getsize(_PIPELINE_LOG)
-        if pos > size:
-            pos = 0
-        with open(_PIPELINE_LOG, "r") as f:
-            f.seek(pos)
-            text = f.read()
-            new_pos = f.tell()
-        return jsonify({"text": text, "pos": new_pos, "exists": True})
-    except Exception as e:
-        return jsonify({"text": "", "pos": pos, "exists": True, "error": str(e)})
-
-
-@app.route("/api/pipeline/progress", methods=["GET"])
-def api_pipeline_progress():
-    now = time.time()
-    if progress_cache["data"] is not None and now - progress_cache["ts"] < 1.5:
-        return jsonify(progress_cache["data"])
-    data = _pipeline_progress_snapshot()
-    progress_cache.update({"ts": now, "data": data})
-    return jsonify(data)
-
-
 @app.route("/api/pipeline/luminosity.png", methods=["GET"])
 def api_pipeline_luminosity_png():
     """Render matplotlib plot of the in-progress luminosity.json if available."""
@@ -1281,7 +1168,6 @@ def api_pipeline_luminosity_png():
     candidates = [
         os.path.join(save_path, "luminosity_complete.json"),
         os.path.join(save_path, "luminosity.json"),
-        os.path.join(save_path, "luminosity_partial.json"),
     ]
     path = next((p for p in candidates if os.path.isfile(p)), None)
     if path is None:
@@ -1305,26 +1191,33 @@ def api_pipeline_luminosity_png():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(7, 3), dpi=140)
-    if isinstance(data, dict) and data:
-        # data is typically {cell_id: [luminosity_per_frame]}
-        n_cells = 0
-        for cid, trace in list(data.items())[:200]:
-            if not isinstance(trace, (list, tuple)):
+    # trajectories.py writes {cell_id: {"f<frame>": value or None}}. Cells
+    # first seen mid-run have no keys for earlier frames, so place each
+    # value by its frame number, not by list position.
+    traces = []
+    if isinstance(data, dict):
+        for trace in data.values():
+            if not isinstance(trace, dict):
                 continue
-            ax.plot(trace, linewidth=0.6, alpha=0.4)
-            n_cells += 1
-        if n_cells:
-            arr = []
-            for trace in data.values():
-                if isinstance(trace, (list, tuple)):
-                    arr.append(list(trace))
-            if arr:
-                min_len = min(len(x) for x in arr)
-                mat = np.array([x[:min_len] for x in arr], dtype=np.float32)
-                ax.plot(mat.mean(axis=0), linewidth=1.8, color="black",
-                        label="mean")
-                ax.legend(loc="upper right", fontsize=8)
+            pts = sorted((int(k[1:]), float(v)) for k, v in trace.items()
+                         if v is not None and k[1:].isdigit())
+            if pts:
+                traces.append(pts)
+
+    fig, ax = plt.subplots(figsize=(7, 3), dpi=140)
+    if traces:
+        n_cells = len(traces)
+        for pts in traces[:200]:
+            ax.plot(*zip(*pts), linewidth=0.6, alpha=0.4)
+        frames = sorted({f for pts in traces for f, _ in pts})
+        col = {f: i for i, f in enumerate(frames)}
+        mat = np.full((n_cells, len(frames)), np.nan, dtype=np.float32)
+        for row, pts in enumerate(traces):
+            for f, v in pts:
+                mat[row, col[f]] = v
+        ax.plot(frames, np.nanmean(mat, axis=0), linewidth=1.8, color="black",
+                label="mean")
+        ax.legend(loc="upper right", fontsize=8)
         ax.set_title(f"Luminosity — {n_cells} cells (live)",
                      fontsize=10, fontweight="bold")
     else:
@@ -1342,33 +1235,39 @@ def api_pipeline_luminosity_png():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Script preview (Tab 7 summary / export)
+# Config preview (Tab 7 summary)
 # ═══════════════════════════════════════════════════════════════════════════
-@app.route("/api/script/preview", methods=["GET"])
-def api_script_preview():
+@app.route("/api/config/preview", methods=["GET"])
+def api_config_preview():
+    """The pipeline_config.yaml a run would save, and the command it would
+    launch, without writing anything."""
     kind = request.args.get("kind", "run_processes")
     run_mode = request.args.get("run_mode", session.snapshot().get("last_run_mode", "full"))
+    if run_mode not in _RUN_MODES:
+        return jsonify({"ok": False, "error": f"unknown run_mode: {run_mode}"}), 400
     s = session.snapshot()
     if not s.get("global_dir"):
         return jsonify({"ok": False, "error": "no experiment"}), 400
-    if kind == "run_post_processes":
-        text = _build_run_post_processes_script(
-            s, s.get("f0_frame", 1), s.get("stim_frames", ""),
-        )
-    else:
-        text = _build_run_processes_script(s, run_mode)
-    return jsonify({"ok": True, "script": text})
+    cfg_path = _config_path(s)
+    try:
+        text = pipeline_config.render_config(cfg_path, _config_updates(s), "TUNE_GUI")
+    except (KeyError, TypeError, ValueError, pipeline_config.ConfigError) as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    command = None
+    if not (kind == "run_processes" and run_mode == "preview_only"):
+        command = shlex.join(_driver_command(s, kind, run_mode))
+    return jsonify({"ok": True, "config_path": cfg_path, "config": text, "command": command})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Cleanup
 # ═══════════════════════════════════════════════════════════════════════════
 def _cleanup():
-    global pipeline_proc
-    if pipeline_proc is not None and pipeline_proc.poll() is None:
+    pgid = pipeline_pgid
+    if _pipeline_group_alive():
         print("[web gui] cleaning up pipeline subprocess", flush=True)
         try:
-            os.killpg(os.getpgid(pipeline_proc.pid), signal.SIGTERM)
+            os.killpg(pgid, signal.SIGTERM)
         except ProcessLookupError:
             pass
 
@@ -1377,6 +1276,8 @@ atexit.register(_cleanup)
 
 
 if __name__ == "__main__":
+    # Loopback only by default; HOST=0.0.0.0 exposes it to the network.
+    host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 5001))
-    print(f"[web gui] starting on http://0.0.0.0:{port}", flush=True)
-    app.run(host="0.0.0.0", port=port, threaded=True, debug=False, use_reloader=False)
+    print(f"[web gui] starting on http://{host}:{port}", flush=True)
+    app.run(host=host, port=port, threaded=True, debug=False, use_reloader=False)

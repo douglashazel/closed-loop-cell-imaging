@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cell Analysis — Preprocessing</title>
+<title>Cell Trainer — Preprocessing</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
     <div class="brand">
       <div class="brand-mark"></div>
       <span>Preprocess</span>
-      <small>Patrick · Cell Analysis</small>
+      <small>Cell Trainer · Tune</small>
     </div>
 
     <nav class="tabs">
@@ -48,7 +48,7 @@
           <div>
             <div class="eyebrow">First run guide</div>
             <h1>Load an experiment, tune one representative frame, then run the analysis.</h1>
-            <p>Expected layout: an experiment folder with <code>frames/</code>, optional <code>masks/</code>, and an <code>analysis/</code> folder that will hold outputs. Prior <code>analysis/config.txt</code> files are reused automatically.</p>
+            <p>Expected layout: an experiment folder with <code>frames/</code>, optional <code>masks/</code>, and an <code>analysis/</code> folder that will hold outputs. A saved <code>pipeline_config.yaml</code> (or an older <code>analysis/config.txt</code>) is loaded automatically.</p>
           </div>
           <div class="help-steps">
             <span>1. Choose data</span>
@@ -257,6 +257,12 @@
                 <input type="number" id="md-value" step="0.1" value="30" />
               </div>
               <div class="field">
+                <label class="lbl">Missed-frame tolerance (grace_period)
+                  <span class="help" data-tip="How many frames back trajectories.py looks to re-link a cell that was not detected in the frames in between.">?</span>
+                </label>
+                <input type="number" id="md-grace" min="0" step="1" value="3" />
+              </div>
+              <div class="field">
                 <label class="lbl">Sample result</label>
                 <input type="text" id="md-stats" readonly />
               </div>
@@ -369,7 +375,7 @@
           <div class="card-head">
             <h2>Summary</h2>
             <div class="row-inline">
-              <button class="btn btn-ghost" id="btn-preview-script">Preview script</button>
+              <button class="btn btn-ghost" id="btn-preview-config">Preview config</button>
               <button class="btn" id="btn-copy-summary">Copy</button>
             </div>
           </div>
@@ -381,7 +387,7 @@
         <div class="card">
           <div class="card-head">
             <h2>Launch Pipeline</h2>
-            <div class="sub">Runs segmentation + trajectories in parallel, then pre-analysis</div>
+            <div class="sub">Saves pipeline_config.yaml in the experiment folder, then runs run_processes.sh (or run_post_processes.sh) on it</div>
           </div>
           <div class="card-body">
             <div class="field-grid">
@@ -391,7 +397,7 @@
                   <option value="full">Full analysis</option>
                   <option value="existing_masks">Use existing masks</option>
                   <option value="post">Post-analysis only</option>
-                  <option value="preview_only">Preview only</option>
+                  <option value="preview_only">Save config only</option>
                 </select>
               </div>
             </div>

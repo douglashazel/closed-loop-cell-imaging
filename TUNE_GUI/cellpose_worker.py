@@ -51,7 +51,7 @@ class CellposeJob:
         with self.lock:
             return self.thread is not None and self.thread.is_alive()
 
-    def start(self, img: np.ndarray, frame_idx: int,
+    def start(self, img_path: str, frame_idx: int,
               flow_threshold: float, cellprob_threshold: float,
               niter: int, diameter: int, on_done=None):
         with self.lock:
@@ -69,17 +69,23 @@ class CellposeJob:
             self.status_version += 1
             self.thread = threading.Thread(
                 target=self._run,
-                args=(img, frame_idx, flow_threshold, cellprob_threshold,
+                args=(img_path, frame_idx, flow_threshold, cellprob_threshold,
                       niter, diameter, on_done),
                 daemon=True,
             )
             self.thread.start()
             return True
 
-    def _run(self, img, frame_idx, flow_threshold, cellprob_threshold,
+    def _run(self, img_path, frame_idx, flow_threshold, cellprob_threshold,
              niter, diameter, on_done):
         try:
             model = get_model()
+            # Read the frame exactly as SCRIPTS/core_pipeline/segmentation.py
+            # does, so preview and batch hand Cellpose the same array.
+            from cellpose import io as cp_io
+            img = cp_io.imread(img_path)
+            if img is None:
+                raise ValueError(f"could not read {img_path}")
             with self.lock:
                 self.status["message"] = "Segmenting..."
                 self.status_version += 1

@@ -67,6 +67,9 @@ function onTabChange(tab) {
 }
 
 // ── Fetch helpers ───────────────────────────────────────────────────────
+function escapeHtml(text) {
+  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 async function jget(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} → ${r.status}`);
@@ -99,6 +102,7 @@ function syncFormsFromSession() {
   $("sh-frame").value    = session.shift_frame_idx;
   $("sh-result").textContent = `shift_xy = (${session.shift_xy[0]}, ${session.shift_xy[1]})`;
   $("md-value").value    = session.max_distance.toFixed(1);
+  $("md-grace").value    = session.grace_period;
   $("roi-radius").value  = session.radius;
   $("roi-y").value       = session.y_shift;
   $("roi-x").value       = session.x_shift;
@@ -112,7 +116,12 @@ function syncFormsFromSession() {
 }
 
 async function patchSession(patch) {
-  session = await jpost("/api/session", patch);
+  const res = await jpost("/api/session", patch);
+  if (res.ok === false) {  // a session snapshot has no "ok" key
+    alert(res.error || "Could not save setting");
+    return;
+  }
+  session = res;
   refreshRail();
 }
 
@@ -185,7 +194,11 @@ async function loadExperiment(path) {
   if (res.resumed_from_config) {
     const b = $("exp-banner");
     b.style.display = "block";
-    b.innerHTML = `✓ Resumed parameters from <code>${res.config_txt_path}</code>`;
+    b.innerHTML = `✓ Resumed parameters from <code>${escapeHtml(res.config_path)}</code>`;
+  } else if (res.config_error) {
+    const b = $("exp-banner");
+    b.style.display = "block";
+    b.innerHTML = `⚠ Could not load the saved config. Fix the file, then choose the experiment again.<pre>${escapeHtml(res.config_error)}</pre>`;
   }
 
   syncFormsFromSession();
@@ -552,6 +565,8 @@ $("btn-md-compute").addEventListener("click", () => mdCompute());
 $("btn-md-resample").addEventListener("click", () => mdCompute());
 $("md-value").addEventListener("change", () =>
   patchSession({ max_distance: parseFloat($("md-value").value) }));
+$("md-grace").addEventListener("change", () =>
+  patchSession({ grace_period: parseInt($("md-grace").value, 10) }));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tab 5 · ROI
@@ -768,15 +783,24 @@ function refreshSummary() {
 $("btn-copy-summary").addEventListener("click", () => {
   navigator.clipboard.writeText($("run-summary").textContent);
 });
-$("btn-preview-script").addEventListener("click", async () => {
+$("btn-preview-config").addEventListener("click", async () => {
   const mode = $("run-mode").value;
   const kind = mode === "post" ? "run_post_processes" : "run_processes";
-  const res = await jget(`/api/script/preview?kind=${kind}&run_mode=${mode}`);
+  // Not jget: a 400 carries the reason (e.g. invalid stim_frames) in its body.
+  const res = await (await fetch(`/api/config/preview?kind=${kind}&run_mode=${mode}`)).json();
   if (!res.ok) { alert(res.error); return; }
+  const command = res.command ? `# Launches (from the project root):\n#   ${res.command}\n\n` : "";
   const w = window.open("", "_blank");
-  w.document.write(`<pre style="font-family:monospace;padding:20px">${
-    res.script.replace(/</g, "&lt;")}</pre>`);
+  w.document.write(`<pre style="font-family:monospace;padding:20px">${escapeHtml(
+    `${command}# ${res.config_path}\n${res.config}`)}</pre>`);
 });
+
+// Post-analysis fields go into pipeline_config.yaml with the rest, so keep
+// the session (and the preview) in step with them.
+$("pa-f0").addEventListener("change", () =>
+  patchSession({ f0_frame: parseInt($("pa-f0").value, 10) }));
+$("pa-stim").addEventListener("change", () =>
+  patchSession({ stim_frames: $("pa-stim").value }));
 
 $("btn-run-pipeline").addEventListener("click", () => runSelectedMode());
 $("run-mode").addEventListener("change", async () => {
@@ -826,6 +850,10 @@ async function runPipeline(kind, runMode) {
   if (!res.ok) {
     if (res.validation) refreshValidation();
     alert(res.error || "Could not start pipeline");
+    return;
+  }
+  if (res.saved_only) {
+    appendLog(`Saved ${res.config_path}\n`);
     return;
   }
   pipelineRunning = true;

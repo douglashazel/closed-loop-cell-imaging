@@ -1,5 +1,11 @@
 """
-napari-based preprocessing GUI for the cell analysis pipeline.
+napari-based preprocessing GUI for the Cell Trainer pipeline.
+
+DEPRECATED: use the browser GUI in TUNE_GUI/ (``python TUNE_GUI/app.py``),
+which covers the same tuning steps and is the one that is maintained. This GUI
+duplicates TUNE_GUI/pipeline_logic.py and has drifted from it. Its Run step
+stops segmentation after 2 h (``timeout=7200``) and then still runs tracking
+on whatever masks exist.
 
 Launch:  python preprocess_gui.py
 """
@@ -26,6 +32,11 @@ from qtpy.QtGui import QFont
 from scipy.spatial import Delaunay
 from scipy.ndimage import center_of_mass
 from PIL import Image as PILImage
+
+# pipeline_config.py (the YAML the run_*.sh drivers read) lives with the core scripts.
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "SCRIPTS", "core_pipeline"))
+import pipeline_config  # noqa: E402
 
 SPIN_MAX_WIDTH = 120  # keep spinboxes compact in the dock panel
 
@@ -807,9 +818,10 @@ class SummaryTab(QWidget):
         run_group = QGroupBox("Export & Run")
         run_layout = QVBoxLayout(run_group)
 
-        self.btn_export = QPushButton("Export Shell Script")
-        self.btn_export.setToolTip("Save a customised run_processes.sh")
-        self.btn_export.clicked.connect(self._export_script)
+        self.btn_export = QPushButton("Save pipeline_config.yaml")
+        self.btn_export.setToolTip(
+            "Save the parameters to the experiment folder for run_processes.sh")
+        self.btn_export.clicked.connect(self._save_config)
         run_layout.addWidget(self.btn_export)
 
         self.chk_seg = QCheckBox("Run Segmentation")
@@ -874,145 +886,50 @@ class SummaryTab(QWidget):
         self.refresh()
         QApplication.clipboard().setText(self.txt_summary.toPlainText())
 
-    def _generate_script(self):
+    def _config_updates(self):
         s = self.state
-        rel_dir = os.path.relpath(s.global_dir, os.path.dirname(__file__))
-        return f"""#!/bin/bash
-set -euo pipefail
+        # trajectories.py keys frames on their timepoint_NNNNN token, not on
+        # the position in the frame list.
+        shift_frame = s.shift_frame_idx
+        if 0 <= s.shift_frame_idx < len(s.all_frames):
+            m = re.search(r'timepoint_(\d+)', s.all_frames[s.shift_frame_idx])
+            if m:
+                shift_frame = int(m.group(1))
+        return {
+            "segmentation": {
+                "flow_threshold": float(s.flow_threshold),
+                "cellprob_threshold": float(s.cellprob_threshold),
+                "niter": int(s.niter),
+                "diameter": int(s.diameter),
+            },
+            "tracking": {
+                "max_distance": round(float(s.max_distance), 1),
+                "grace_period": int(s.grace_period),
+                "radius": int(s.radius),
+                "radius_y": int(s.y_shift),
+                "radius_x": int(s.x_shift),
+                "shift_frame": shift_frame,
+                "shift_xy": [int(s.shift_xy[0]), int(s.shift_xy[1])],
+                "save_interval": int(s.save_interval),
+            },
+        }
 
-# -----------------------------
-# PATHS
-# -----------------------------
-GLOBAL_DIR="{rel_dir}"
-IMAGE_DIR="${{GLOBAL_DIR}}/frames"
-MASK_DIR="${{GLOBAL_DIR}}/masks"
-SAVE_PATH="${{GLOBAL_DIR}}/analysis"
-
-SCRIPT1="SCRIPTS/core_pipeline/segmentation.py"
-SCRIPT2="SCRIPTS/core_pipeline/trajectories.py"
-
-# -----------------------------
-# CELLPOSE PARAMETERS
-# -----------------------------
-FLOW_THRESHOLD={s.flow_threshold}
-CELLPROB_THRESHOLD={s.cellprob_threshold}
-NITER={s.niter}
-DIAMETER={s.diameter}
-
-# -----------------------------
-# TRAJECTORY PARAMETERS
-# -----------------------------
-MAX_DISTANCE={s.max_distance:.1f}
-GRACE_PERIOD={s.grace_period}
-RADIUS={s.radius}
-RADIUS_Y={s.y_shift}
-RADIUS_X={s.x_shift}
-SHIFT_FRAME={s.shift_frame_idx}
-SHIFT_XY="{s.shift_xy[0]} {s.shift_xy[1]}"
-SAVE_INTERVAL={s.save_interval}
-
-# -----------------------------
-# Ensure scripts exist
-# -----------------------------
-if [[ ! -f "$SCRIPT1" || ! -f "$SCRIPT2" ]]; then
-    echo "One or more scripts not found."
-    exit 1
-fi
-
-# -----------------------------
-# Log config
-# -----------------------------
-mkdir -p "$SAVE_PATH"
-CONFIG_FILE="${{SAVE_PATH}}/config.txt"
-cat > "$CONFIG_FILE" <<CFGEOF
-Run date: $(date)
-
-[PATHS]
-GLOBAL_DIR=$GLOBAL_DIR
-IMAGE_DIR=$IMAGE_DIR
-MASK_DIR=$MASK_DIR
-SAVE_PATH=$SAVE_PATH
-
-[CELLPOSE]
-FLOW_THRESHOLD=$FLOW_THRESHOLD
-CELLPROB_THRESHOLD=$CELLPROB_THRESHOLD
-NITER=$NITER
-DIAMETER=$DIAMETER
-
-[TRAJECTORIES]
-MAX_DISTANCE=$MAX_DISTANCE
-GRACE_PERIOD=$GRACE_PERIOD
-RADIUS=$RADIUS
-RADIUS_Y=$RADIUS_Y
-RADIUS_X=$RADIUS_X
-SHIFT_FRAME=$SHIFT_FRAME
-SHIFT_XY=$SHIFT_XY
-SAVE_INTERVAL=$SAVE_INTERVAL
-CFGEOF
-echo "Config saved to $CONFIG_FILE"
-
-echo "--- Accessing ${{GLOBAL_DIR}} ---"
-
-# -----------------------------
-# Run segmentation
-# -----------------------------
-echo "Starting cellpose segmentation..."
-python3 "$SCRIPT1" \\
-    --image_dir "$IMAGE_DIR" \\
-    --mask_dir "$MASK_DIR" \\
-    --flow_threshold "$FLOW_THRESHOLD" \\
-    --cellprob_threshold "$CELLPROB_THRESHOLD" \\
-    --niter "$NITER" \\
-    --diameter "$DIAMETER" &
-PID1=$!
-
-sleep 5
-
-# -----------------------------
-# Run trajectory processing
-# -----------------------------
-echo "Starting trajectory processing..."
-python3 "$SCRIPT2" \\
-    --mask_dir "$MASK_DIR" \\
-    --image_dir "$IMAGE_DIR" \\
-    --save_path "$SAVE_PATH" \\
-    --max_distance "$MAX_DISTANCE" \\
-    --grace_period "$GRACE_PERIOD" \\
-    --radius "$RADIUS" \\
-    --radius_y "$RADIUS_Y" \\
-    --radius_x "$RADIUS_X" \\
-    --shift_frame "$SHIFT_FRAME" \\
-    --shift_xy $SHIFT_XY \\
-    --save_interval "$SAVE_INTERVAL" &
-PID2=$!
-
-wait $PID1 $PID2
-
-# -----------------------------
-# Pre-analysis plots
-# -----------------------------
-echo ">>> Running pre-analysis plots for ${{GLOBAL_DIR}}"
-python3 SCRIPTS/core_pipeline/PreAnalysis.py \\
-    --exp "$GLOBAL_DIR" \\
-    --analysis_dir "$SAVE_PATH"
-"""
-
-    def _export_script(self):
+    def _save_config(self):
+        """Write the parameters to <experiment>/pipeline_config.yaml."""
         if not self.state.global_dir:
             QMessageBox.warning(self, "No experiment", "Select an experiment first (Tab 0).")
-            return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save Shell Script", "run_processes.sh", "Shell Scripts (*.sh)")
-        if not path:
-            return
-        with open(path, "w") as f:
-            f.write(self._generate_script())
-        os.chmod(path, 0o755)
-        self.txt_log.append(f"Exported: {path}")
+            return None
+        path = os.path.join(self.state.global_dir, pipeline_config.CONFIG_NAME)
+        try:
+            pipeline_config.write_config(path, self._config_updates(), "preprocess_gui.py")
+        except (OSError, pipeline_config.ConfigError) as e:
+            QMessageBox.warning(self, "Could not save config", str(e))
+            return None
+        self.txt_log.append(f"Saved: {path}")
+        return path
 
     def _run_pipeline(self):
-        if not self.state.global_dir:
-            QMessageBox.warning(self, "No experiment", "Select an experiment first (Tab 0).")
+        if self._save_config() is None:
             return
 
         s = self.state
@@ -1229,7 +1146,7 @@ class DuplicateTab(QWidget):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    viewer = napari.Viewer(title="Cell Analysis – Preprocessing")
+    viewer = napari.Viewer(title="Cell Trainer – Preprocessing")
     state = PipelineState()
 
     tabs = QTabWidget()

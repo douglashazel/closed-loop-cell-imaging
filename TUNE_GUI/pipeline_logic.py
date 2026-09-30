@@ -1,5 +1,4 @@
-"""Pure-numpy helpers lifted from preprocess_gui.py + a phase-correlation
-auto-shift that is new for the web GUI.
+"""Pure-numpy helpers lifted from preprocess_gui.py.
 
 Kept backend-only (no Qt, no napari) so the Flask endpoints can reuse them
 directly.
@@ -21,6 +20,13 @@ def timepoint_sort_key(fname: str) -> int:
     return int(m.group(1)) if m else 10**9
 
 
+def timepoint_token(fname: str) -> int:
+    """The frame number Stage 1 keys on (trajectories.py extract_number):
+    the timepoint_NNNNN token, or -1 if the name has none."""
+    m = re.search(r"timepoint_(\d+)", fname)
+    return int(m.group(1)) if m else -1
+
+
 def load_segmentation(path: str) -> np.ndarray:
     seg = np.load(path, allow_pickle=True)
     if isinstance(seg, dict):
@@ -31,7 +37,7 @@ def load_segmentation(path: str) -> np.ndarray:
         return seg
 
 
-# ── image → PNG helpers (lifted from PE_Pipeline/V6) ───────────────────────
+# ── image → PNG helpers ────────────────────────────────────────────────────
 def normalize_gray(img: np.ndarray) -> np.ndarray:
     if img is None:
         return None
@@ -125,63 +131,7 @@ def all_mean_neighbor_distances(centroids_by_id: dict) -> dict:
     return out
 
 
-# ── ROI filtering (lifted from ROITab._update_display) ─────────────────────
-def roi_filter(seg: np.ndarray, radius: int, y_shift: int, x_shift: int):
-    h, w = seg.shape[:2]
-    cx = w / 2 + x_shift
-    cy = h / 2 + y_shift
-
-    cell_ids = np.unique(seg)
-    cell_ids = cell_ids[cell_ids != 0]
-    if len(cell_ids) == 0:
-        return np.zeros_like(seg), 0, (cx, cy)
-
-    cxs, cys = [], []
-    for cid in cell_ids:
-        ys, xs = np.where(seg == cid)
-        cxs.append(float(xs.mean()))
-        cys.append(float(ys.mean()))
-    cxs = np.array(cxs)
-    cys = np.array(cys)
-
-    inside = (cxs - cx) ** 2 + (cys - cy) ** 2 <= radius**2
-    valid = cell_ids[inside]
-    filtered = np.where(np.isin(seg, valid), seg, 0)
-    return filtered, int(len(valid)), (cx, cy)
-
-
-# ── Phase correlation (new) ────────────────────────────────────────────────
-def phase_correlation_shift(img_a: np.ndarray, img_b: np.ndarray) -> tuple:
-    """Return (dx, dy) such that shifting img_b by (-dx, -dy) aligns it with
-    img_a. Uses straight-forward FFT cross power spectrum."""
-    a = img_a.astype(np.float32)
-    b = img_b.astype(np.float32)
-    if a.ndim == 3:
-        a = a.mean(axis=-1)
-    if b.ndim == 3:
-        b = b.mean(axis=-1)
-    # Pad to same shape (they should already match)
-    h = min(a.shape[0], b.shape[0])
-    w = min(a.shape[1], b.shape[1])
-    a = a[:h, :w]
-    b = b[:h, :w]
-
-    fa = np.fft.fft2(a)
-    fb = np.fft.fft2(b)
-    r = fa * np.conj(fb)
-    eps = 1e-12
-    r /= np.abs(r) + eps
-    corr = np.fft.ifft2(r).real
-
-    peak = np.unravel_index(np.argmax(corr), corr.shape)
-    dy, dx = peak
-    if dy > h // 2:
-        dy -= h
-    if dx > w // 2:
-        dx -= w
-    return int(dx), int(dy)
-
-
+# ── Shift tab split view ───────────────────────────────────────────────────
 def split_frames_png(img_prev: np.ndarray, img_curr: np.ndarray) -> tuple:
     """Return (combined_uint8, left_width) for ShiftTab's split view."""
     p = normalize_gray(img_prev)
@@ -228,10 +178,12 @@ def scan_experiments(experiments_root: str) -> list:
 def _exp_row(root: str, exp_dir: str) -> dict:
     frames_dir = os.path.join(exp_dir, "frames")
     masks_dir = os.path.join(exp_dir, "masks")
-    cfg_path = os.path.join(exp_dir, "analysis", "config.txt")
+    # pipeline_config.yaml, or the analysis/config.txt older runs wrote
+    cfg_paths = (os.path.join(exp_dir, "pipeline_config.yaml"),
+                 os.path.join(exp_dir, "analysis", "config.txt"))
     n_frames = sum(
         1 for f in os.listdir(frames_dir)
-        if f.endswith((".png", ".jpg", ".tif", ".tiff"))
+        if f.endswith((".png", ".jpg"))
     ) if os.path.isdir(frames_dir) else 0
     n_masks = sum(1 for f in os.listdir(masks_dir) if f.endswith(".npy")) \
         if os.path.isdir(masks_dir) else 0
@@ -240,7 +192,7 @@ def _exp_row(root: str, exp_dir: str) -> dict:
         "rel": os.path.relpath(exp_dir, root),
         "frames": n_frames,
         "masks": n_masks,
-        "has_config": os.path.isfile(cfg_path),
+        "has_config": any(os.path.isfile(p) for p in cfg_paths),
     }
 
 
@@ -248,7 +200,7 @@ def list_frames_in_dir(frames_dir: str) -> list:
     if not os.path.isdir(frames_dir):
         return []
     fs = [f for f in os.listdir(frames_dir)
-          if f.endswith((".png", ".jpg", ".tif", ".tiff"))]
+          if f.endswith((".png", ".jpg"))]
     return sorted(fs, key=timepoint_sort_key)
 
 
