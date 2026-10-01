@@ -35,7 +35,7 @@ Any license notice or attribution required by the License must also include
 the additional terms of this Tufts Open Source License Rider – Academic Use
 Only v. 1.
 
-Software: CondEvo
+Software: CellTrainer
 License: Apache 2.0
 
 
@@ -227,8 +227,6 @@ License: Apache 2.0
       file or class name and description of purpose be included on the
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
-
-   Copyright 2025 Benedikt Hartl
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
